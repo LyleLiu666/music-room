@@ -20,7 +20,8 @@
     "authoring:kit": "node scripts/build-authoring-kit.mjs",
     "predev": "npm run authoring:kit",
     "prebuild": "npm run authoring:kit",
-    "verify:imports": "node scripts/verify-imports.mjs"
+    "verify:imports": "node scripts/verify-imports.mjs",
+    "test:service": "node --test src/service/**/*.test.ts"
   },
   "dependencies": {
     "@tonejs/midi": "^2.0.28"
