@@ -1,5 +1,6 @@
 import { TRACKS, type Note, type Score, type TrackId } from './music/score.ts';
 import { encodeWav } from './wav.ts';
+import { playbackPosition, validateLoop, type BeatRange } from './audio/playback.ts';
 
 export type LeadSound = 'piano' | 'rhodes' | 'flute';
 export type Mix = { levels: Record<TrackId, number>; muted: Set<TrackId>; solo: Set<TrackId>; lead: LeadSound; volume: number };
@@ -87,17 +88,20 @@ class SoundBank {
   }
 }
 
+const impulses = new WeakMap<BaseAudioContext, AudioBuffer>();
 class Orchestra {
   context: BaseAudioContext;
   buses = new Map<TrackId, GainNode>();
   master: GainNode;
   analyser: AnalyserNode;
   sources = new Set<AudioBufferSourceNode>();
-  constructor(context: BaseAudioContext, mix: Mix) {
+  constructor(context: BaseAudioContext, mix: Mix, output: AudioNode = context.destination) {
     this.context = context;
     const dry = context.createGain();
     const reverb = context.createConvolver();
-    const impulse = context.createBuffer(2, Math.ceil(context.sampleRate * 2.2), context.sampleRate);
+    let impulse = impulses.get(context);
+    if (!impulse) {
+    impulse = context.createBuffer(2, Math.ceil(context.sampleRate * 2.2), context.sampleRate);
     let seed = 9128;
     for (let c = 0; c < 2; c++) {
       const data = impulse.getChannelData(c);
@@ -105,6 +109,8 @@ class Orchestra {
         seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
         data[i] = (seed / 2147483648 - 1) * (1 - i / data.length) ** 3 * Math.min(1, i / (context.sampleRate * .024));
       }
+    }
+    impulses.set(context, impulse);
     }
     reverb.buffer = impulse;
     const wetLow = context.createBiquadFilter(); wetLow.type = 'lowpass'; wetLow.frequency.value = 6800;
@@ -115,7 +121,7 @@ class Orchestra {
     compressor.threshold.value = -13; compressor.knee.value = 18; compressor.ratio.value = 2.4; compressor.attack.value = .015; compressor.release.value = .2;
     this.master = context.createGain();
     this.analyser = context.createAnalyser(); this.analyser.fftSize = 256;
-    dry.connect(highPass).connect(compressor).connect(this.master).connect(this.analyser).connect(context.destination);
+    dry.connect(highPass).connect(compressor).connect(this.master).connect(this.analyser).connect(output);
     for (const track of TRACKS) {
       const filter = context.createBiquadFilter();
       filter.type = 'lowpass'; filter.frequency.value = track.id === 'bass' ? 1600 : track.id === 'rhodes' ? 6000 : 15500;
@@ -141,14 +147,14 @@ class Orchestra {
     }
     if (immediate) this.master.gain.setValueAtTime(mix.volume, now); else this.master.gain.setTargetAtTime(mix.volume, now, .015);
   }
-  note(bank: SoundBank, note: Note, bpm: number, start: number, lead: LeadSound, elapsed = 0) {
+  note(bank: SoundBank, note: Note, bpm: number, start: number, lead: LeadSound, elapsed = 0, boundary = Infinity) {
     const context = this.context, duration = note.duration * 60 / bpm;
     const kind = note.track === 'melody' ? lead : note.track === 'piano' ? 'piano' : note.track;
     const sample = bank.sound(context, kind, note.pitch);
     const playbackRate = 2 ** ((note.pitch - sample.root) / 12);
     const release = kind === 'piano' ? .7 : kind === 'strings' ? .38 : kind === 'flute' ? .09 : kind === 'rhodes' ? .26 : kind === 'pluck' ? .6 : kind === 'cymbal' ? 1.25 : .055;
     const total = Math.min(duration + release, sample.buffer.duration / playbackRate);
-    if (elapsed >= total) return;
+    if (elapsed >= total || boundary <= start) return;
     const source = context.createBufferSource(); source.buffer = sample.buffer; source.playbackRate.value = playbackRate;
     const gain = context.createGain();
     const attack = kind === 'strings' ? .15 : kind === 'flute' ? .035 : .003;
@@ -161,104 +167,164 @@ class Orchestra {
     source.connect(gain).connect(this.inputs.get(note.track)!);
     this.sources.add(source);
     source.onended = () => { source.disconnect(); gain.disconnect(); this.sources.delete(source); };
-    source.start(start, elapsed * playbackRate); source.stop(start + total - elapsed);
+    source.start(start, elapsed * playbackRate); source.stop(Math.min(start + total - elapsed, boundary));
   }
   stop() {
     for (const source of this.sources) { try { source.stop(); } catch { /* already ended */ } }
     this.sources.clear();
   }
+  dispose() { this.stop(); this.analyser.disconnect(); this.master.disconnect(); }
 }
+
+type Pass = { graph: Orchestra; from: number; end: number; audioStart: number; boundary: number; index: number; restored: boolean };
 
 export class MusicEngine {
   score: Score;
   mix: Mix = defaultMix();
   context?: AudioContext;
+  output?: GainNode;
   graph?: Orchestra;
   bank = new SoundBank();
   playing = false;
   position = 0;
   anchor = 0;
-  index = 0;
-  timer?: ReturnType<typeof setInterval>;
   ready = false;
   loading?: Promise<void>;
+  loop?: BeatRange;
+  timer?: ReturnType<typeof setInterval>;
+  private passes: Pass[] = [];
+  private from = 0;
+  private audioStart = 0;
+  private nextBoundary = 0;
+  private retirement = new Set<ReturnType<typeof setTimeout>>();
   constructor(score: Score) { this.score = score; }
   setScore(score: Score) {
-    this.pause();
-    this.score = score;
-    this.position = 0;
-    this.index = 0;
-    this.mix = defaultMix();
+    this.pause(); this.score = score; this.position = 0; this.loop = undefined; this.mix = defaultMix();
   }
   async prepare(progress: (fraction: number) => void = () => {}) {
     this.context ??= new AudioContext({ sampleRate: 44100 });
+    if (!this.output) { this.output = this.context.createGain(); this.output.connect(this.context.destination); }
     await this.context.resume();
     if (this.ready) return;
     this.loading ??= this.bank.load(this.context, progress).then(() => { this.ready = true; });
     try { await this.loading; } catch (error) { this.loading = undefined; throw error; }
   }
-  currentTime() { return this.playing ? Math.min(this.score.duration, this.context!.currentTime - this.anchor) : this.position; }
-  play(from = this.position) {
-    if (!this.ready || !this.context) throw new Error('请先加载音色');
-    this.pause();
-    this.position = from >= this.score.duration ? 0 : from;
-    this.graph = new Orchestra(this.context, this.mix);
-    this.anchor = this.context.currentTime + .06 - this.position;
-    this.playing = true;
-    this.index = this.score.notes.findIndex(n => n.beat * 60 / this.score.bpm >= this.position);
-    if (this.index < 0) this.index = this.score.notes.length;
-    // Restore sustained notes when starting in the middle of a passage.
-    for (const note of this.score.notes.slice(0, this.index)) {
-      const elapsed = this.position - note.beat * 60 / this.score.bpm;
-      if (elapsed >= 0 && elapsed < note.duration * 60 / this.score.bpm) this.graph.note(this.bank, note, this.score.bpm, this.context.currentTime + .06, this.mix.lead, elapsed);
-    }
-    this.graph.master.gain.cancelScheduledValues(this.context.currentTime);
-    this.graph.master.gain.setValueAtTime(0, this.context.currentTime);
-    this.graph.master.gain.linearRampToValueAtTime(this.mix.volume, this.context.currentTime + .09);
-    const fadeStart = this.score.duration - Math.min(1.5, this.score.duration / 4);
-    if (this.position < fadeStart) this.graph.master.gain.setValueAtTime(this.mix.volume, this.anchor + fadeStart);
-    this.graph.master.gain.linearRampToValueAtTime(0, this.anchor + this.score.duration);
-    this.schedule();
-    this.timer = setInterval(() => this.schedule(), 40);
+  private loopSeconds() {
+    return this.loop && { start: this.loop.startBeat * 60 / this.score.bpm, end: this.loop.endBeat * 60 / this.score.bpm };
   }
-  schedule() {
-    if (!this.playing) return;
-    if (this.currentTime() >= this.score.duration) { this.pause(); this.position = this.score.duration; return; }
-    const horizon = this.context!.currentTime + .22;
-    while (this.index < this.score.notes.length) {
-      const note = this.score.notes[this.index], when = this.anchor + note.beat * 60 / this.score.bpm;
-      if (when > horizon) break;
-      this.graph!.note(this.bank, note, this.score.bpm, Math.max(when, this.context!.currentTime), this.mix.lead, Math.max(0, this.context!.currentTime - when));
-      this.index++;
+  currentTime() {
+    if (!this.playing) return this.position;
+    const now = this.context!.currentTime;
+    const active = this.passes.findLast(pass => pass.audioStart <= now);
+    if (active) this.graph = active.graph;
+    return playbackPosition(this.from, this.audioStart, now, this.score.duration, this.loopSeconds());
+  }
+  setLoop(range?: BeatRange) {
+    const valid = range && validateLoop(range, this.score), wasPlaying = this.playing;
+    const position = valid ? valid.startBeat * 60 / this.score.bpm : this.currentTime();
+    this.pause(); this.loop = valid; this.position = position;
+    if (wasPlaying) this.play(position);
+  }
+  play(from = this.position) {
+    if (!this.ready || !this.context || !this.output) throw new Error('请先加载音色');
+    this.pause();
+    // Buffer synthesis can take longer than the startup lookahead. Warm it
+    // before choosing an audio start time, so the first pass is never truncated.
+    const warmed = new Set<string>();
+    for (const note of this.score.notes) {
+      const kind = note.track === 'melody' ? this.mix.lead : note.track === 'piano' ? 'piano' : note.track;
+      const key = `${kind}:${note.pitch}`;
+      if (!warmed.has(key)) { this.bank.sound(this.context, kind, note.pitch); warmed.add(key); }
     }
+    const loop = this.loopSeconds();
+    let position = Math.max(0, Math.min(this.score.duration, from));
+    if (loop && (position < loop.start || position >= loop.end)) position = loop.start;
+    else if (!loop && position >= this.score.duration) position = 0;
+    this.position = this.from = position;
+    this.audioStart = this.context.currentTime + .06;
+    this.anchor = this.audioStart - position;
+    this.playing = true;
+    const pass = this.makePass(position, this.audioStart, loop?.end ?? this.score.duration);
+    this.graph = pass.graph; this.nextBoundary = pass.boundary;
+    this.schedule(); this.timer = setInterval(() => this.schedule(), 40);
+  }
+  private makePass(from: number, audioStart: number, end: number) {
+    const index = this.score.notes.findIndex(note => note.beat * 60 / this.score.bpm >= from);
+    const pass: Pass = { graph: new Orchestra(this.context!, this.mix, this.output), from, end, audioStart, boundary: audioStart + end - from, index: index < 0 ? this.score.notes.length : index, restored: false };
+    this.passes.push(pass); this.applyPassMix(pass); return pass;
+  }
+  private applyPassMix(pass: Pass) {
+    const now = this.context!.currentTime;
+    if (now >= pass.boundary) return;
+    pass.graph.setMix(this.mix);
+    const gain = pass.graph.master.gain;
+    gain.cancelAndHoldAtTime(now);
+    const fadeIn = Math.min(.012, (pass.boundary - pass.audioStart) / 4);
+    if (now <= pass.audioStart) {
+      gain.setValueAtTime(0, pass.audioStart);
+      gain.linearRampToValueAtTime(this.mix.volume, pass.audioStart + fadeIn);
+    }
+    const fadeLength = this.loop ? .008 : Math.min(1.5, this.score.duration / 4);
+    const fadeStart = Math.max(pass.audioStart + fadeIn, pass.boundary - fadeLength);
+    if (now < fadeStart) gain.setValueAtTime(this.mix.volume, fadeStart);
+    else gain.setValueAtTime(this.mix.volume * Math.max(0, (pass.boundary - now) / (pass.boundary - fadeStart)), now);
+    gain.linearRampToValueAtTime(0, pass.boundary);
+  }
+  private schedule() {
+    if (!this.playing) return;
+    const now = this.context!.currentTime, horizon = now + .22, loop = this.loopSeconds();
+    if (!loop && now >= this.nextBoundary) { this.pause(); this.position = this.score.duration; return; }
+    // Create the next pass before its boundary; its audio times derive from the
+    // previous boundary, never from a late UI timer. No cumulative loop drift.
+    if (loop) while (this.nextBoundary <= horizon) {
+      const pass = this.makePass(loop.start, this.nextBoundary, loop.end); this.nextBoundary = pass.boundary;
+    }
+    for (const pass of this.passes) {
+      if (pass.audioStart > horizon || pass.boundary <= now) continue;
+      if (!pass.restored) {
+        for (const note of this.score.notes.slice(0, pass.index)) {
+          const elapsed = pass.from - note.beat * 60 / this.score.bpm;
+          if (elapsed >= 0 && elapsed < note.duration * 60 / this.score.bpm) {
+            const start = Math.max(pass.audioStart, now);
+            pass.graph.note(this.bank, note, this.score.bpm, start, this.mix.lead, elapsed + start - pass.audioStart, pass.boundary);
+          }
+        }
+        pass.restored = true;
+      }
+      while (pass.index < this.score.notes.length) {
+        const note = this.score.notes[pass.index], noteTime = note.beat * 60 / this.score.bpm;
+        const when = pass.audioStart + noteTime - pass.from;
+        if (noteTime >= pass.end || when > horizon) break;
+        pass.index++;
+        if (when < pass.audioStart) continue;
+        const start = Math.max(when, now);
+        pass.graph.note(this.bank, note, this.score.bpm, start, this.mix.lead, start - when, pass.boundary);
+      }
+    }
+    this.currentTime();
+    const expired = this.passes.filter(pass => pass.boundary <= now);
+    for (const pass of expired) pass.graph.dispose();
+    this.passes = this.passes.filter(pass => pass.boundary > now);
   }
   pause() {
     if (this.playing) this.position = this.currentTime();
-    this.playing = false;
-    if (this.timer) clearInterval(this.timer);
-    this.graph?.stop();
-    // Dispose the complete graph, including convolution tails, on pause/seek.
-    this.graph?.analyser.disconnect();
-    this.graph = undefined;
+    this.playing = false; if (this.timer) clearInterval(this.timer); this.timer = undefined;
+    for (const pass of this.passes) {
+      // Fade the old graph before disposal; no old notes survive a transition.
+      const now = this.context!.currentTime, gain = pass.graph.master.gain;
+      gain.cancelAndHoldAtTime(now); gain.linearRampToValueAtTime(0, now + .008);
+      const timer = setTimeout(() => { pass.graph.dispose(); this.retirement.delete(timer); }, 20);
+      this.retirement.add(timer);
+    }
+    this.passes = []; this.graph = undefined;
   }
   seek(seconds: number) {
     const next = Math.max(0, Math.min(this.score.duration, seconds));
+    const loop = this.loopSeconds();
+    if (loop && (next < loop.start || next >= loop.end)) this.loop = undefined;
     if (this.playing) this.play(next); else this.position = next;
   }
-  updateMix() {
-    if (!this.graph || !this.context) return;
-    this.graph.setMix(this.mix);
-    const now = this.context.currentTime, end = this.anchor + this.score.duration;
-    const remaining = end - now;
-    // Reapply the ending after a volume adjustment, so an older automation
-    // point cannot restore a previous volume during the last chord.
-    this.graph.master.gain.cancelAndHoldAtTime(now);
-    if (remaining > 1.5) {
-      this.graph.master.gain.setTargetAtTime(this.mix.volume, now, .015);
-      this.graph.master.gain.setValueAtTime(this.mix.volume, end - 1.5);
-    } else this.graph.master.gain.setValueAtTime(this.mix.volume * Math.max(0, remaining / 1.5), now);
-    this.graph.master.gain.linearRampToValueAtTime(0, end);
-  }
+  updateMix() { for (const pass of this.passes) this.applyPassMix(pass); }
   async render(progress: (fraction: number) => void = () => {}) {
     const score = this.score;
     const levels = { ...this.mix.levels }, muted = new Set(this.mix.muted), solo = new Set(this.mix.solo);

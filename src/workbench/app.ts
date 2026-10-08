@@ -3,8 +3,11 @@ import { SONGS, WORKS, versionsOf, songById, type Song } from '../catalog.ts';
 import { MusicEngine, defaultMix } from '../audio.ts';
 import { scoreToMidi } from '../midi.ts';
 
-import { windowAt, beatAtSeconds, secondsAtBeat, notesInRange, pitchExtent } from './view.ts';
+import { windowAt, beatAtSeconds, secondsAtBeat, notesInRange, pitchExtent, selectionFromBars } from './view.ts';
 
+import type { BeatRange } from '../audio/playback.ts';
+
+let selection: BeatRange | undefined, selecting = false;
 let viewStart = 0, viewSize = 4, follow = true;
 let selected = songById(location.hash.slice(1)) ?? SONGS[0];
 let score = selected.compose();
@@ -31,6 +34,7 @@ app.innerHTML = `
     <div class="status-row"><span id="status" role="status" aria-live="polite"></span></div>
     <section class="overview-panel" aria-label="整曲概览"><div class="panel-title"><h2>整曲概览</h2><span id="score-info"></span></div><div class="sections"></div><div class="overview-wrap"><canvas id="overview" aria-label="整曲音符概览"></canvas><div id="overview-range"></div><div id="overview-playhead"></div></div></section>
     <div class="view-toolbar"><h2 id="view-title">当前片段</h2><button id="view-prev" aria-label="查看前一片段">←</button><button id="view-next" aria-label="查看后一片段">→</button><label>起始小节 <input id="view-start" type="number" min="1" value="1" aria-label="查看起始小节" /></label><label>查看范围 <select id="view-size" aria-label="查看范围"><option value="4">4 小节</option><option value="8">8 小节</option></select></label><button id="follow" aria-pressed="true">跟随播放</button></div>
+    <div class="selection-toolbar" aria-label="片段选择"><button id="select-view">选择当前片段</button><button id="select-drag" aria-pressed="false">框选小节</button><label>从 <input id="selection-start" type="number" min="1" value="1" aria-label="选区起始小节" /></label><label>至 <input id="selection-end" type="number" min="1" value="4" aria-label="选区结束小节" /></label><span id="selection-label">未选择片段</span><button id="loop" aria-pressed="false" disabled>循环此片段</button><button id="clear-selection" disabled>清除选择</button></div>
     <section class="arrangement" aria-label="编曲时间线">
       <div class="panel-title"><h2>片段音符</h2><span class="hint">点击音符区域跳转</span></div>
       <div class="arrangement-scroll"><div class="arrangement-inner">
@@ -69,7 +73,7 @@ async function toggle() {
   finally { if (epoch === selectionEpoch) { busy = false; playButton.disabled = false; } }
 }
 playButton.addEventListener('click', toggle);
-document.querySelector('#restart')!.addEventListener('click', () => engine.seek(0));
+document.querySelector('#restart')!.addEventListener('click', () => navigate(engine.loop ? secondsAtBeat(engine.loop.startBeat, score.bpm) : 0));
 seek.addEventListener('pointerdown', () => { dragging = true; });
 seek.addEventListener('input', () => { navigate(Number(seek.value)); });
 seek.addEventListener('change', () => { dragging = false; });
@@ -128,11 +132,56 @@ exportButton.addEventListener('click', async () => {
   finally { rendering = false; exportButton.disabled = false; exportButton.textContent = '↓ 导出试听 WAV'; }
 });
 
-function navigate(seconds: number) { engine.seek(seconds); }
+function navigate(seconds: number) {
+  const loop = engine.loop; engine.seek(seconds);
+  if (loop && !engine.loop) report('已退出片段循环。');
+  updateSelectionUI();
+}
+function updateSelectionUI() {
+  const loop = document.querySelector<HTMLButtonElement>('#loop')!;
+  loop.disabled = !selection; loop.setAttribute('aria-pressed', String(!!engine.loop));
+  loop.textContent = engine.loop ? '关闭循环' : '循环此片段';
+  document.querySelector<HTMLButtonElement>('#clear-selection')!.disabled = !selection;
+  document.querySelector('#selection-label')!.textContent = selection ? `第 ${selection.startBeat / 4 + 1}—${selection.endBeat / 4} 小节${engine.loop ? ' · 循环中' : ''}` : '未选择片段';
+  for (const id of ['selection-start', 'selection-end']) document.querySelector<HTMLInputElement>(`#${id}`)!.max = String(score.bars.length);
+  if (selection) {
+    document.querySelector<HTMLInputElement>('#selection-start')!.value = String(selection.startBeat / 4 + 1);
+    document.querySelector<HTMLInputElement>('#selection-end')!.value = String(selection.endBeat / 4);
+  } else {
+    const range = windowAt(score, viewStart, viewSize);
+    document.querySelector<HTMLInputElement>('#selection-start')!.value = String(range.startBar + 1);
+    document.querySelector<HTMLInputElement>('#selection-end')!.value = String(range.endBar);
+  }
+}
+function selectRange(range?: BeatRange) {
+  selection = range;
+  if (engine.loop) engine.setLoop(range);
+  updateSelectionUI(); drawLanes();
+}
+document.querySelector('#select-view')!.addEventListener('click', () => {
+  const range = windowAt(score, viewStart, viewSize); selectRange({ startBeat: range.startBeat, endBeat: range.endBeat });
+});
+document.querySelector('#select-drag')!.addEventListener('click', event => {
+  selecting = !selecting; (event.currentTarget as HTMLElement).setAttribute('aria-pressed', String(selecting));
+  for (const canvas of document.querySelectorAll<HTMLCanvasElement>('[data-lane]')) canvas.style.touchAction = selecting ? 'none' : 'pan-y';
+  report(selecting ? '在音符区域拖动，选择完整小节。' : '音符区域已恢复点击跳转。');
+});
+for (const id of ['selection-start', 'selection-end']) document.querySelector(`#${id}`)!.addEventListener('change', () => {
+  try { selectRange(selectionFromBars(Number(document.querySelector<HTMLInputElement>('#selection-start')!.value), Number(document.querySelector<HTMLInputElement>('#selection-end')!.value), score.bars.length)); }
+  catch (error) { updateSelectionUI(); report((error as Error).message); }
+});
+document.querySelector('#clear-selection')!.addEventListener('click', () => { selectRange(); report('已清除片段选择和循环。'); });
+document.querySelector('#loop')!.addEventListener('click', () => {
+  if (!selection) return;
+  engine.setLoop(engine.loop ? undefined : selection); updateSelectionUI();
+  if (engine.loop) setView(selection.startBeat / 4, false);
+  report(engine.loop ? '已启用片段循环。播放将从选区开始，导出仍为完整曲目。' : '已关闭循环。');
+});
 function setView(bar: number, manual = true) {
   viewStart = windowAt(score, bar, viewSize).startBar;
   if (manual) follow = false;
   document.querySelector('#follow')!.setAttribute('aria-pressed', String(follow));
+  if (!selection) updateSelectionUI();
   drawLanes();
 }
 function drawLanes() {
@@ -150,6 +199,10 @@ function drawLanes() {
     canvas.width = Math.ceil(rect.width * ratio); canvas.height = Math.ceil(rect.height * ratio);
     const context = canvas.getContext('2d')!; context.scale(ratio, ratio);
     const all = score.notes.filter(n => n.track === track.id), { low, high } = pitchExtent(all);
+    if (selection) {
+      const start = Math.max(range.startBeat, selection.startBeat), end = Math.min(range.endBeat, selection.endBeat);
+      if (end > start) { context.fillStyle = '#cce7a418'; context.fillRect((start - range.startBeat) / span * rect.width, 0, (end - start) / span * rect.width, rect.height); }
+    }
     context.strokeStyle = '#ffffff0b';
     for (let beat = 0; beat <= span; beat++) {
       context.lineWidth = beat % 4 === 0 ? 1.3 : .5;
@@ -181,9 +234,27 @@ function drawOverview() {
   marker.style.width = `${(range.endBar - range.startBar) / score.bars.length * 100}%`;
 }
 for (const canvas of document.querySelectorAll<HTMLCanvasElement>('[data-lane]')) canvas.addEventListener('click', event => {
+  if (selecting) return;
   const rect = canvas.getBoundingClientRect(), range = windowAt(score, viewStart, viewSize);
   navigate(secondsAtBeat(range.startBeat + (event.clientX - rect.left) / rect.width * (range.endBeat - range.startBeat), score.bpm));
 });
+for (const canvas of document.querySelectorAll<HTMLCanvasElement>('[data-lane]')) {
+  let firstBar: number | undefined;
+  const barAt = (event: PointerEvent) => {
+    const rect = canvas.getBoundingClientRect(), range = windowAt(score, viewStart, viewSize);
+    return Math.max(range.startBar, Math.min(range.endBar - 1, range.startBar + Math.floor((event.clientX - rect.left) / rect.width * (range.endBar - range.startBar)))) + 1;
+  };
+  canvas.addEventListener('pointerdown', event => {
+    if (!selecting) return;
+    firstBar = barAt(event); canvas.setPointerCapture(event.pointerId); event.preventDefault();
+  });
+  canvas.addEventListener('pointerup', event => {
+    if (firstBar === undefined) return;
+    selectRange(selectionFromBars(firstBar, barAt(event), score.bars.length)); firstBar = undefined;
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  });
+  canvas.addEventListener('pointercancel', () => { firstBar = undefined; });
+}
 document.querySelector('#overview')!.addEventListener('click', event => {
   const canvas = event.currentTarget as HTMLCanvasElement, rect = canvas.getBoundingClientRect();
   const bar = Math.min(score.bars.length - 1, Math.floor(((event as MouseEvent).clientX - rect.left) / rect.width * score.bars.length));
@@ -247,7 +318,12 @@ function showSong(song: Song, navigation: 'push' | 'replace' | 'none' = 'push') 
   selected = song; score = song.compose();
   const volume = engine.mix.volume;
   engine.setScore(score); engine.mix.volume = volume;
-  viewStart = 0; follow = true;
+  viewStart = 0; follow = true; selection = undefined; selecting = false;
+  document.querySelector('#select-drag')!.setAttribute('aria-pressed', 'false');
+  for (const canvas of document.querySelectorAll<HTMLCanvasElement>('[data-lane]')) canvas.style.touchAction = 'pan-y';
+  document.querySelector<HTMLInputElement>('#selection-start')!.value = '1';
+  document.querySelector<HTMLInputElement>('#selection-end')!.value = String(Math.min(4, score.bars.length));
+  updateSelectionUI();
   document.querySelector('#follow')!.setAttribute('aria-pressed', 'true');
   busy = false; dragging = false; playButton.disabled = false;
   seek.max = String(score.duration); seek.value = '0';
@@ -279,7 +355,7 @@ function showSong(song: Song, navigation: 'push' | 'replace' | 'none' = 'push') 
   document.title = `${song.title} · ${song.edition} · Music Room`;
   if (navigation !== 'none') history[navigation === 'push' ? 'pushState' : 'replaceState'](null, '', `#${song.id}`);
   report(`已选择《${song.title}》${song.edition}。点击播放开始试听。`);
-  Object.assign(window, { musicRoom: { engine, score, songId: song.id, view: () => ({ startBar: viewStart, size: viewSize, follow }) } });
+  Object.assign(window, { musicRoom: { engine, score, songId: song.id, view: () => ({ startBar: viewStart, size: viewSize, follow }), selection: () => selection } });
 }
 for (const card of document.querySelectorAll<HTMLButtonElement>('[data-song]')) card.addEventListener('click', () => {
   const song = songById(card.dataset.song!);

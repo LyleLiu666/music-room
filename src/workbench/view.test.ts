@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { windowAt, beatAtSeconds, secondsAtBeat, notesInRange, pitchExtent } from './view.ts';
+import { windowAt, beatAtSeconds, secondsAtBeat, notesInRange, pitchExtent, selectionFromBars } from './view.ts';
 import { compose } from '../songs/rain-letter-v2.ts';
 
 test('local windows show actual remaining bars without changing the score', () => {
@@ -26,4 +26,10 @@ test('local view includes notes sustained from before its left edge', () => {
   assert.deepEqual(notesInRange(notes, 4, 8), [notes[0]]);
   assert.deepEqual(pitchExtent(notes), { low: 60, high: 90 });
   assert.deepEqual(pitchExtent([]), { low: 60, high: 72 });
+});
+
+test('bar selections normalize reverse drags and reject invalid numeric entries', () => {
+  assert.deepEqual(selectionFromBars(12, 9, 72), { startBeat: 32, endBeat: 48 });
+  assert.deepEqual(selectionFromBars(72, 72, 72), { startBeat: 284, endBeat: 288 });
+  for (const pair of [[0, 4], [1, 73], [1.5, 3], [NaN, 2]]) assert.throws(() => selectionFromBars(pair[0], pair[1], 72));
 });
