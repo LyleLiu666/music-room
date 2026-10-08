@@ -1,0 +1,47 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,rm,readFile} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+import {MusicService} from '../service/service.ts';
+import {processRenderer} from '../service/render/process.ts';
+import {serveHttp} from './http.ts';
+import {fileURLToPath} from 'node:url';
+const example=JSON.parse(await readFile(new URL('../music/authoring/example.json',import.meta.url),'utf8'));
+const rootAssets=new URL('../../dist/',import.meta.url);
+const assets={read:(path:string)=>readFile(new URL(path,rootAssets)),has:()=>true,embedded:false};
+async function wait(client:Client,id:string){for(let i=0;i<150;i++){const x=await client.callTool({name:'get_job',arguments:{jobId:id}});const value=JSON.parse((x.content as any)[0].text);if(!['queued','running'].includes(value.state))return value;await new Promise(r=>setTimeout(r,30));}throw new Error('timeout');}
+test('official HTTP MCP client authors, renders, reads artifacts/resources and rejects bad calls',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'music-http-'));const service=await MusicService.open(root,processRenderer(),assets.read,false),http=await serveHttp(service,assets);
+  const client=new Client({name:'integration',version:'1'});t.after(async()=>{await client.close();await service.jobs.close();await http.close();await service.store.close();await rm(root,{recursive:true,force:true});});
+  await client.connect(new StreamableHTTPClientTransport(new URL(http.runtime.url+'/mcp'),{requestInit:{headers:{authorization:`Bearer ${http.runtime.token}`}}}));
+  assert.ok((await client.listTools()).tools.some(x=>x.name==='render_revision'));
+  const guide=await client.readResource({uri:'music-room://authoring/guide'});assert.ok((guide.contents[0] as any).text.includes('music-room-score'));
+  const invoke=async(name:string,args:Record<string,unknown>={})=>{const result=await client.callTool({name,arguments:args});assert.ok(!result.isError,JSON.stringify(result));return JSON.parse((result.content as any)[0].text);};
+  await invoke('create_project',{projectId:example.work.id,title:example.work.title});
+  await invoke('validate_score',{compositionJson:JSON.stringify(example)});
+  await invoke('import_revision',{compositionJson:JSON.stringify(example)});
+  const ctx=await invoke('get_authoring_context',{projectId:example.work.id,stage:'expand'});assert.equal(ctx.revision.composition.revision.id,example.revision.id);
+  const job=await invoke('render_revision',{projectId:example.work.id,revisionId:example.revision.id,idempotencyKey:'mcp-render'});
+  const done=await wait(client,job.id);assert.equal(done.state,'succeeded',done.error??'');
+  const wav=await fetch(`${http.runtime.url}/artifacts/${example.work.id}/${example.revision.id}/${job.id}`,{headers:{authorization:`Bearer ${http.runtime.token}`}});
+  assert.equal((await wav.arrayBuffer()).byteLength,44+20*44100*4);
+  await invoke('add_feedback',{projectId:example.work.id,revisionId:example.revision.id,text:'主题保留'});
+  assert.equal((await invoke('get_project',{projectId:example.work.id})).feedback[0].text,'主题保留');
+  assert.ok((await client.callTool({name:'import_revision',arguments:{compositionJson:JSON.stringify(example)}})).isError);
+  assert.equal((await fetch(http.runtime.url+'/api/status',{method:'POST'})).status,401);
+  assert.equal((await fetch(http.runtime.url+'/api/status',{method:'POST',headers:{origin:'https://evil.invalid',authorization:`Bearer ${http.runtime.token}`}})).status,403);
+});
+test('stdio MCP starts one shared service and a second connection reuses its project state',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'music-stdio-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const connect=async()=>{const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('./dev.ts',import.meta.url)),'mcp','--workspace',root],stderr:'pipe'});const c=new Client({name:'stdio-integration',version:'1'});await c.connect(transport);return c;};
+  const a=await connect();t.after(()=>a.close());
+  await a.callTool({name:'import_revision',arguments:{compositionJson:JSON.stringify(example)}});
+  const b=await connect();t.after(()=>b.close());const result=await b.callTool({name:'get_revision',arguments:{projectId:example.work.id,revisionId:example.revision.id}});
+  assert.ok(!result.isError);assert.equal(JSON.parse((result.content as any)[0].text).composition.revision.id,example.revision.id);
+  await b.close(); assert.ok(!(await a.callTool({name:'status',arguments:{}})).isError);
+  await a.close();
+});

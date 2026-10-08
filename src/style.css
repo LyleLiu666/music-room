@@ -1069,3 +1069,17 @@ footer a:hover {
   color: var(--muted);
 }
 .import-drop.drag-over { background: #354629; border-color: var(--accent); color: var(--accent); }
+
+.service-panel { margin: 24px 0; padding: 20px; border: 1px solid var(--line, #3d4930); border-radius: 4px; }
+.service-panel h2 { margin-top: 0; font-size: 18px; }
+.service-panel textarea, .service-tools textarea, .service-tools input:not([type="checkbox"]) { width: 100%; box-sizing: border-box; }
+.service-tools pre { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11px; }
+.service-tools label { display: block; margin: 12px 0; }
+.service-job { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 12px 0; padding-bottom: 10px; border-bottom: 1px solid var(--line, #3d4930); }
+.service-job span { flex: 1 1 100%; overflow-wrap: anywhere; }
+#service-location, #service-state, #service-feedback-list { overflow-wrap: anywhere; }
+#service-audio audio { width: 100%; margin-bottom: 12px; }
+.service-panel button { margin: 8px 8px 8px 0; }
+
+.service-tools input:not([type="checkbox"]), .service-tools textarea, .service-panel textarea { background: #20251b; color: #e7e9df; border: 1px solid #526044; border-radius: 3px; font: inherit; padding: 8px; }
+.service-panel textarea { margin: 8px 0; }

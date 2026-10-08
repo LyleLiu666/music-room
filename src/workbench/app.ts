@@ -1,3 +1,4 @@
+import { backend, ServicePanel, type ServerSnapshot } from './service.ts';
 import { TRACKS, type TrackId } from '../music/score.ts';
 import { SONGS as BUILTIN_SONGS, WORKS as BUILTIN_WORKS, versionsOf as workVersions, type Song } from '../catalog.ts';
 import { ImportedLibrary } from '../music/import/library.ts';
@@ -12,7 +13,14 @@ import { windowAt, beatAtSeconds, secondsAtBeat, notesInRange, pitchExtent, sele
 import { comparisonMapping } from './comparison.ts';
 import type { BeatRange } from '../audio/playback.ts';
 
-const imported = new ImportedLibrary({ getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) }, BUILTIN_WORKS, BUILTIN_SONGS);
+const imported = new ImportedLibrary(backend ? {getItem:()=>null,setItem:()=>{}} : { getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) }, BUILTIN_WORKS, BUILTIN_SONGS);
+let serverSnapshot: ServerSnapshot | undefined;
+let serviceWarning = '';
+if (backend) {
+  try {serverSnapshot=await backend.call('library');imported.documents=serverSnapshot!.documents.filter(d=>!BUILTIN_SONGS.some(s=>s.id===d.revision.id));}
+  catch(error) {serviceWarning=`本地服务连接失败：${(error as Error).message}`;}
+}
+let servicePanel: ServicePanel | undefined;
 let SONGS = [...BUILTIN_SONGS, ...imported.songs], WORKS = [...BUILTIN_WORKS, ...imported.works];
 const songById = (id: string) => SONGS.find(song => song.id === id);
 const versionsOf = (workId: string) => workVersions(workId, SONGS);
@@ -139,6 +147,12 @@ document.querySelector('#midi')!.addEventListener('click', () => {
 });
 exportButton.addEventListener('click', async () => {
   if (rendering) return;
+  if (backend) {
+    rendering=true;exportButton.disabled=true;
+    try {const job=await backend.render(currentDocument(),cloneMix(engine.mix));report(`已提交后台渲染 ${job.id}。任务区可查看、试听和下载；关闭网页后仍会继续。`);await servicePanel?.refresh();}
+    catch(error) {report(`提交失败：${(error as Error).message}`);}
+    finally {rendering=false;exportButton.disabled=false;}return;
+  }
   const exportedSong = selected, duration = score.duration;
   rendering = true; exportButton.disabled = true;
   try {
@@ -443,8 +457,8 @@ function showSong(song: Song, navigation: 'push' | 'replace' | 'none' = 'push') 
   document.querySelector('#score-info')!.textContent = `${score.bars.length} 小节 · ${song.key}`;
   document.querySelector<HTMLAnchorElement>('#score-download')!.href = `./${song.files.score}`;
   const finished = document.querySelector<HTMLAnchorElement>('#finished-audio')!;
-  finished.href = `./${song.files.wav}`; finished.hidden = !song.files.wav;
-  document.querySelector<HTMLButtonElement>('#remove-import')!.hidden = !imported.documents.some(d => d.revision.id === song.id);
+  finished.href = `./${song.files.wav}`; finished.hidden = !!backend || !song.files.wav;
+  document.querySelector<HTMLButtonElement>('#remove-import')!.hidden = !!backend || !imported.documents.some(d => d.revision.id === song.id);
   document.querySelector<HTMLSelectElement>('#lead')!.value = 'piano';
   document.querySelector<HTMLInputElement>('#volume')!.value = String(volume);
   for (const input of document.querySelectorAll<HTMLInputElement>('.track-level')) input.value = '1';
@@ -457,6 +471,7 @@ function showSong(song: Song, navigation: 'push' | 'replace' | 'none' = 'push') 
     if (active) card.closest('details')!.open = true;
   }
   updateMixerUI(); drawLanes(); refreshComparisonChoices();
+  void servicePanel?.selectionChanged();
   if (authoringStage.value === 'expand') refreshAuthoringPrompt();
   document.title = `${song.title} · ${song.edition} · Music Room`;
   if (navigation !== 'none') history[navigation === 'push' ? 'pushState' : 'replaceState'](null, '', `#${song.id}`);
@@ -472,6 +487,7 @@ function refreshImportedLibrary() {
   const ids = new Set(SONGS.map(s => s.id));
   for (const id of scores.keys()) if (!ids.has(id)) scores.delete(id);
   for (const song of SONGS) if (!scores.has(song.id)) scores.set(song.id, song.compose());
+  if (serverSnapshot) WORKS=serverSnapshot.projects.map(p=>({id:p.id,title:p.title,defaultVersionId:p.defaultRevisionId??''}));
   renderLibrary();
 }
 document.querySelector('#library-works')!.addEventListener('click', event => {
@@ -490,8 +506,14 @@ async function importCompositionFile(file: File) {
     const isMidi = /\.(mid|midi)$/i.test(file.name);
     if (!isMidi && !/\.json$/i.test(file.name)) throw new Error('请选择 .mid、.midi 或 .json 文件。');
     const doc = isMidi ? midiToComposition(new Uint8Array(await file.arrayBuffer()), file.name, `midi-${crypto.randomUUID()}`) : validateComposition(await file.text());
-    imported.add(doc); refreshImportedLibrary(); comparison = undefined; showSong(songById(doc.revision.id)!);
-    report(isMidi ? 'MIDI 已保存在当前浏览器。按工作台音色演奏，踏板、弯音、表情及原混音暂不还原。请试听并下载备份。' : '乐谱已校验并保存在当前浏览器。点击播放试听；请下载 JSON / MIDI 备份。');
+    if (backend) {
+      const parent=document.querySelector<HTMLInputElement>('#service-parent')?.checked;
+      if(parent && selected.workId!==doc.work.id)throw new Error('所选父版本不属于导入文件的项目');
+      await backend.call('import_revision',{compositionJson:JSON.stringify(doc),parentId:parent?selected.id:undefined});
+      applyServerSnapshot(await backend.call('library'));
+    } else {imported.add(doc); refreshImportedLibrary();}
+    comparison = undefined; showSong(songById(doc.revision.id)!);
+    report(backend ? '版本已保存在本地项目目录。可直接试听，或提交后台渲染；原件与后续版本会保留。' : isMidi ? 'MIDI 已保存在当前浏览器。按工作台音色演奏，踏板、弯音、表情及原混音暂不还原。请试听并下载备份。' : '乐谱已校验并保存在当前浏览器。点击播放试听；请下载 JSON / MIDI 备份。');
   } catch(error) { report(`导入失败：${error instanceof Error ? error.message : error}`); }
   finally { importButton.disabled = false; importFile.value = ''; }
 }
@@ -558,6 +580,17 @@ window.addEventListener('hashchange', handleNavigation);
 window.addEventListener('popstate', handleNavigation);
 const invalidAddress = !!location.hash && !songById(location.hash.slice(1));
 showSong(selected, 'replace');
-if (imported.warning) report(imported.warning);
+if (serviceWarning) report(serviceWarning);
+else if (imported.warning) report(imported.warning);
 else if (invalidAddress) report('未找到该版本，已打开默认作品。');
 frame();
+
+function applyServerSnapshot(snapshot:ServerSnapshot) {
+  serverSnapshot=snapshot;imported.documents=snapshot.documents.filter(d=>!BUILTIN_SONGS.some(s=>s.id===d.revision.id));refreshImportedLibrary();
+}
+if(backend) {
+  const badge=document.querySelector('.local-badge')!;badge.textContent='本地服务';
+  document.querySelector('footer > span')!.textContent='本机项目与后台渲染 · 内置 MCP · 无付费服务';
+  document.querySelector('#import-drop')!.parentElement!.querySelector('p')!.textContent='版本由后台写入项目目录，清理浏览器不会丢失。';
+  servicePanel=new ServicePanel(backend,currentDocument,()=>selection?{start:selection.startBeat*60/score.bpm,end:selection.endBeat*60/score.bpm}:undefined,applyServerSnapshot,report,()=>{engine.pause();playButton.textContent='▶ 播放';});
+}
