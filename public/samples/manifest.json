@@ -1,0 +1,221 @@
+{
+  "vscoRevision": "440300901dfe9275fd84e0b7763af1f8443ae62e",
+  "assets": [
+    {
+      "file": "flute-A4.wav",
+      "source": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susvib/LDFlute_susvib_A4_v1_1.wav",
+      "license": "CC0-1.0",
+      "author": "Sam Gossner & Simon Dalzell; Elan Hickler",
+      "bytes": 1942296,
+      "sha256": "cf3c1c30943b8b8ef8b5b9ced89430c014987a037204098d002f86e424391ba9"
+    },
+    {
+      "file": "flute-A5.wav",
+      "source": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susvib/LDFlute_susvib_A5_v1_1.wav",
+      "license": "CC0-1.0",
+      "author": "Sam Gossner & Simon Dalzell; Elan Hickler",
+      "bytes": 1457676,
+      "sha256": "067a42df19ec1864389c28235a6794033471c0ffa3d7e16637396a505ca7d7fd"
+    },
+    {
+      "file": "flute-C4.wav",
+      "source": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susvib/LDFlute_susvib_C4_v1_1.wav",
+      "license": "CC0-1.0",
+      "author": "Sam Gossner & Simon Dalzell; Elan Hickler",
+      "bytes": 2009832,
+      "sha256": "e88a0ff35e6b8c29fd88bc778a4c817d955b2c3a2934def97a7d093b72e2ae97"
+    },
+    {
+      "file": "flute-C5.wav",
+      "source": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susvib/LDFlute_susvib_C5_v1_1.wav",
+      "license": "CC0-1.0",
+      "author": "Sam Gossner & Simon Dalzell; Elan Hickler",
+      "bytes": 1930938,
+      "sha256": "ecb78c59069866ea7c3327594851827cd2f50c5d411aad422269a88e53614fbe"
+    },
+    {
+      "file": "flute-E4.wav",
+      "source": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susvib/LDFlute_susvib_E4_v1_1.wav",
+      "license": "CC0-1.0",
+      "author": "Sam Gossner & Simon Dalzell; Elan Hickler",
+      "bytes": 2144718,
+      "sha256": "83d4eed0c54ebfe25fe9dfb0475fb90a88a43d11777bc2afac879b8b695e494c"
+    },
+    {
+      "file": "flute-E5.wav",
+      "source": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Woodwinds/Flute/susvib/LDFlute_susvib_E5_v1_1.wav",
+      "license": "CC0-1.0",
+      "author": "Sam Gossner & Simon Dalzell; Elan Hickler",
+      "bytes": 1586118,
+      "sha256": "6eab0a4827c43b49415cb0c846affd40e9555c884c74683422554923faf17681"
+    },
+    {
+      "file": "piano-A2.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/A2.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 81678,
+      "sha256": "20601d890f44a3c22499c7b61f52e571795df1fe5a01fac553dded7b6379e1d4"
+    },
+    {
+      "file": "piano-A3.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/A3.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 74526,
+      "sha256": "8e108fe228e34e32f6b4e61efff732eec53058a9e6f05a8d8e719598b132c4f9"
+    },
+    {
+      "file": "piano-A4.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/A4.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 61148,
+      "sha256": "a62df24a2c84cea8d18c1fa8aca7c18c877ba2b76a00a591256fa74d3ce54ac3"
+    },
+    {
+      "file": "piano-A5.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/A5.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 45747,
+      "sha256": "9e5cee1fe9cf68b7193623d46a27c8956e572c1ff234ca0e11599b556050dec6"
+    },
+    {
+      "file": "piano-C2.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/C2.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 110357,
+      "sha256": "7029a9e84f748433bc33d067ee13d37d0b866768f09ae6c7dac8e2e98e1e53ca"
+    },
+    {
+      "file": "piano-C3.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/C3.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 78036,
+      "sha256": "bb70dd921d81b3dda561c19b5c029292ae5a6fba1947e364bf274218ce19a9d1"
+    },
+    {
+      "file": "piano-C4.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/C4.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 78718,
+      "sha256": "689eaa4c2fd7f29a2cc0e386eec462156d523a87d701269e5e2458e66056f4f6"
+    },
+    {
+      "file": "piano-C5.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/C5.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 68920,
+      "sha256": "2f5b0f7422063010fb379e684bfdf2daa3911dcd2251413d79fa2a53029fdc30"
+    },
+    {
+      "file": "piano-C6.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/C6.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 28065,
+      "sha256": "0d3232edd13ba69fd5caf4a295060ae0fd533b8a1433ae0a038644d70715c907"
+    },
+    {
+      "file": "piano-Ds2.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/Ds2.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 110796,
+      "sha256": "a106cdec93aa4e767e36809fc9cdaa6b92453fb9f18d5fc28ac4eb0f9f239ecd"
+    },
+    {
+      "file": "piano-Ds3.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/Ds3.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 78717,
+      "sha256": "4fe73ea3f2c59a1dbfb35cff1d9d8a9e38cb12ef39a91a13083729544cdafed5"
+    },
+    {
+      "file": "piano-Ds4.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/Ds4.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 73519,
+      "sha256": "663e8bb3e2d0fa23a30526dcd7ab0e42609c193c07025647ef46badcf81ec211"
+    },
+    {
+      "file": "piano-Ds5.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/Ds5.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 58179,
+      "sha256": "bf71096e653ab7ceca3914b9fd44d8c27fe83c162564c5db34bd06b94eb14b8c"
+    },
+    {
+      "file": "piano-Fs2.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/Fs2.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 102320,
+      "sha256": "dd34c708274eeba35da1fd99fc31ef904e390ff02f6864aefe8a13261f8a8327"
+    },
+    {
+      "file": "piano-Fs3.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/Fs3.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 77933,
+      "sha256": "960fefd90f56608b7edf958dadfeca893cff5744ab9034d61e419401fe45ce9c"
+    },
+    {
+      "file": "piano-Fs4.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/Fs4.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 68219,
+      "sha256": "613652f5c96e35736ce6a46bc4ddb6ba1076d1fb16a35a4c22c14e67efdde57c"
+    },
+    {
+      "file": "piano-Fs5.mp3",
+      "source": "https://tonejs.github.io/audio/salamander/Fs5.mp3",
+      "license": "CC-BY-3.0",
+      "author": "Alexander Holm",
+      "bytes": 51597,
+      "sha256": "ed2fdf543274ea72ddd4eb634a16356531a5f4040b2a60d34fb12a5c72cbf22f"
+    },
+    {
+      "file": "strings-C4.wav",
+      "source": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Strings/Violin%20Section/susVib/VlnEns_susVib_C4_v1.wav",
+      "license": "CC0-1.0",
+      "author": "Sam Gossner & Simon Dalzell; Elan Hickler",
+      "bytes": 2063320,
+      "sha256": "c07edd5b2119fa1da2207aba996961b50dd616f69bbcf2300ab271bc6c16239f"
+    },
+    {
+      "file": "strings-D5.wav",
+      "source": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Strings/Violin%20Section/susVib/VlnEns_susVib_D5_v1.wav",
+      "license": "CC0-1.0",
+      "author": "Sam Gossner & Simon Dalzell; Elan Hickler",
+      "bytes": 2116352,
+      "sha256": "f8d870457826c94270b9c3ead8e8ec02cb7e6c4a3481cded055641b7fab7df62"
+    },
+    {
+      "file": "strings-E4.wav",
+      "source": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Strings/Violin%20Section/susVib/VlnEns_susVib_E4_v1.wav",
+      "license": "CC0-1.0",
+      "author": "Sam Gossner & Simon Dalzell; Elan Hickler",
+      "bytes": 2315540,
+      "sha256": "787fb4bcfb47d5c88ee1573c8db15f32d345386301be4a8eea6a825847413ae2"
+    },
+    {
+      "file": "strings-G4.wav",
+      "source": "https://raw.githubusercontent.com/sgossner/VSCO-2-CE/440300901dfe9275fd84e0b7763af1f8443ae62e/Strings/Violin%20Section/susVib/VlnEns_susVib_G4_v1.wav",
+      "license": "CC0-1.0",
+      "author": "Sam Gossner & Simon Dalzell; Elan Hickler",
+      "bytes": 2330236,
+      "sha256": "ed2a89cf254432d2af073699fa43ebfa16cfbc5552c7fc964a184fc434eaaa39"
+    }
+  ]
+}
