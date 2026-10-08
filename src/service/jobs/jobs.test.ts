@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {readFile,mkdtemp,rm} from 'node:fs/promises';
+import {readFile,mkdtemp,rm,writeFile,unlink} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {ProjectStore} from '../projects/store.ts';
@@ -10,7 +10,7 @@ const example = JSON.parse(await readFile(new URL('../../music/authoring/example
 const request = {projectId:'window-study',revisionId:'window-study-v1',idempotencyKey:'first',kind:'render-score' as const};
 async function fixture(t:any,renderer=processRenderer()) {
   const root=await mkdtemp(join(tmpdir(),'music-jobs-')); const store=await ProjectStore.open(root);
-  await store.importRevision(example); const jobs=new JobManager(store,renderer);
+  await store.importRevision(example); const jobs=await JobManager.open(store,renderer);
   t.after(async()=>{await jobs.close();await store.close();await rm(root,{recursive:true,force:true});}); return {store,jobs,root};
 }
 test('real background render persists output, idempotency and fixed mix; retry is new identity',async t=>{
@@ -32,13 +32,13 @@ test('cancel queued/running computation and restart statuses never produce false
   await jobs.cancel(a.id); assert.equal((await jobs.wait(a.id)).state,'cancelled');
   assert.equal((await store.project(request.projectId)).revisions[0].artifacts.length,0);
   const c=await jobs.submit({...request,idempotencyKey:'shutdown'}); await jobs.close(); assert.equal(jobs.get(c.id).state,'interrupted');
-  const restarted=new JobManager(store,processRenderer()); assert.equal(restarted.get(c.id).state,'interrupted'); await restarted.close();
+  const restarted=await JobManager.open(store,processRenderer()); assert.equal(restarted.get(c.id).state,'interrupted'); await restarted.close();
   assert.ok((await readFile(join(root,'jobs',`${c.id}.json`),'utf8')).includes('interrupted'));
 });
 
 test('worker failure leaves the published revision and its original file intact',async t=>{
   const {store,jobs}=await fixture(t); await jobs.close();
-  const broken=new JobManager(store,()=>({result:Promise.reject(new Error('worker crashed')),cancel:()=>{}}));
+  const broken=await JobManager.open(store,()=>({result:Promise.reject(new Error('worker crashed')),cancel:()=>{}}));
   const a=await broken.submit(request); assert.equal((await broken.wait(a.id)).state,'failed');
   assert.equal((await store.project(request.projectId)).revisions[0].artifacts.length,0);
   assert.equal((await store.revision(request.projectId,request.revisionId)).composition.score.notes.length,example.score.notes.length);
@@ -87,4 +87,54 @@ test('cancel still stops its renderer when persisting the cancelling stage fails
   store.atomicJSON=(path,value)=>{if((value as {stage?:string}).stage==='正在取消')throw new Error('cancel status disk failure');save(path,value);};
   await assert.rejects(controlled.cancel(job.id),/cancel status disk failure/);
   assert.ok(cancelled);assert.equal(controlled.get(job.id).state,'cancelled');
+});
+
+test('a committed WAV survives terminal status write failure and restart',async t=>{
+  const {store,jobs,root}=await fixture(t);
+  t.mock.method(console,'error',()=>{});
+  const first=await jobs.submit(request),save=store.atomicJSON.bind(store);
+  store.atomicJSON=(path,value)=>{
+    if((value as {id?:string;state?:string}).id===first.id && (value as {state?:string}).state==='succeeded')throw new Error('success status disk failure');
+    save(path,value);
+  };
+  const failed=await jobs.wait(first.id);
+  assert.equal(failed.state,'failed','the caller must see the persistence failure');
+  assert.match(failed.error??'',/success status disk failure/);
+  assert.ok(failed.artifact,'the committed artifact must stay associated in memory');
+  assert.equal(JSON.parse(await readFile(join(root,'jobs',`${first.id}.json`),'utf8')).state,'running');
+  await jobs.close();store.atomicJSON=save;
+  const recovered=await JobManager.open(store,processRenderer());t.after(()=>recovered.close());
+  assert.equal(recovered.get(first.id).state,'succeeded');
+  assert.equal(recovered.get(first.id).artifact?.sha256,failed.artifact.sha256);
+  assert.equal(recovered.get(first.id).error,undefined);
+  assert.equal((await recovered.submit(request)).id,first.id,'recovery preserves idempotency');
+  assert.equal(JSON.parse(await readFile(join(root,'jobs',`${first.id}.json`),'utf8')).state,'succeeded');
+});
+
+for(const damage of ['missing','tampered'] as const)test(`restart rejects ${damage} committed WAV instead of reporting success`,async t=>{
+  const {store,jobs}=await fixture(t);
+  const first=await jobs.submit(request),done=await jobs.wait(first.id);assert.equal(done.state,'succeeded');
+  await jobs.close();
+  const path=store.path('projects',request.projectId,done.artifact!.path);
+  if(damage==='missing')await unlink(path);else await writeFile(path,'tampered WAV');
+  const recovered=await JobManager.open(store,processRenderer());t.after(()=>recovered.close());
+  assert.equal(recovered.get(first.id).state,'failed');assert.ok(recovered.get(first.id).error);
+  assert.equal(recovered.get(first.id).artifact,undefined);
+});
+
+for(const damage of ['uncommitted','wrong-input'] as const)test(`restart cannot recover an ${damage} output as successful`,async t=>{
+  const {store,jobs,root}=await fixture(t);
+  const first=await jobs.submit(request),done=await jobs.wait(first.id);assert.equal(done.state,'succeeded');await jobs.close();
+  const path=store.path('jobs',`${first.id}.json`),stored=JSON.parse(await readFile(path,'utf8'));
+  stored.state='running';delete stored.artifact;delete stored.result;
+  if(damage==='wrong-input')stored.inputHash='0'.repeat(64);
+  else {
+    const project=await store.project(request.projectId);project.revisions[0].artifacts=[];
+    store.atomicJSON(store.path('projects',request.projectId,'project.json'),project);
+  }
+  store.atomicJSON(path,stored);
+  const recovered=await JobManager.open(store,processRenderer());t.after(()=>recovered.close());
+  assert.equal(recovered.get(first.id).state,damage==='uncommitted'?'interrupted':'failed');
+  assert.equal(recovered.get(first.id).artifact,undefined);
+  assert.ok(await readFile(join(root,'projects',request.projectId,done.artifact!.path)),'unclaimed file is preserved, not blindly deleted');
 });

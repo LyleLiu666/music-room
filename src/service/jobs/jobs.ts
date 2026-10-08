@@ -15,13 +15,35 @@ export class JobManager {
   private closing=false;
   private store: ProjectStore;
   private renderer: Renderer;
-  constructor(store:ProjectStore,renderer:Renderer) {
+  private constructor(store:ProjectStore,renderer:Renderer) {
     this.store=store;this.renderer=renderer;
+  }
+  static async open(store:ProjectStore,renderer:Renderer) {
+    const manager=new JobManager(store,renderer);
     for(const file of readdirSync(store.path('jobs')).filter(x=>x.endsWith('.json'))) {
       const j=JSON.parse(readFileSync(store.path('jobs',file),'utf8')) as StoredJob;
       if (`${identity(j.id)}.json`!==file || !['queued','running','succeeded','failed','cancelled','interrupted'].includes(j.state)) throw new ServiceError('CORRUPT_JOB','任务记录无效');
-      if(!terminal(j.state)){j.state='interrupted';j.stage='服务重启，任务已中断';this.save(j);} this.jobs.set(j.id,j);
+      const previous=JSON.stringify(j);
+      // The revision manifest is the commit receipt. An orphan WAV alone is not success.
+      if(j.state!=='cancelled') {
+        try {
+          const {metadata}=await store.revision(j.request.projectId,j.request.revisionId);
+          if(metadata.sha256!==j.inputHash)throw new Error('任务输入与版本原件不一致');
+          const committed=metadata.artifacts.find(a=>a.id===j.id);
+          if(committed) {
+            const {metadata:artifact}=await store.artifact(j.request.projectId,j.request.revisionId,j.id);
+            if(artifact.jobId!==j.id || artifact.mime!=='audio/wav')throw new Error('音频产物与任务不一致');
+            j.artifact=artifact;j.state='succeeded';j.stage='音频已保存';delete j.error;
+          } else if(j.state==='succeeded' || j.artifact)throw new Error('已完成任务缺少音频提交记录');
+          else if(!terminal(j.state)){j.state='interrupted';j.stage='服务重启，任务已中断';}
+        } catch(error) {
+          j.state='failed';j.stage='音频恢复校验失败';j.error=error instanceof Error?error.message:String(error);delete j.artifact;delete j.result;
+        }
+      }
+      if(JSON.stringify(j)!==previous)manager.save(j);
+      manager.jobs.set(j.id,j);
     }
+    return manager;
   }
   private save(job:StoredJob) { job.updatedAt=new Date().toISOString();this.store.atomicJSON(this.store.path('jobs',`${job.id}.json`),job); }
   private public(job:StoredJob):Job {const {snapshot,...value}=job;return structuredClone(value);}
@@ -63,7 +85,10 @@ export class JobManager {
       finally {
         if(this.closing && !j.artifact){j.state='interrupted';j.stage='退出服务，任务中断';}
         else if(active.cancelled){j.state='cancelled';j.stage='已取消';}
-        try {this.save(j);}catch(error){console.error('任务状态保存失败：',error);}
+        try {this.save(j);}catch(error){
+          j.state='failed';j.stage=j.artifact?'音频已保存，任务状态保存失败':'任务状态保存失败';
+          j.error=error instanceof Error?error.message:String(error);console.error('任务状态保存失败：',error);
+        }
         finally {if(this.active===active)this.active=undefined;queueMicrotask(()=>this.pump());}
       }
     })();

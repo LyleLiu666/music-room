@@ -9,11 +9,11 @@ import {parseOperation,type Operation,type OperationInput,type OperationArgs,typ
 export type {ServiceCaller} from './operations.ts';
 export class MusicService {
   store:ProjectStore; jobs:JobManager; read:AssetReader;
-  private constructor(store:ProjectStore,renderer:Renderer,read:AssetReader) {this.store=store;this.jobs=new JobManager(store,renderer);this.read=read;}
+  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader) {this.store=store;this.jobs=jobs;this.read=read;}
   static async open(root:string,renderer:Renderer,read:AssetReader,seed=true) {
     const store=await ProjectStore.open(root);
     try {
-      const service=new MusicService(store,renderer,read);
+      const service=new MusicService(store,await JobManager.open(store,renderer),read);
       if(seed) {
         const existing=await store.documents();
         for(const song of SONGS) if(!existing.some(d=>d.revision.id===song.id)) {
