@@ -4,6 +4,10 @@
 
 交互与实现规则见 [音乐工作台设计](docs/design/music-workbench.md)，逐轮开发和验收结果见 [开发记录](docs/design/development-rounds.md)。四轮工作台开发及独立创作接口已完成。外部创作流程见 [外部创作与本机作品库](docs/design/external-composition.md)。
 
+## 桌面客户端目标方案
+
+下一阶段以本地创作服务为核心，桌面 UI 和外部 agent 调用同一套项目、版本与音乐任务接口。产品流程、Electron / TypeScript / Node.js 技术栈、工程文件和逐轮验收见 [桌面客户端设计](docs/design/desktop-client.md)。该方案尚未开发；以下仍是当前网页版本的使用说明。
+
 ## 开始试听
 
 使用 Node.js 22.18+，推荐 Node.js 24 或更新版本。
