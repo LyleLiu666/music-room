@@ -3,15 +3,17 @@ import {readFile} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {homedir} from 'node:os';
 import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
-import {MusicService,type ServiceCaller} from '../service/service.ts';
+import {MusicService} from '../service/service.ts';
 import {processRenderer} from '../service/render/process.ts';
 import {runRenderWorker} from '../service/render/worker.ts';
 import {musicMcp} from '../interfaces/mcp.ts';
-import {parseOperation} from '../interfaces/operations.ts';
+import {operationName,type Operation,type OperationInput,type OperationResults,type ServiceCaller} from '../service/operations.ts';
 import {serveHttp,type Runtime,type WebAssets} from './http.ts';
-export async function remoteCall(runtime:Runtime,name:string,args:Record<string,unknown>) {
+export async function remoteCall<K extends Operation>(runtime:Runtime,name:K,args:OperationInput<K>):Promise<OperationResults[K]> {
   const response=await fetch(`${runtime.url}/api/${name}`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${runtime.token}`},body:JSON.stringify(args),signal:AbortSignal.timeout(30000)});
-  const value=await response.json() as any;if(!response.ok){const e=new Error(value.message) as Error&{code:string};e.code=value.code;throw e;}return value;
+  const value:unknown=await response.json();
+  if(!response.ok){const failure=value as {message?:string;code?:string};const e=new Error(failure.message??'本地服务请求失败') as Error&{code?:string};e.code=failure.code;throw e;}
+  return value as OperationResults[K];
 }
 export function readRuntime(directory:string):Runtime|undefined {
   const root=realpathSync(directory),file=join(root,'.music-room.runtime.json');
@@ -63,12 +65,12 @@ export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
   }
   if(!runtime)throw new Error('没有正在运行的服务。请先运行 music-room serve --workspace <目录>');
   const endpoint=runtime;
-  const call:ServiceCaller=(name,args)=>remoteCall(endpoint,name,parseOperation(name,args));
+  const call:ServiceCaller=(name,args)=>remoteCall(endpoint,name,args);
   // A live PID does not guarantee the descriptor belongs to a usable service.
   try {await call('status',{});}catch(error){await cleanup();throw error;}
   if(opt.mode==='status'||opt.mode==='call') {
     const args=opt.input?JSON.parse(await readFile(opt.input,'utf8')):{};
-    console.log(JSON.stringify(await call(opt.mode==='status'?'status':opt.operation,args),null,2));return;
+    console.log(JSON.stringify(await call(opt.mode==='status'?'status':operationName(opt.operation),args),null,2));return;
   }
   if(opt.mode==='serve'&&!owned){console.log(JSON.stringify({url:endpoint.url,workspace:endpoint.workspace,reused:true}));return;}
   const shutdown=()=>{void cleanup().then(()=>process.exit(0),error=>{console.error(error);process.exit(1);});};

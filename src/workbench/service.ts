@@ -1,16 +1,17 @@
 import type {Composition} from '../music/authoring/validate.mjs';
 import type {Mix} from '../audio.ts';
+import type {Job} from '../service/jobs/jobs.ts';
+import type {Operation,OperationInput,OperationResults,LibrarySnapshot} from '../service/operations.ts';
 type Bootstrap = {token:string;url:string;workspace:string;mcp:unknown};
-export type ServerSnapshot = {projects:{id:string;title:string;defaultRevisionId?:string;revisions:{id:string;parentId?:string}[]}[];documents:Composition[];jobs:ServerJob[]};
-type ServerJob = {id:string;state:string;stage:string;request:{projectId:string;revisionId:string};artifact?:{path:string};error?:string;result?:{engine:string}};
+export type ServerSnapshot = LibrarySnapshot;
 export class WorkbenchService {
   bootstrap:Bootstrap;
   constructor(bootstrap:Bootstrap){this.bootstrap=bootstrap;}
-  async call(name:string,args:Record<string,unknown>={}) {
+  async call<K extends Operation>(name:K,args:OperationInput<K>):Promise<OperationResults[K]> {
     const response=await fetch(`/api/${name}`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${this.bootstrap.token}`},body:JSON.stringify(args)});
-    const value=await response.json();if(!response.ok)throw new Error(value.message??'本地服务请求失败');return value;
+    const value:unknown=await response.json();if(!response.ok)throw new Error((value as {message?:string}).message??'本地服务请求失败');return value as OperationResults[K];
   }
-  async artifact(job:ServerJob) {
+  async artifact(job:Job) {
     const response=await fetch(`/artifacts/${job.request.projectId}/${job.request.revisionId}/${job.id}`,{headers:{authorization:`Bearer ${this.bootstrap.token}`}});
     if(!response.ok)throw new Error('无法读取后台音频产物');return response.blob();
   }
@@ -20,7 +21,7 @@ const element=document.querySelector('#music-room-service');
 export const backend=element?new WorkbenchService(JSON.parse(element.textContent!)):undefined;
 
 export class ServicePanel {
-  private signature=''; private polling=false; private sequence=0; private audioUrl?:string; private draftId=''; private drafts=new Map<string,string>();
+  private signature=''; private polling=false; private sequence=0; private audioSequence=0; private audioUrl?:string; private draftId=''; private drafts=new Map<string,string>();
   private service:WorkbenchService; private current:()=>Composition; private range:()=>{start:number;end:number}|undefined;
   private onLibrary:(snapshot:ServerSnapshot)=>void; private report:(message:string)=>void;private pause:()=>void;
   constructor(service:WorkbenchService,current:()=>Composition,range:()=>{start:number;end:number}|undefined,onLibrary:(snapshot:ServerSnapshot)=>void,report:(message:string)=>void,pause:()=>void) {
@@ -44,7 +45,7 @@ export class ServicePanel {
   async refresh() {
     if(this.polling)return;this.polling=true;
     try {
-      const data=await this.service.call('library') as ServerSnapshot;
+      const data=await this.service.call('library',{});
       const signature=JSON.stringify(data.projects.map(p=>[p.id,p.defaultRevisionId,p.revisions.map(r=>r.id)]));
       if(signature!==this.signature){this.signature=signature;this.onLibrary(data);}
       document.querySelector('#service-state')!.textContent='已连接本地服务 · 音乐任务不依赖网页保持打开';
@@ -56,9 +57,12 @@ export class ServicePanel {
           for(const [text,listen] of [['试听后台 WAV',true],['下载后台 WAV',false]] as const) {
             const button=document.createElement('button');button.textContent=text;button.dataset.job=job.id;row.append(button);
             button.addEventListener('click',()=>this.action(async()=>{
-              const blob=await this.service.artifact(job),url=URL.createObjectURL(blob);
-              if(listen){this.pause();if(this.audioUrl)URL.revokeObjectURL(this.audioUrl);this.audioUrl=url;
-                const player=document.createElement('audio');player.controls=true;player.src=url;const note=document.createElement('p');note.textContent=`${job.request.revisionId} · ${job.result?.engine??'后台渲染'} · 已保存的音频`;document.querySelector('#service-audio')!.replaceChildren(note,player);await player.play();
+              const sequence=listen?++this.audioSequence:0,blob=await this.service.artifact(job);
+              if(listen&&sequence!==this.audioSequence)return;
+              const url=URL.createObjectURL(blob);
+              if(listen){document.querySelector<HTMLAudioElement>('#service-audio audio')?.pause();if(this.audioUrl)URL.revokeObjectURL(this.audioUrl);this.audioUrl=url;
+                const player=document.createElement('audio');player.controls=true;player.src=url;player.dataset.job=job.id;player.addEventListener('play',()=>{this.audioSequence++;this.pause();});
+                const note=document.createElement('p');note.textContent=`${job.request.revisionId} · ${job.result?.engine??'后台渲染'} · 已保存的音频`;document.querySelector('#service-audio')!.replaceChildren(note,player);await player.play();
               }else {const a=document.createElement('a');a.href=url;a.download=`${job.request.revisionId}-${job.id}.wav`;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}
             }));
           }
@@ -68,13 +72,13 @@ export class ServicePanel {
     } catch(error:any){document.querySelector('#service-state')!.textContent=`本地服务未连接：${error.message}。请确认程序仍在运行；未保存的操作不会写入浏览器副本。`;}
     finally {this.polling=false;}
   }
-  pauseAudio() {document.querySelector<HTMLAudioElement>('#service-audio audio')?.pause();}
+  pauseAudio() {this.audioSequence++;document.querySelector<HTMLAudioElement>('#service-audio audio')?.pause();}
   async selectionChanged() {
     const seq=++this.sequence,doc=this.current(),input=document.querySelector<HTMLTextAreaElement>('#service-feedback')!;
     if(this.draftId!==doc.revision.id){if(this.draftId)this.drafts.set(this.draftId,input.value);this.draftId=doc.revision.id;input.value=this.drafts.get(this.draftId)??'';}
     try {const value=await this.service.call('get_project',{projectId:doc.work.id});if(seq!==this.sequence)return;
       const list=document.querySelector('#service-feedback-list')!;list.replaceChildren();
-      for(const feedback of value.feedback.filter((f:any)=>f.revisionId===doc.revision.id).slice(-8)) {const p=document.createElement('p');p.textContent=feedback.range?`${feedback.range.start.toFixed(1)}–${feedback.range.end.toFixed(1)} 秒：${feedback.text}`:feedback.text;list.append(p);}
+      for(const feedback of value.feedback.filter(f=>f.revisionId===doc.revision.id).slice(-8)) {const p=document.createElement('p');p.textContent=feedback.range?`${feedback.range.start.toFixed(1)}–${feedback.range.end.toFixed(1)} 秒：${feedback.text}`:feedback.text;list.append(p);}
     }catch(error:any){this.report(`读取听评失败：${error.message}`);}
   }
 }

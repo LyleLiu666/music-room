@@ -13,21 +13,23 @@ import { windowAt, beatAtSeconds, secondsAtBeat, notesInRange, pitchExtent, sele
 import { comparisonMapping } from './comparison.ts';
 import type { BeatRange } from '../audio/playback.ts';
 
-const imported = new ImportedLibrary(backend ? {getItem:()=>null,setItem:()=>{}} : { getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) }, BUILTIN_WORKS, BUILTIN_SONGS);
+const imported = new ImportedLibrary(backend ? {getItem:()=>null,setItem:()=>{}} : { getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) }, backend?[]:BUILTIN_WORKS, backend?[]:BUILTIN_SONGS);
 let serverSnapshot: ServerSnapshot | undefined;
 let serviceWarning = '';
 if (backend) {
-  try {serverSnapshot=await backend.call('library');imported.documents=serverSnapshot!.documents.filter(d=>!BUILTIN_SONGS.some(s=>s.id===d.revision.id));}
+  try {serverSnapshot=await backend.call('library',{});imported.documents=serverSnapshot.documents;}
   catch(error) {serviceWarning=`本地服务连接失败：${(error as Error).message}`;}
 }
 let servicePanel: ServicePanel | undefined;
-let SONGS = [...BUILTIN_SONGS, ...imported.songs], WORKS = [...BUILTIN_WORKS, ...imported.works];
+const librarySongs = () => serverSnapshot ? imported.songs.map(song=>({...song,color:BUILTIN_SONGS.find(b=>b.id===song.id)?.color??song.color})) : [...BUILTIN_SONGS,...imported.songs];
+const libraryWorks = () => serverSnapshot ? serverSnapshot.projects.map(p=>({id:p.id,title:p.title,defaultVersionId:p.defaultRevisionId??''})) : [...BUILTIN_WORKS,...imported.works];
+let SONGS = librarySongs(), WORKS = libraryWorks();
 const songById = (id: string) => SONGS.find(song => song.id === id);
 const versionsOf = (workId: string) => workVersions(workId, SONGS);
 const escapeHTML = (value: string) => value.replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]!));
 let selection: BeatRange | undefined, selecting = false;
 let viewStart = 0, viewSize = 4, follow = true;
-const defaultSong = songById(WORKS[0].defaultVersionId)!;
+const defaultSong = WORKS.map(work=>songById(work.defaultVersionId)).find(song=>song!==undefined)??SONGS[0];
 let selected = songById(location.hash.slice(1)) ?? defaultSong;
 const scores = new Map(SONGS.map(song => [song.id, song.compose()]));
 const scoreFor = (song: Song) => scores.get(song.id)!;
@@ -485,11 +487,10 @@ function renderLibrary() {
   document.querySelector('#library-works')!.innerHTML = WORKS.map(work => `<details class="work-group" ${work.id === selected.workId ? 'open' : ''}><summary>${escapeHTML(work.title)}<small>${versionsOf(work.id).length} 个版本</small></summary><div class="song-list">${versionsOf(work.id).map(song => `<button class="song-card" data-song="${song.id}" aria-pressed="${song.id === selected.id}" aria-label="选择${escapeHTML(song.title)} ${escapeHTML(song.edition)}" style="--song:${song.color}"><strong>${escapeHTML(song.edition)}</strong><span>${escapeHTML(song.summary)}</span><span class="song-check">${song.id === selected.id ? '当前版本' : '切换试听'}</span></button>`).join('')}</div></details>`).join('');
 }
 function refreshImportedLibrary() {
-  SONGS = [...BUILTIN_SONGS, ...imported.songs]; WORKS = [...BUILTIN_WORKS, ...imported.works];
+  SONGS = librarySongs(); WORKS = libraryWorks();
   const ids = new Set(SONGS.map(s => s.id));
   for (const id of scores.keys()) if (!ids.has(id)) scores.delete(id);
   for (const song of SONGS) if (!scores.has(song.id)) scores.set(song.id, song.compose());
-  if (serverSnapshot) WORKS=serverSnapshot.projects.map(p=>({id:p.id,title:p.title,defaultVersionId:p.defaultRevisionId??''}));
   renderLibrary();
 }
 document.querySelector('#library-works')!.addEventListener('click', event => {
@@ -512,7 +513,7 @@ async function importCompositionFile(file: File) {
       const parent=document.querySelector<HTMLInputElement>('#service-parent')?.checked;
       if(parent && selected.workId!==doc.work.id)throw new Error('所选父版本不属于导入文件的项目');
       await backend.call('import_revision',{compositionJson:JSON.stringify(doc),parentId:parent?selected.id:undefined});
-      applyServerSnapshot(await backend.call('library'));
+      applyServerSnapshot(await backend.call('library',{}));
     } else {imported.add(doc); refreshImportedLibrary();}
     comparison = undefined; showSong(songById(doc.revision.id)!);
     report(backend ? '版本已保存在本地项目目录。可直接试听，或提交后台渲染；原件与后续版本会保留。' : isMidi ? 'MIDI 已保存在当前浏览器。按工作台音色演奏，踏板、弯音、表情及原混音暂不还原。请试听并下载备份。' : '乐谱已校验并保存在当前浏览器。点击播放试听；请下载 JSON / MIDI 备份。');
@@ -588,7 +589,12 @@ else if (invalidAddress) report('未找到该版本，已打开默认作品。')
 frame();
 
 function applyServerSnapshot(snapshot:ServerSnapshot) {
-  serverSnapshot=snapshot;imported.documents=snapshot.documents.filter(d=>!BUILTIN_SONGS.some(s=>s.id===d.revision.id));refreshImportedLibrary();
+  const previousScore=score;
+  serverSnapshot=snapshot;imported.documents=snapshot.documents;refreshImportedLibrary();
+  // A recovered connection may replace an offline catalog fallback with its stored original.
+  for(const doc of snapshot.documents)scores.set(doc.revision.id,doc.score);
+  const current=songById(selected.id);
+  if(current&&JSON.stringify(previousScore)!==JSON.stringify(scoreFor(current))){comparison=undefined;showSong(current,'none');}
 }
 if(backend) {
   const badge=document.querySelector('.local-badge')!;badge.textContent='本地服务';

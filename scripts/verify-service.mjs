@@ -10,6 +10,11 @@ import {MusicService} from '../src/service/service.ts';
 import {processRenderer} from '../src/service/render/process.ts';
 import {serveHttp} from '../src/server/http.ts';
 const root=await mkdtemp(join(tmpdir(),'music-ui-')),out=resolve('test-results/service');await mkdir(out,{recursive:true});
+// Simulate an existing workspace whose built-in original differs from this release's catalog.
+const legacy=JSON.parse(await readFile('src/music/authoring/example.json','utf8'));
+legacy.work={id:'rain-letter',title:'雨巷来信'};legacy.score.title=legacy.work.title;legacy.revision.id='rain-letter-v1';
+const oldService=await MusicService.open(root,processRenderer(),p=>readFile(resolve('dist',p)),false);
+await oldService.call('import_revision',{compositionJson:JSON.stringify(legacy)});await oldService.close();
 const service=await MusicService.open(root,processRenderer(),p=>readFile(resolve('dist',p)));
 const http=await serveHttp(service,{read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false});
 const browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required']});const page=await browser.newPage({viewport:{width:1400,height:1000}}),errors=[];
@@ -18,7 +23,10 @@ const client=new Client({name:'browser-agent',version:'1'});
 await client.connect(new StreamableHTTPClientTransport(new URL(http.runtime.url+'/mcp'),{requestInit:{headers:{authorization:`Bearer ${http.runtime.token}`}}}));
 const tool=async(name,args={})=>{const r=await client.callTool({name,arguments:args});assert.ok(!r.isError,JSON.stringify(r));return JSON.parse(r.content[0].text);};
 try {
-  await page.goto(http.runtime.url);await page.locator('#service-state').filter({hasText:'已连接'}).waitFor();
+  await page.goto(http.runtime.url+'/#rain-letter-v1');await page.locator('#service-state').filter({hasText:'已连接'}).waitFor();
+  assert.deepEqual(await page.evaluate(()=>window.musicRoom.score),legacy.score,'stored original must drive the preview after an upgrade');
+  const originalDownload=page.waitForEvent('download');await page.click('#score-download');
+  const exported=await originalDownload;assert.deepEqual(JSON.parse(await readFile(await exported.path(),'utf8')),legacy,'JSON download must be the persisted original');
   assert.equal(await page.locator('#finished-audio').isVisible(),false);
   const doc=JSON.parse(await readFile('src/music/authoring/example.json','utf8'));
   await tool('import_revision',{compositionJson:JSON.stringify(doc)});
@@ -29,6 +37,17 @@ try {
   await page.waitForFunction(()=>document.querySelector('#service-audio audio')?.currentTime>.05);
   const audio=await page.$eval('#service-audio audio',a=>({duration:a.duration,time:a.currentTime}));assert.equal(audio.duration,20);
   await page.click('#play');await page.waitForFunction(()=>window.musicRoom.engine.playing);assert.equal(await page.$eval('#service-audio audio',a=>a.paused),true);await page.click('#play');
+  await page.click('#play');await page.waitForFunction(()=>window.musicRoom.engine.playing);
+  await page.$eval('#service-audio audio',a=>a.play());await page.waitForFunction(()=>!window.musicRoom.engine.playing);
+  assert.equal(await page.$eval('#service-audio audio',a=>a.paused),false,'native WAV resume must pause WebAudio');
+  await page.click('#play');await page.waitForFunction(()=>window.musicRoom.engine.playing);assert.equal(await page.$eval('#service-audio audio',a=>a.paused),true);await page.click('#play');
+  let releaseArtifact,enteredArtifact;const artifactEntered=new Promise(r=>{enteredArtifact=r;});const heldArtifact=new Promise(r=>{releaseArtifact=r;});
+  await page.route('**/artifacts/**',async route=>{enteredArtifact();await heldArtifact;await route.continue();});
+  await ready.click();await artifactEntered;
+  await page.evaluate(()=>{location.hash='rain-letter-v2';});await page.waitForFunction(()=>window.musicRoom.songId==='rain-letter-v2');
+  const artifactResponse=page.waitForResponse(r=>r.url().includes('/artifacts/'));releaseArtifact();await artifactResponse;
+  await page.waitForTimeout(100);assert.equal(await page.$eval('#service-audio audio',a=>a.paused),true,'late WAV fetch cannot play after switching versions');
+  await page.unroute('**/artifacts/**');await page.evaluate(()=>{location.hash='window-study-v1';});await page.waitForFunction(()=>window.musicRoom.songId==='window-study-v1');
   await page.fill('#service-feedback','保留主题，第二版减少鼓。');await page.click('#service-save-feedback');await page.locator('#service-feedback-list').filter({hasText:'保留主题'}).waitFor();
   await page.reload();await page.locator('#service-state').filter({hasText:'已连接'}).waitFor();assert.equal(await page.locator('#song-title').textContent(),doc.work.title);
   const x=structuredClone(doc);x.revision={...x.revision,id:'window-study-v2',label:'扩写答句'};
@@ -40,6 +59,6 @@ try {
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:join(out,'mobile.png'),fullPage:true});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'mobile overflow');
   await page.setViewportSize({width:1400,height:1000});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));assert.equal(await page.locator('.topbar').count(),1);await page.screenshot({path:join(out,'desktop.png')});await page.locator('.service-panel').screenshot({path:join(out,'tasks.png')});
-  assert.deepEqual(errors,[]);await writeFile(join(out,'verification.json'),JSON.stringify({checks:10,audio,parent:doc.revision.id,errors},null,2));
+  assert.deepEqual(errors,[]);await writeFile(join(out,'verification.json'),JSON.stringify({checks:14,audio,parent:doc.revision.id,persistedBuiltInSeconds:legacy.score.duration,nativeAudioResume:true,lateAudioCancelled:true,errors},null,2));
   console.log('Service browser verified: agent version discovery, actual backend audio, persisted feedback, refresh, parent import, no browser storage, mobile.');
 } finally {await client.close();await browser.close();await service.jobs.close();await http.close();await service.store.close();await rm(root,{recursive:true,force:true});}

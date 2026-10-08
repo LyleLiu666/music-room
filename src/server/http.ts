@@ -2,7 +2,7 @@ import {createServer,type IncomingMessage,type ServerResponse} from 'node:http';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
 import {StreamableHTTPServerTransport} from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import {musicMcp} from '../interfaces/mcp.ts';
-import {parseOperation} from '../interfaces/operations.ts';
+import {operationName,parseOperation} from '../service/operations.ts';
 import {ServiceError} from '../service/projects/store.ts';
 import type {MusicService} from '../service/service.ts';
 export type WebAssets = {read:(path:string)=>Promise<Uint8Array>;has:(path:string)=>boolean;embedded:boolean};
@@ -25,14 +25,14 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
       if(path==='/mcp') {
         if(req.method!=='POST'){res.writeHead(405,{allow:'POST'});res.end();return;}
         const body=await jsonBody(req);
-        const mcp=musicMcp((name,args)=>service.call(name,parseOperation(name,args)));
+        const mcp=musicMcp(service.call);
         const transport=new StreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true});
         res.on('close',()=>{void transport.close();void mcp.close();});
         await mcp.connect(transport);await transport.handleRequest(req,res,body);return;
       }
       if(path.startsWith('/api/')) {
         if(req.method!=='POST'){json(res,405,{message:'请用 POST'});return;}
-        const name=path.slice(5),args=parseOperation(name,await jsonBody(req));json(res,200,await service.call(name,args));return;
+        const name=operationName(path.slice(5)),args=parseOperation(name,await jsonBody(req));json(res,200,await service.call(name,args));return;
       }
       if(path.startsWith('/artifacts/')) {
         if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
