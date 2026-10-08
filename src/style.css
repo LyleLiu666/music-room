@@ -1095,3 +1095,11 @@ footer a:hover {
 .yue2-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 .yue2-actions a { color: var(--accent); }
 .yue2-panel [hidden] { display: none !important; }
+.yue2-examples { margin-top: 24px; }
+.yue2-examples h3 { font-size: 16px; margin: 0; }
+.yue2-example-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 12px; }
+.yue2-example { padding: 14px; border: 1px solid var(--line); border-radius: 4px; display: flex; flex-direction: column; }
+.yue2-example h4 { font-size: 15px; margin: 0; }
+.yue2-example p { font-size: 13px; flex: 1; margin: 8px 0; }
+.yue2-example button { align-self: flex-start; }
+#yue2-example-status:empty { display: none; }

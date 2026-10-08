@@ -1,6 +1,7 @@
 import type {WorkbenchService} from './service.ts';
 import type {YuE2Status} from '../service/yue2/engine.ts';
 import type {YuE2Job} from '../service/yue2/contracts.ts';
+import {yue2Examples} from './yue2-examples.ts';
 const phases:Record<YuE2Status['phase'],string>={uninstalled:'尚未启用',preparing:'正在安装',stopped:'已停止',starting:'正在启动',running:'正在运行',stopping:'正在停止',failed:'操作失败',unsupported:'此电脑暂不支持'};
 const states:Record<YuE2Job['status'],string>={queued:'排队中',running:'生成中',done:'已完成',failed:'失败',cancelled:'已取消'};
 export function describeYuE2Progress(progress:YuE2Job['progress']) {
@@ -18,7 +19,27 @@ export class YuE2Panel {
     document.querySelector('main')!.insertAdjacentHTML('beforeend',`<section class="service-panel yue2-panel" aria-labelledby="yue2-heading"><h2 id="yue2-heading">YuE2 · 本机 AI 音乐</h2><p id="yue2-state" role="status">正在检查引擎…</p><p id="yue2-location"></p><div class="yue2-actions"><button id="yue2-enable">启用 YuE2</button><button id="yue2-start" hidden>启动</button><button id="yue2-stop" hidden>停止</button><a id="yue2-studio" hidden target="_blank" rel="noopener noreferrer">打开 YuE2 Studio</a></div>
     <details id="yue2-setup"><summary>安装目录与模型</summary><p>选择一个专用空文件夹。YuE2 源码、Python、依赖、模型、缓存和生成结果全部保存在这里。安装后，工作台下次启动会自动启动 YuE2。</p><label for="yue2-directory">安装目录</label><div class="yue2-path"><input id="yue2-directory" spellcheck="false" placeholder="请选择文件夹或填写绝对路径" /><button id="yue2-choose">选择文件夹</button></div><label class="yue2-check"><input id="yue2-models" type="checkbox" checked />下载生成模型与纯器乐适配器</label><p>模型约 10 GB，另需运行环境与缓存空间。首次安装需要联网，完成后在本机生成。YuE2 代码为 MIT，模型采用 CC BY-NC 4.0。</p><button id="yue2-install">安装并启动</button></details>
     <details><summary>安装与运行日志</summary><pre id="yue2-logs"></pre></details><p id="yue2-error" role="alert"></p>
-    <form id="yue2-form"><label for="yue2-title">曲名（可选）</label><input id="yue2-title" maxlength="200" /><label for="yue2-style">音乐描述</label><textarea id="yue2-style" required rows="3" maxlength="8000" placeholder="例如：钢琴主导的流行器乐，清晰的两小节 riff，有回答、留白和切分鼓，温暖贝斯，副歌逐步展开。"></textarea><details><summary>段落与生成设置</summary><label for="yue2-lyrics">段落结构 / 歌词</label><textarea id="yue2-lyrics" rows="3" maxlength="16000">[instrumental]</textarea><label class="yue2-check"><input id="yue2-instrumental" type="checkbox" checked />纯器乐（使用器乐适配器）</label><label for="yue2-preset">生成质量</label><select id="yue2-preset"><option value="fast">快速试听</option><option value="quality">较高质量 · 更慢</option></select></details><button id="yue2-generate" disabled>生成音乐</button><p>任务由后台继续执行，可以关闭网页。这里显示 YuE2 音频作品；音频不会自动变成 MIDI 乐谱。</p></form><div id="yue2-jobs"></div><div id="yue2-audio"></div></section>`);
+    <div class="yue2-examples" role="group" aria-labelledby="yue2-examples-heading"><h3 id="yue2-examples-heading">提示词示例</h3><p>① 选一个示例　② 修改音乐描述或歌词　③ 点击生成音乐，完成后试听。示例提供英文音乐描述和中文说明。</p><p>「填入」会替换当前曲名、音乐描述、歌词及生成设置，切换到对应的人声 / 器乐模式和快速试听；不会自动开始生成。</p><details open><summary>纯音乐 · 4 个示例</summary><div class="yue2-example-grid" id="yue2-instrumental-examples"></div></details><details open><summary>带人声 · 3 个原创歌词示例</summary><div class="yue2-example-grid" id="yue2-vocal-examples"></div></details><p id="yue2-example-status" role="status"></p></div>
+    <details class="yue2-prompt-guide"><summary>提示词怎么写？</summary><p>写清楚：风格与情绪 → 主要乐器 → 速度与节奏 → 记得住的旋律 → 段落如何变化与收尾。带人声时，再描述演唱语言、男声或女声以及唱法。</p><p>例如，不只写「好听的钢琴曲」，还可以写「钢琴流行器乐，温暖、88 BPM，两小节主题（riff）贯穿，贝斯和轻鼓逐步加入；副歌更饱满，回到主题时改变配器，最后自然收尾」。先改一两处，听过再调整。</p><p>纯音乐：勾选「纯器乐」，段落栏保留 [instrumental]，或写 [intro]、[verse]、[chorus]、[outro] 等标签，无需歌词或起止秒数。</p><p>带人声：取消勾选「纯器乐」，音乐描述里写明人声特点；将要唱的文字放在 [Verse]（主歌）、[Chorus]（副歌）等标签下面，不要只把歌词写进音乐描述。示例会自动填好这些设置。</p><p>示例是创作起点，尚未逐一生成试听，效果以实际结果为准。模型不能保证精确时长、逐字演唱或指定音色。</p></details>
+    <form id="yue2-form"><label for="yue2-title">曲名（可选）</label><input id="yue2-title" maxlength="200" /><label for="yue2-style">音乐描述</label><textarea id="yue2-style" required rows="6" maxlength="8000" placeholder="选一个上方示例，或写下风格、乐器、节奏、旋律特点和段落变化。"></textarea><details id="yue2-settings"><summary>段落与生成设置</summary><label for="yue2-lyrics">段落结构 / 歌词</label><textarea id="yue2-lyrics" rows="3" maxlength="16000">[instrumental]</textarea><label class="yue2-check"><input id="yue2-instrumental" type="checkbox" checked />纯器乐（使用器乐适配器）</label><label for="yue2-preset">生成质量</label><select id="yue2-preset"><option value="fast">快速试听</option><option value="quality">较高质量 · 更慢</option></select></details><button id="yue2-generate" disabled>生成音乐</button><p>任务由后台继续执行，可以关闭网页。这里显示 YuE2 音频作品；音频不会自动变成 MIDI 乐谱。</p></form><div id="yue2-jobs"></div><div id="yue2-audio"></div></section>`);
+    for(const example of yue2Examples){
+      const card=document.createElement('div');card.className='yue2-example';
+      const heading=document.createElement('h4');heading.textContent=example.name;
+      const description=document.createElement('p');description.textContent=example.description;
+      const button=document.createElement('button');button.type='button';button.textContent='填入'+example.name;
+      button.addEventListener('click',()=>{
+        this.input('title').value=example.title;
+        document.querySelector<HTMLTextAreaElement>('#yue2-style')!.value=example.style;
+        document.querySelector<HTMLTextAreaElement>('#yue2-lyrics')!.value=example.lyrics;
+        this.input('instrumental').checked=example.instrumental;
+        document.querySelector<HTMLSelectElement>('#yue2-preset')!.value='fast';
+        const lyrics=document.querySelector<HTMLTextAreaElement>('#yue2-lyrics')!;
+        lyrics.rows=example.instrumental?3:10;
+        if(!example.instrumental)document.querySelector<HTMLDetailsElement>('#yue2-settings')!.open=true;
+        document.querySelector('#yue2-example-status')!.textContent=`已填入「${example.name}」：${example.instrumental?'纯器乐':'带人声'} · 快速试听。可以继续修改音乐描述${example.instrumental?'':'和歌词'}，再点击生成音乐。`;
+      });
+      card.append(heading,description,button);document.querySelector(example.instrumental?'#yue2-instrumental-examples':'#yue2-vocal-examples')!.append(card);
+    }
     this.button('enable').addEventListener('click',()=>{document.querySelector<HTMLDetailsElement>('#yue2-setup')!.open=true;this.input('directory').focus();});
     this.button('jump').addEventListener('click',()=>document.querySelector('#yue2-heading')!.scrollIntoView({behavior:'smooth',block:'start'}));
     this.input('directory').addEventListener('input',()=>{this.directoryEdited=true;});
