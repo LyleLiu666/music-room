@@ -14,7 +14,9 @@
     "verify:browser": "node scripts/verify-browser.mjs",
     "verify:workbench": "node scripts/verify-workbench.mjs",
     "verify:loop-audio": "node scripts/verify-loop-audio.mjs",
-    "verify:comparison": "node scripts/verify-comparison.mjs"
+    "verify:comparison": "node scripts/verify-comparison.mjs",
+    "verify:boundaries": "node scripts/verify-boundaries.mjs",
+    "verify:all": "npm test && npm run build && npm run verify:workbench && npm run verify:loop-audio && npm run verify:comparison && npm run verify:boundaries && npm run verify:browser"
   },
   "dependencies": {
     "@tonejs/midi": "^2.0.28"

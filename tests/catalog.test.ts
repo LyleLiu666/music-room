@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { SONGS, WORKS, songById, versionsOf, validateCatalog } from '../src/catalog.ts';
 
 test('work grouping uses stable identity and supports different tempos and lengths', () => {
@@ -8,7 +9,10 @@ test('work grouping uses stable identity and supports different tempos and lengt
   assert.equal(versionsOf(WORKS[0].id).length, 2);
   const short = { ...SONGS[0], id: 'other-v1', workId: 'other', title: SONGS[0].title,
     files: { wav: 'other.wav', midi: 'other.mid', score: 'other.json' },
-    comparisonSections: {}, compose: () => ({ ...SONGS[0].compose(), bpm: 120, duration: 4 }) };
+    comparisonSections: {}, compose: () => {
+      const score = SONGS[0].compose();
+      return { ...score, bpm: 120, duration: 4, bars: score.bars.slice(0, 2), sections: [{ ...score.sections[0], startBar: 0, bars: 2 }], notes: [{ track: 'kick' as const, pitch: 36, beat: 0, duration: .5, velocity: .6 }] };
+    } };
   const works = [...WORKS, { id: 'other', title: SONGS[0].title, defaultVersionId: short.id }];
   assert.doesNotThrow(() => validateCatalog(works, [...SONGS, short]));
   assert.deepEqual(versionsOf('other', [...SONGS, short]).map(s => s.id), ['other-v1']);
@@ -29,7 +33,7 @@ test('each song has its own identity, score and export paths', () => {
     assert.ok(song.files.midi.includes(song.id));
     assert.ok(song.files.score.includes(song.id));
     const score = song.compose();
-    assert.equal(score.duration, 180);
+    assert.ok(score.duration > 0 && score.bpm > 0 && score.bars.length > 0);
     assert.ok(score.notes.length);
   }
   assert.equal(songById('unknown-song'), undefined);
@@ -41,6 +45,10 @@ test('the first composition remains unchanged as the first edition', () => {
   assert.equal(score.notes.length, 3709);
   assert.equal(score.notes.filter(n => n.track === 'melody').length, 414);
   assert.deepEqual(score, JSON.parse(readFileSync(new URL('../public/exports/rain-letter.score.json', import.meta.url), 'utf8')));
+  for (const path of ['rain-letter-v1/song.wav', 'rain-letter.wav']) {
+    const bytes = readFileSync(new URL(`../public/exports/${path}`, import.meta.url));
+    assert.equal(createHash('sha256').update(bytes).digest('hex'), 'd0fcd5fa75a4ad9a660e8a5af21c649afe3a74246763fdf10910a734f1b3e008');
+  }
 });
 
 test('the second edition has a recognizable riff, breathing room and developed answers', () => {

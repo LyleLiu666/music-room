@@ -33,6 +33,7 @@ app.innerHTML = `
       <button id="play" class="play-button">▶ <span>播放</span></button>
       <button id="restart" class="restart-button" aria-label="回到开头" title="回到开头">↺</button>
       <div class="clock"><strong id="current-time">00:00</strong><span id="clock-duration">/ ${format(score.duration)}</span></div>
+      <span id="musical-position" class="musical-position">第 1 小节 · 第 1 拍</span>
       <input id="seek" class="seek-slider" type="range" min="0" max="${score.duration}" step="0.1" value="0" aria-label="播放位置" />
       <label class="master-control">音量 <input id="volume" type="range" min="0" max="1" step="0.01" value="0.85" aria-label="总音量" /></label>
       <div class="transport-right"><button id="export" class="export-button">↓ 导出试听 WAV</button><button id="midi" class="text-button">MIDI</button></div>
@@ -299,6 +300,7 @@ function frame() {
   if (follow && engine.playing && (beat < range.startBeat || beat >= range.endBeat) && seconds < score.duration) setView(Math.floor(beat / (4 * viewSize)) * viewSize, false);
   if (!dragging) seek.value = String(seconds);
   document.querySelector('#current-time')!.textContent = format(seconds);
+  document.querySelector('#musical-position')!.textContent = musicalPosition(beat);
   playButton.innerHTML = engine.playing ? 'Ⅱ <span>暂停</span>' : '▶ <span>播放</span>';
   const sectionIndex = Math.max(0, score.sections.findLastIndex(s => seconds >= s.startBar * 4 * 60 / score.bpm));
   const section = score.sections[sectionIndex];
@@ -325,6 +327,10 @@ function comparisonBeat() {
   const beat = beatAtSeconds(engine.currentTime(), score.bpm);
   return selection && (beat < selection.startBeat || beat >= selection.endBeat) ? selection.startBeat : beat;
 }
+function musicalPosition(beat: number) {
+  const position = Math.max(0, Math.min(score.bars.length * 4 - .00001, beat));
+  return `第 ${Math.floor(position / 4) + 1} 小节 · 第 ${Math.floor(position % 4) + 1} 拍`;
+}
 function refreshComparisonChoices() {
   const select = document.querySelector<HTMLSelectElement>('#compare-target')!;
   const a = comparison?.a ?? selected, prior = comparison?.b.id ?? select.value;
@@ -348,7 +354,7 @@ function updateComparisonUI() {
       button.setAttribute('aria-pressed', String(selected.id === comparison[side].id));
       button.disabled = selected.id !== comparison[side].id && !map.ok;
     }
-    document.querySelector('#comparison-reason')!.textContent = map.ok ? `当前：${selected.edition} · ${map.name} · 第 ${(beatAtSeconds(engine.currentTime(), score.bpm) / 4 + 1).toFixed(1)} 小节` : map.reason;
+    document.querySelector('#comparison-reason')!.textContent = map.ok ? `当前：${selected.edition} · ${map.name} · ${musicalPosition(beatAtSeconds(engine.currentTime(), score.bpm))}` : map.reason;
     if (!map.ok && engine.playing) { engine.pause(); report(map.reason); }
   } else {
     const target = songById(targetSelect.value);
@@ -360,7 +366,7 @@ function updateComparisonUI() {
 function snapshot(): ListeningSnapshot {
   return { song: selected, position: engine.currentTime(), selection: selection && { ...selection }, loop: engine.loop && { ...engine.loop }, viewStart, viewSize, follow, mix: cloneMix(engine.mix) };
 }
-function restoreListening(snapshot: ListeningSnapshot) {
+function restorePlaybackView(snapshot: Omit<ListeningSnapshot, 'song' | 'mix'>) {
   if (snapshot.loop) engine.setLoop(snapshot.loop);
   engine.seek(snapshot.position); selection = snapshot.selection && { ...snapshot.selection };
   viewStart = snapshot.viewStart; viewSize = snapshot.viewSize; follow = snapshot.follow;
@@ -377,7 +383,7 @@ document.querySelector('#compare-start')!.addEventListener('click', () => {
   const before = snapshot(), wasPlaying = engine.playing;
   comparison = { a: selected, b: target, before };
   showSong(selected, 'none');
-  restoreListening({ ...before, position: secondsAtBeat(beat, score.bpm) });
+  restorePlaybackView({ ...before, position: secondsAtBeat(beat, score.bpm) });
   if (wasPlaying) engine.play();
   updateComparisonUI(); report('已进入版本比较，使用两版原始混音；退出后恢复试听设置。');
 });
@@ -387,7 +393,7 @@ for (const side of ['a','b'] as const) document.querySelector(`#compare-${side}`
   if (!map.ok) { report(map.reason); return; }
   const wasPlaying = engine.playing, looping = !!engine.loop, following = follow;
   showSong(target, 'none');
-  restoreListening({ song: target, position: secondsAtBeat(map.beat, score.bpm), selection: map.range, loop: looping ? map.range : undefined, viewStart: Math.floor(map.beat / (viewSize * 4)) * viewSize, viewSize, follow: following, mix: engine.mix });
+  restorePlaybackView({ position: secondsAtBeat(map.beat, score.bpm), selection: map.range, loop: looping ? map.range : undefined, viewStart: Math.floor(map.beat / (viewSize * 4)) * viewSize, viewSize, follow: following });
   if (wasPlaying) engine.play();
   updateComparisonUI(); report(`正在比较 ${side.toUpperCase()} · ${target.edition}，对应${map.name}。`);
 });
@@ -395,7 +401,7 @@ document.querySelector('#compare-exit')!.addEventListener('click', () => {
   if (!comparison) return;
   const before = comparison.before, volume = engine.mix.volume; comparison = undefined;
   showSong(before.song, 'none'); engine.mix = cloneMix(before.mix); engine.mix.volume = volume;
-  restoreListening(before);
+  restorePlaybackView(before);
   document.querySelector<HTMLSelectElement>('#lead')!.value = engine.mix.lead;
   for (const input of document.querySelectorAll<HTMLInputElement>('.track-level')) input.value = String(engine.mix.levels[input.dataset.id as TrackId]);
   updateMixerUI(); updateComparisonUI(); report('已退出比较，恢复进入前的版本、位置与试听设置，保持暂停。');
@@ -435,7 +441,7 @@ function showSong(song: Song, navigation: 'push' | 'replace' | 'none' = 'push') 
   for (const card of document.querySelectorAll<HTMLButtonElement>('[data-song]')) {
     const active = card.dataset.song === song.id;
     card.setAttribute('aria-pressed', String(active));
-    card.querySelector('.song-check')!.textContent = active ? '当前作品' : '切换试听';
+    card.querySelector('.song-check')!.textContent = active ? '当前版本' : '切换试听';
     if (active) card.closest('details')!.open = true;
   }
   updateMixerUI(); drawLanes(); refreshComparisonChoices();

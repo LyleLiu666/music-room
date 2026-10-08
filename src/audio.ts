@@ -25,19 +25,24 @@ class SoundBank {
     const jobs = Object.entries(groups).flatMap(([kind, entries]) => entries.map(([name, root]) => ({ kind, name, root })));
     const loaded = new Map<string, Sample[]>();
     let done = 0;
-    await Promise.all(jobs.map(async ({ kind, name, root }) => {
-      const url = new URL(`./samples/${kind}-${name}.${kind === 'piano' ? 'mp3' : 'wav'}`, document.baseURI);
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`音色加载失败：${kind}-${name} (${response.status})`);
-      const buffer = await context.decodeAudioData(await response.arrayBuffer());
-      loaded.set(kind, [...(loaded.get(kind) ?? []), { kind, root, buffer }]);
-      progress(++done / jobs.length);
-    }));
+    const controller = new AbortController();
+    try {
+      await Promise.all(jobs.map(async ({ kind, name, root }) => {
+        const url = new URL(`./samples/${kind}-${name}.${kind === 'piano' ? 'mp3' : 'wav'}`, document.baseURI);
+        const response = await fetch(url, { signal: controller.signal });
+        if (!response.ok) throw new Error(`音色加载失败：${kind}-${name} (${response.status})`);
+        const buffer = await context.decodeAudioData(await response.arrayBuffer());
+        if (controller.signal.aborted) return;
+        loaded.set(kind, [...(loaded.get(kind) ?? []), { kind, root, buffer }]);
+        progress(++done / jobs.length);
+      }));
+    } catch (error) { controller.abort(); throw error; }
+    for (const samples of loaded.values()) samples.sort((a, b) => a.root - b.root);
     this.samples = loaded;
   }
   sound(context: BaseAudioContext, kind: string, pitch: number): Sample {
     const samples = this.samples.get(kind);
-    if (samples) return samples.reduce((a, b) => Math.abs(a.root - pitch) < Math.abs(b.root - pitch) ? a : b);
+    if (samples) return samples.reduce((a, b) => Math.abs(a.root - pitch) <= Math.abs(b.root - pitch) ? a : b);
     const key = `${kind}-${pitch}-${context.sampleRate}`;
     if (!this.synthetic.has(key)) this.synthetic.set(key, this.synthesize(context, kind, pitch));
     return { buffer: this.synthetic.get(key)!, root: pitch, kind };
@@ -102,16 +107,16 @@ class Orchestra {
     const reverb = context.createConvolver();
     let impulse = impulses.get(context);
     if (!impulse) {
-    impulse = context.createBuffer(2, Math.ceil(context.sampleRate * 2.2), context.sampleRate);
-    let seed = 9128;
-    for (let c = 0; c < 2; c++) {
-      const data = impulse.getChannelData(c);
-      for (let i = 0; i < data.length; i++) {
-        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
-        data[i] = (seed / 2147483648 - 1) * (1 - i / data.length) ** 3 * Math.min(1, i / (context.sampleRate * .024));
+      impulse = context.createBuffer(2, Math.ceil(context.sampleRate * 2.2), context.sampleRate);
+      let seed = 9128;
+      for (let c = 0; c < 2; c++) {
+        const data = impulse.getChannelData(c);
+        for (let i = 0; i < data.length; i++) {
+          seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+          data[i] = (seed / 2147483648 - 1) * (1 - i / data.length) ** 3 * Math.min(1, i / (context.sampleRate * .024));
+        }
       }
-    }
-    impulses.set(context, impulse);
+      impulses.set(context, impulse);
     }
     reverb.buffer = impulse;
     const wetLow = context.createBiquadFilter(); wetLow.type = 'lowpass'; wetLow.frequency.value = 6800;

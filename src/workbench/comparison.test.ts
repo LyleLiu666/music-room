@@ -6,7 +6,11 @@ import { SONGS } from '../catalog.ts';
 test('version mapping uses a common section and relative beats even when its absolute start differs', () => {
   const source = SONGS[0], target = SONGS[1];
   const a = source.compose(), b = target.compose();
-  b.sections[1].startBar = 12;
+  b.sections[0].bars += 4;
+  for (const section of b.sections.slice(1)) section.startBar += 4;
+  b.bars.splice(8, 0, ...Array.from({ length: 4 }, () => ({ chord: 'Dm', section: 0 })));
+  b.notes = b.notes.map(note => note.beat >= 32 ? { ...note, beat: note.beat + 16 } : note);
+  b.duration += 16 * 60 / b.bpm;
   const result = comparisonMapping(source, target, a, b, 37.5, { startBeat: 32, endBeat: 48 });
   assert.deepEqual(result, { ok: true, beat: 53.5, range: { startBeat: 48, endBeat: 64 }, sectionId: 'theme', name: '主题 A' });
 });
