@@ -6,7 +6,9 @@
 
 ## 本地服务与单二进制
 
-当前开发目标为单个可执行文件：内置后台、前端页面和 MCP；用户通过现有浏览器听评，agent 通过 MCP 调用同一服务。方案与四轮边界见 [本地服务设计](docs/design/local-service.md)。以下仍是现有网页版本说明。
+现已支持普通命令行可执行文件：内置后台、前端页面、基础音色和 MCP。无需 Electron / `.app` 或安装 Node/Python。运行 `./release/start.sh --workspace "$HOME/Music/MusicRoom"`，按终端 URL 在已有浏览器听评；agent 通过 stdio / HTTP MCP 调用相同的项目、版本、后台渲染和反馈能力。
+
+[启动、MCP 连接与构建说明](docs/local-service.md) · [技术设计与四轮边界](docs/design/local-service.md)。MIDI/JSON 创作闭环已经实现；音视频识谱与 YuE2 是后续可选引擎，尚未接入。下面保留独立静态网页模式的说明。
 
 ## 开始试听
 

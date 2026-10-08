@@ -45,3 +45,14 @@ test('stdio MCP starts one shared service and a second connection reuses its pro
   await b.close(); assert.ok(!(await a.callTool({name:'status',arguments:{}})).isError);
   await a.close();
 });
+
+test('concurrent stdio startup shares one owner rather than failing its second agent',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'music-racing-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const start=async()=>{const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('./dev.ts',import.meta.url)),'mcp','--workspace',root],stderr:'pipe'});const client=new Client({name:'racing-agent',version:'1'});t.after(()=>client.close());try{await client.connect(transport);return {client,transport};}catch(e){await transport.close();throw e;}};
+  const connections=await Promise.all([start(),start()]);
+  t.after(async()=>{for(const x of connections)await x.client.close();});
+  const runtime=JSON.parse(await readFile(join(root,'.music-room.runtime.json'),'utf8'));
+  for(const x of connections)assert.ok(!(await x.client.callTool({name:'status',arguments:{}})).isError);
+  const reused=connections.find(x=>x.transport.pid!==runtime.pid)!;const owner=connections.find(x=>x.transport.pid===runtime.pid)!;
+  await reused.client.close();assert.ok(!(await owner.client.callTool({name:'status',arguments:{}})).isError);await owner.client.close();
+});

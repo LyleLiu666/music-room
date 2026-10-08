@@ -37,6 +37,7 @@ export class MusicService {
       case 'cancel_job':return this.jobs.cancel(args.jobId as string);
       case 'add_feedback':return this.store.addFeedback(args.projectId as string,args.revisionId as string,args.text as string,args.range as any);
       case 'get_authoring_context': {
+        if(args.revisionId && !args.projectId)throw new ServiceError('INVALID_REQUEST','指定版本时必须同时指定所属项目');
         const project=args.projectId ? await this.store.project(args.projectId as string):undefined;
         const revisionId=(args.revisionId as string|undefined)??project?.defaultRevisionId;
         const revision=revisionId&&project?await this.store.revision(project.id,revisionId):undefined;

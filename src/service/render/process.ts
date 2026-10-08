@@ -5,7 +5,7 @@ import type {RenderMix} from './renderer.ts';
 export type RenderSnapshot = {composition:Composition;mix:RenderMix};
 export type RenderResult = {wav:Uint8Array;peak:number;rms:number;attenuation:number;engine:string};
 export type Renderer = (snapshot:RenderSnapshot,stage:(stage:string)=>void)=>{result:Promise<RenderResult>;cancel:()=>void};
-export function processRenderer(command=process.execPath,args=[fileURLToPath(new URL('./worker.ts',import.meta.url))]): Renderer {
+export function processRenderer(command=process.execPath,args=[fileURLToPath(new URL('./worker-entry.ts',import.meta.url))]): Renderer {
   return (snapshot,stage)=> {
     const child=spawn(command,args,{stdio:['pipe','pipe','pipe']}); let timer:ReturnType<typeof setTimeout>|undefined;
     let failure:Error|undefined;let stderr='',count=0,stats: Omit<RenderResult,'wav'>|undefined; const chunks:Buffer[]=[];

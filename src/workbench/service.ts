@@ -68,6 +68,7 @@ export class ServicePanel {
     } catch(error:any){document.querySelector('#service-state')!.textContent=`本地服务未连接：${error.message}。请确认程序仍在运行；未保存的操作不会写入浏览器副本。`;}
     finally {this.polling=false;}
   }
+  pauseAudio() {document.querySelector<HTMLAudioElement>('#service-audio audio')?.pause();}
   async selectionChanged() {
     const seq=++this.sequence,doc=this.current(),input=document.querySelector<HTMLTextAreaElement>('#service-feedback')!;
     if(this.draftId!==doc.revision.id){if(this.draftId)this.drafts.set(this.draftId,input.value);this.draftId=doc.revision.id;input.value=this.drafts.get(this.draftId)??'';}

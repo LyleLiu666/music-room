@@ -47,11 +47,19 @@ export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
   };
   if(!runtime && (opt.mode==='serve'||opt.mode==='mcp')) {
     const renderer=processRenderer(process.execPath,[...selfArgs,'render-worker']);
-    const service=await MusicService.open(opt.workspace,renderer,assets.read);
-    try {
-      const http=await serveHttp(service,assets,opt.port,process.execPath,selfArgs);owned={service,http};runtime=http.runtime;
-      service.store.atomicJSON(service.store.path('.music-room.runtime.json'),runtime);
-    }catch(e){if(owned)await owned.http.close();await service.close();throw e;}
+    for(let attempt=0;attempt<30 && !runtime;attempt++) {
+      let service: MusicService;
+      try {service=await MusicService.open(opt.workspace,renderer,assets.read);}
+      catch(error:any) {
+        if(error.code!=='WORKSPACE_LOCKED')throw error;
+        // Another agent can own the lock before it has published the HTTP descriptor.
+        await new Promise(r=>setTimeout(r,100));runtime=readRuntime(opt.workspace);continue;
+      }
+      try {
+        const http=await serveHttp(service,assets,opt.port,process.execPath,selfArgs);owned={service,http};runtime=http.runtime;
+        service.store.atomicJSON(service.store.path('.music-room.runtime.json'),runtime);
+      }catch(e){if(owned)await owned.http.close();await service.close();throw e;}
+    }
   }
   if(!runtime)throw new Error('没有正在运行的服务。请先运行 music-room serve --workspace <目录>');
   const endpoint=runtime;

@@ -88,6 +88,7 @@ const report = (message: string) => { status.textContent = message; };
 async function toggle() {
   if (busy) return;
   if (engine.playing) { engine.pause(); report('已暂停，可以调整配器或跳转段落。'); return; }
+  servicePanel?.pauseAudio();
   const epoch = selectionEpoch;
   busy = true; playButton.disabled = true;
   report('正在加载音色…');
@@ -431,6 +432,7 @@ document.querySelector('#compare-exit')!.addEventListener('click', () => {
   updateMixerUI(); updateComparisonUI(); report('已退出比较，恢复进入前的版本、位置与试听设置，保持暂停。');
 });
 function showSong(song: Song, navigation: 'push' | 'replace' | 'none' = 'push') {
+  servicePanel?.pauseAudio();
   selectionEpoch++;
   selected = song; score = scoreFor(song);
   const volume = engine.mix.volume;
@@ -592,5 +594,5 @@ if(backend) {
   const badge=document.querySelector('.local-badge')!;badge.textContent='本地服务';
   document.querySelector('footer > span')!.textContent='本机项目与后台渲染 · 内置 MCP · 无付费服务';
   document.querySelector('#import-drop')!.parentElement!.querySelector('p')!.textContent='版本由后台写入项目目录，清理浏览器不会丢失。';
-  servicePanel=new ServicePanel(backend,currentDocument,()=>selection?{start:selection.startBeat*60/score.bpm,end:selection.endBeat*60/score.bpm}:undefined,applyServerSnapshot,report,()=>{engine.pause();playButton.textContent='▶ 播放';});
+  servicePanel=new ServicePanel(backend,currentDocument,()=>selection?{start:selection.startBeat*60/score.bpm,end:selection.endBeat*60/score.bpm}:undefined,applyServerSnapshot,report,()=>{selectionEpoch++;busy=false;playButton.disabled=false;engine.pause();playButton.textContent='▶ 播放';});
 }

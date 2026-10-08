@@ -28,6 +28,7 @@ try {
   const ready=page.locator('#service-jobs button').filter({hasText:'试听后台 WAV'}).first();await ready.waitFor({timeout:15000});await ready.click();
   await page.waitForFunction(()=>document.querySelector('#service-audio audio')?.currentTime>.05);
   const audio=await page.$eval('#service-audio audio',a=>({duration:a.duration,time:a.currentTime}));assert.equal(audio.duration,20);
+  await page.click('#play');await page.waitForFunction(()=>window.musicRoom.engine.playing);assert.equal(await page.$eval('#service-audio audio',a=>a.paused),true);await page.click('#play');
   await page.fill('#service-feedback','保留主题，第二版减少鼓。');await page.click('#service-save-feedback');await page.locator('#service-feedback-list').filter({hasText:'保留主题'}).waitFor();
   await page.reload();await page.locator('#service-state').filter({hasText:'已连接'}).waitFor();assert.equal(await page.locator('#song-title').textContent(),doc.work.title);
   const x=structuredClone(doc);x.revision={...x.revision,id:'window-study-v2',label:'扩写答句'};
