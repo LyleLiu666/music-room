@@ -1,16 +1,26 @@
 # Music Room · 代码音乐工作台
 
-纯前端音乐工作台，支持歌曲与版本分组、局部音符查看、整小节循环试听和 A/B 版本比较。每个条目独立保存乐谱、MIDI 和成品音频，共用播放器、音色与混音界面。演奏、混音和 WAV 渲染都在浏览器本机完成，不使用业务后台、在线模型或付费 API。
+本机音乐工作台，提供后台项目服务、浏览器听评页面和内置 MCP，打包成一个普通命令行可执行文件。支持歌曲与版本分组、先做短乐句再扩写、整小节循环试听和 A/B 版本比较。Agent 无需取得整个项目源码，即可通过 MCP 导入乐谱、后台渲染 WAV、读取听评。
 
-交互与实现规则见 [音乐工作台设计](docs/design/music-workbench.md)，逐轮开发和验收结果见 [开发记录](docs/design/development-rounds.md)。四轮工作台开发及独立创作接口已完成。外部创作流程见 [外部创作与本机作品库](docs/design/external-composition.md)。
+服务使用本机项目目录保存版本和产物，不依赖浏览器保持打开。无需 Electron / `.app`、在线模型或付费 API；同时保留独立静态网页模式。服务运行说明见 [本地服务](docs/local-service.md)，页面交互规则见 [音乐工作台设计](docs/design/music-workbench.md)。
 
 ## 本地服务与单二进制
 
-现已支持普通命令行可执行文件：内置后台、前端页面、基础音色和 MCP。无需 Electron / `.app` 或安装 Node/Python。运行 `./release/start.sh --workspace "$HOME/Music/MusicRoom"`，按终端 URL 在已有浏览器听评；agent 通过 stdio / HTTP MCP 调用相同的项目、版本、后台渲染和反馈能力。
+从源码构建一次：
+
+```sh
+npm ci
+npm run build:binary
+./release/start.sh --workspace "$HOME/Music/MusicRoom"
+```
+
+按终端 URL 在已有浏览器听评。构建产物是 `release/music-room` 和启动脚本 `release/start.sh`，运行它们无需安装 Node/Python；构建工具仅用于开发。Agent 通过 stdio / HTTP MCP 调用相同的项目、版本、后台渲染和反馈能力。二进制对应构建机器的操作系统与架构。
 
 [启动、MCP 连接与构建说明](docs/local-service.md) · [技术设计与四轮边界](docs/design/local-service.md)。MIDI/JSON 创作闭环已经实现；音视频识谱与 YuE2 是后续可选引擎，尚未接入。下面保留独立静态网页模式的说明。
 
-## 开始试听
+## 独立静态网页模式
+
+此模式在浏览器中演奏、混音和导出 WAV，导入的版本副本保存在该浏览器；没有后台项目服务或 MCP。下面的本机作品库与静态发布说明均针对这一模式。
 
 使用 Node.js 22.18+，推荐 Node.js 24 或更新版本。
 
@@ -78,6 +88,9 @@ npm run dev -- --port 5173
 | --- | --- |
 | 开发语言与编译器 | TypeScript（Apache-2.0）；项目代码 MIT |
 | 演奏、效果、离线渲染 | 浏览器原生 Web Audio |
+| 后台渲染 | TypeScript 采样 / PCM 引擎，独立任务进程 |
+| 单二进制运行时 | Bun（MIT），仅构建时需要安装 |
+| MCP 与服务输入校验 | 官方 MCP TypeScript SDK、Zod（MIT） |
 | 开发与静态打包 | Vite（MIT） |
 | MIDI 交换 | @tonejs/midi（MIT） |
 | 钢琴采样 | Alexander Holm 的 Salamander Grand Piano（CC BY 3.0） |
