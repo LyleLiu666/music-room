@@ -7,6 +7,7 @@ export type Mix = { levels: Record<TrackId, number>; muted: Set<TrackId>; solo: 
 export function defaultMix(): Mix {
   return { levels: Object.fromEntries(TRACKS.map(t => [t.id, 1])) as Record<TrackId, number>, muted: new Set(), solo: new Set(), lead: 'piano', volume: .85 };
 }
+export const cloneMix = (mix: Mix): Mix => ({ ...mix, levels: { ...mix.levels }, muted: new Set(mix.muted), solo: new Set(mix.solo) });
 export const audible = (id: TrackId, mix: Mix) => !mix.muted.has(id) && (!mix.solo.size || mix.solo.has(id));
 const hz = (pitch: number) => 440 * 2 ** ((pitch - 69) / 12);
 type Sample = { buffer: AudioBuffer; root: number; kind: string };
@@ -327,8 +328,7 @@ export class MusicEngine {
   updateMix() { for (const pass of this.passes) this.applyPassMix(pass); }
   async render(progress: (fraction: number) => void = () => {}) {
     const score = this.score;
-    const levels = { ...this.mix.levels }, muted = new Set(this.mix.muted), solo = new Set(this.mix.solo);
-    const mix: Mix = { ...this.mix, levels, muted, solo };
+    const mix = cloneMix(this.mix);
     const context = new OfflineAudioContext(2, Math.round(score.duration * 44100), 44100);
     await this.bank.load(context, fraction => progress(fraction * .15));
     const graph = new Orchestra(context, mix);

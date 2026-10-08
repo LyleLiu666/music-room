@@ -13,7 +13,8 @@
     "export:score": "node scripts/export-score.ts",
     "verify:browser": "node scripts/verify-browser.mjs",
     "verify:workbench": "node scripts/verify-workbench.mjs",
-    "verify:loop-audio": "node scripts/verify-loop-audio.mjs"
+    "verify:loop-audio": "node scripts/verify-loop-audio.mjs",
+    "verify:comparison": "node scripts/verify-comparison.mjs"
   },
   "dependencies": {
     "@tonejs/midi": "^2.0.28"

@@ -1,16 +1,22 @@
 import { TRACKS, type TrackId } from '../music/score.ts';
 import { SONGS, WORKS, versionsOf, songById, type Song } from '../catalog.ts';
-import { MusicEngine, defaultMix } from '../audio.ts';
+import { MusicEngine, defaultMix, cloneMix, type Mix } from '../audio.ts';
 import { scoreToMidi } from '../midi.ts';
 
 import { windowAt, beatAtSeconds, secondsAtBeat, notesInRange, pitchExtent, selectionFromBars } from './view.ts';
 
+import { comparisonMapping } from './comparison.ts';
 import type { BeatRange } from '../audio/playback.ts';
 
 let selection: BeatRange | undefined, selecting = false;
 let viewStart = 0, viewSize = 4, follow = true;
-let selected = songById(location.hash.slice(1)) ?? SONGS[0];
-let score = selected.compose();
+const defaultSong = songById(WORKS[0].defaultVersionId)!;
+let selected = songById(location.hash.slice(1)) ?? defaultSong;
+const scores = new Map(SONGS.map(song => [song.id, song.compose()]));
+const scoreFor = (song: Song) => scores.get(song.id)!;
+let score = scoreFor(selected);
+type ListeningSnapshot = { song: Song; position: number; selection?: BeatRange; loop?: BeatRange; viewStart: number; viewSize: number; follow: boolean; mix: Mix };
+let comparison: { a: Song; b: Song; before: ListeningSnapshot } | undefined;
 const engine = new MusicEngine(score);
 const format = (seconds: number) => `${Math.floor(seconds / 60).toString().padStart(2, '0')}:${Math.floor(seconds % 60).toString().padStart(2, '0')}`;
 const app = document.querySelector<HTMLDivElement>('#app')!;
@@ -48,6 +54,7 @@ app.innerHTML = `
         <div id="playhead" class="playhead"><span></span></div>
       </div></div>
     </section>
+    <section class="comparison-panel" aria-label="版本比较"><div class="comparison-heading"><h2>版本比较</h2><label>比较版本 <select id="compare-target" aria-label="比较版本"></select></label><button id="compare-start">开始 A/B 比较</button><div id="compare-session" hidden><button id="compare-a" aria-pressed="false">A</button><button id="compare-b" aria-pressed="false">B</button><button id="compare-exit">退出比较</button></div></div><p id="comparison-reason" role="status"></p><p id="comparison-note" hidden>比较使用两版原始混音，响度可能不同；退出后恢复试听设置。</p></section>
     <details id="mixer" class="mixer-panel"><summary>混音器 <span>静音、独奏、音量与旋律音色</span></summary><div class="mixer-tools"><label class="tone-control">旋律音色 <select id="lead" aria-label="旋律音色"><option value="piano">三角钢琴</option><option value="rhodes">电钢琴</option><option value="flute">长笛</option></select></label><button id="reset-mix">恢复本版默认混音</button></div><div class="mixer-grid">${TRACKS.map(track => `<div class="mixer-channel" style="--track:${track.color}"><strong>${track.name}</strong><div class="track-buttons"><button class="mute" data-id="${track.id}" aria-label="静音${track.name}" aria-pressed="false">静音</button><button class="solo" data-id="${track.id}" aria-label="独奏${track.name}" aria-pressed="false">独奏</button></div><input class="track-level" data-id="${track.id}" type="range" min="0" max="1.6" step="0.01" value="1" aria-label="${track.name}音量" /></div>`).join('')}</div></details>
     <section class="listening-notes"><div><div class="eyebrow">NOW PLAYING</div><h3 id="section-name">${score.sections[0].name}</h3><p id="section-subtitle">${score.sections[0].subtitle}</p></div><div class="spectrum-wrap"><canvas id="spectrum" width="280" height="60" aria-label="实时声音频谱"></canvas><small>实时频谱</small></div><div class="note"><span>关于当前作品</span><p id="work-note">${selected.description}</p></div></section>
     <footer><span>演奏与导出均在本机完成 · 无后台 · 无付费服务</span><a href="./credits.html">音色来源与开源许可 ↗</a><a id="finished-audio" href="./${selected.files.wav}" download>下载原始成品</a><a id="score-download" href="./${selected.files.score}" download>下载乐谱 JSON</a></footer>
@@ -135,7 +142,7 @@ exportButton.addEventListener('click', async () => {
 function navigate(seconds: number) {
   const loop = engine.loop; engine.seek(seconds);
   if (loop && !engine.loop) report('已退出片段循环。');
-  updateSelectionUI();
+  updateSelectionUI(); updateComparisonUI();
 }
 function updateSelectionUI() {
   const loop = document.querySelector<HTMLButtonElement>('#loop')!;
@@ -156,7 +163,7 @@ function updateSelectionUI() {
 function selectRange(range?: BeatRange) {
   selection = range;
   if (engine.loop) engine.setLoop(range);
-  updateSelectionUI(); drawLanes();
+  updateSelectionUI(); updateComparisonUI(); drawLanes();
 }
 document.querySelector('#select-view')!.addEventListener('click', () => {
   const range = windowAt(score, viewStart, viewSize); selectRange({ startBeat: range.startBeat, endBeat: range.endBeat });
@@ -173,7 +180,7 @@ for (const id of ['selection-start', 'selection-end']) document.querySelector(`#
 document.querySelector('#clear-selection')!.addEventListener('click', () => { selectRange(); report('已清除片段选择和循环。'); });
 document.querySelector('#loop')!.addEventListener('click', () => {
   if (!selection) return;
-  engine.setLoop(engine.loop ? undefined : selection); updateSelectionUI();
+  engine.setLoop(engine.loop ? undefined : selection); updateSelectionUI(); updateComparisonUI();
   if (engine.loop) setView(selection.startBeat / 4, false);
   report(engine.loop ? '已启用片段循环。播放将从选区开始，导出仍为完整曲目。' : '已关闭循环。');
 });
@@ -286,6 +293,7 @@ new ResizeObserver(drawLanes).observe(document.querySelector('.arrangement-inner
 const spectrum = document.querySelector<HTMLCanvasElement>('#spectrum')!, spectrumContext = spectrum.getContext('2d')!;
 const bins = new Uint8Array(128);
 function frame() {
+  updateComparisonUI();
   const seconds = Math.max(0, engine.currentTime());
   const range = windowAt(score, viewStart, viewSize), beat = beatAtSeconds(seconds, score.bpm);
   if (follow && engine.playing && (beat < range.startBeat || beat >= range.endBeat) && seconds < score.duration) setView(Math.floor(beat / (4 * viewSize)) * viewSize, false);
@@ -313,9 +321,88 @@ function frame() {
   }
   requestAnimationFrame(frame);
 }
+function comparisonBeat() {
+  const beat = beatAtSeconds(engine.currentTime(), score.bpm);
+  return selection && (beat < selection.startBeat || beat >= selection.endBeat) ? selection.startBeat : beat;
+}
+function refreshComparisonChoices() {
+  const select = document.querySelector<HTMLSelectElement>('#compare-target')!;
+  const a = comparison?.a ?? selected, prior = comparison?.b.id ?? select.value;
+  select.innerHTML = versionsOf(a.workId).filter(song => song.id !== a.id).map(song => `<option value="${song.id}">${song.edition}</option>`).join('');
+  if ([...select.options].some(option => option.value === prior)) select.value = prior;
+  updateComparisonUI();
+}
+function updateComparisonUI() {
+  const targetSelect = document.querySelector<HTMLSelectElement>('#compare-target')!;
+  targetSelect.disabled = !!comparison;
+  document.querySelector<HTMLButtonElement>('#compare-start')!.hidden = !!comparison;
+  document.querySelector<HTMLElement>('#compare-session')!.hidden = !comparison;
+  document.querySelector<HTMLElement>('#comparison-note')!.hidden = !comparison;
+  for (const control of document.querySelectorAll<HTMLInputElement | HTMLButtonElement | HTMLSelectElement>('.mute,.solo,.track-level,#lead,#reset-mix')) control.disabled = !!comparison;
+  if (comparison) {
+    const other = selected.id === comparison.a.id ? comparison.b : comparison.a;
+    const map = comparisonMapping(selected, other, score, scoreFor(other), beatAtSeconds(engine.currentTime(), score.bpm), selection);
+    for (const side of ['a','b'] as const) {
+      const button = document.querySelector<HTMLButtonElement>(`#compare-${side}`)!;
+      button.textContent = `${side.toUpperCase()} · ${comparison[side].edition}`;
+      button.setAttribute('aria-pressed', String(selected.id === comparison[side].id));
+      button.disabled = selected.id !== comparison[side].id && !map.ok;
+    }
+    document.querySelector('#comparison-reason')!.textContent = map.ok ? `当前：${selected.edition} · ${map.name} · 第 ${(beatAtSeconds(engine.currentTime(), score.bpm) / 4 + 1).toFixed(1)} 小节` : map.reason;
+    if (!map.ok && engine.playing) { engine.pause(); report(map.reason); }
+  } else {
+    const target = songById(targetSelect.value);
+    const map = target && comparisonMapping(selected, target, score, scoreFor(target), comparisonBeat(), selection);
+    document.querySelector<HTMLButtonElement>('#compare-start')!.disabled = !map?.ok;
+    document.querySelector('#comparison-reason')!.textContent = !target ? '当前歌曲只有一个版本。' : map?.ok ? `可比较：${map.name}，按段内小节和拍对应。` : map!.reason;
+  }
+}
+function snapshot(): ListeningSnapshot {
+  return { song: selected, position: engine.currentTime(), selection: selection && { ...selection }, loop: engine.loop && { ...engine.loop }, viewStart, viewSize, follow, mix: cloneMix(engine.mix) };
+}
+function restoreListening(snapshot: ListeningSnapshot) {
+  if (snapshot.loop) engine.setLoop(snapshot.loop);
+  engine.seek(snapshot.position); selection = snapshot.selection && { ...snapshot.selection };
+  viewStart = snapshot.viewStart; viewSize = snapshot.viewSize; follow = snapshot.follow;
+  document.querySelector<HTMLSelectElement>('#view-size')!.value = String(viewSize);
+  document.querySelector('#follow')!.setAttribute('aria-pressed', String(follow));
+  updateSelectionUI(); drawLanes();
+}
+document.querySelector('#compare-target')!.addEventListener('change', updateComparisonUI);
+document.querySelector('#compare-start')!.addEventListener('click', () => {
+  const target = songById(document.querySelector<HTMLSelectElement>('#compare-target')!.value);
+  if (!target) return;
+  const beat = comparisonBeat(), map = comparisonMapping(selected, target, score, scoreFor(target), beat, selection);
+  if (!map.ok) { report(map.reason); return; }
+  const before = snapshot(), wasPlaying = engine.playing;
+  comparison = { a: selected, b: target, before };
+  showSong(selected, 'none');
+  restoreListening({ ...before, position: secondsAtBeat(beat, score.bpm) });
+  if (wasPlaying) engine.play();
+  updateComparisonUI(); report('已进入版本比较，使用两版原始混音；退出后恢复试听设置。');
+});
+for (const side of ['a','b'] as const) document.querySelector(`#compare-${side}`)!.addEventListener('click', () => {
+  if (!comparison || selected.id === comparison[side].id) return;
+  const target = comparison[side], map = comparisonMapping(selected, target, score, scoreFor(target), beatAtSeconds(engine.currentTime(), score.bpm), selection);
+  if (!map.ok) { report(map.reason); return; }
+  const wasPlaying = engine.playing, looping = !!engine.loop, following = follow;
+  showSong(target, 'none');
+  restoreListening({ song: target, position: secondsAtBeat(map.beat, score.bpm), selection: map.range, loop: looping ? map.range : undefined, viewStart: Math.floor(map.beat / (viewSize * 4)) * viewSize, viewSize, follow: following, mix: engine.mix });
+  if (wasPlaying) engine.play();
+  updateComparisonUI(); report(`正在比较 ${side.toUpperCase()} · ${target.edition}，对应${map.name}。`);
+});
+document.querySelector('#compare-exit')!.addEventListener('click', () => {
+  if (!comparison) return;
+  const before = comparison.before, volume = engine.mix.volume; comparison = undefined;
+  showSong(before.song, 'none'); engine.mix = cloneMix(before.mix); engine.mix.volume = volume;
+  restoreListening(before);
+  document.querySelector<HTMLSelectElement>('#lead')!.value = engine.mix.lead;
+  for (const input of document.querySelectorAll<HTMLInputElement>('.track-level')) input.value = String(engine.mix.levels[input.dataset.id as TrackId]);
+  updateMixerUI(); updateComparisonUI(); report('已退出比较，恢复进入前的版本、位置与试听设置，保持暂停。');
+});
 function showSong(song: Song, navigation: 'push' | 'replace' | 'none' = 'push') {
   selectionEpoch++;
-  selected = song; score = song.compose();
+  selected = song; score = scoreFor(song);
   const volume = engine.mix.volume;
   engine.setScore(score); engine.mix.volume = volume;
   viewStart = 0; follow = true; selection = undefined; selecting = false;
@@ -351,20 +438,21 @@ function showSong(song: Song, navigation: 'push' | 'replace' | 'none' = 'push') 
     card.querySelector('.song-check')!.textContent = active ? '当前作品' : '切换试听';
     if (active) card.closest('details')!.open = true;
   }
-  updateMixerUI(); drawLanes();
+  updateMixerUI(); drawLanes(); refreshComparisonChoices();
   document.title = `${song.title} · ${song.edition} · Music Room`;
   if (navigation !== 'none') history[navigation === 'push' ? 'pushState' : 'replaceState'](null, '', `#${song.id}`);
   report(`已选择《${song.title}》${song.edition}。点击播放开始试听。`);
-  Object.assign(window, { musicRoom: { engine, score, songId: song.id, view: () => ({ startBar: viewStart, size: viewSize, follow }), selection: () => selection } });
+  Object.assign(window, { musicRoom: { engine, score, songId: song.id, view: () => ({ startBar: viewStart, size: viewSize, follow }), selection: () => selection, comparison: () => comparison && ({ a: comparison.a.id, b: comparison.b.id }) } });
 }
 for (const card of document.querySelectorAll<HTMLButtonElement>('[data-song]')) card.addEventListener('click', () => {
   const song = songById(card.dataset.song!);
-  if (song && song.id !== selected.id) showSong(song);
+  if (song && (song.id !== selected.id || comparison)) { comparison = undefined; showSong(song); }
 });
 const handleNavigation = () => {
+  const wasComparing = !!comparison; comparison = undefined;
   const song = songById(location.hash.slice(1));
-  if (song && song.id !== selected.id) showSong(song, 'none');
-  else if (!song) { showSong(SONGS[0], 'replace'); report('未找到该版本，已打开默认作品。'); }
+  if (song && (song.id !== selected.id || wasComparing)) showSong(song, 'none');
+  else if (!song) { showSong(defaultSong, 'replace'); report('未找到该版本，已打开默认作品。'); }
 };
 window.addEventListener('hashchange', handleNavigation);
 window.addEventListener('popstate', handleNavigation);
