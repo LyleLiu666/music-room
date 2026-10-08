@@ -75,7 +75,7 @@ try {
   assert.equal(await page.evaluate(() => window.musicRoom.engine.playing), false);
   await page.locator('#play').click();
   await page.waitForFunction(() => window.musicRoom.engine.playing);
-  await page.waitForTimeout(180);
+  await page.waitForFunction(() => window.musicRoom.engine.currentTime() > 20);
   await page.locator('#play').click();
   const paused = await page.evaluate(() => window.musicRoom.engine.position);
   assert.ok(paused > 20 && paused < 30);

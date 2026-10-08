@@ -12,7 +12,7 @@ const files = (id: string) => ({ wav: `exports/${id}/song.wav`, midi: `exports/$
 export type Work = { id: string; title: string; defaultVersionId: string };
 export const WORKS: Work[] = [{ id: 'rain-letter', title: '雨巷来信', defaultVersionId: 'rain-letter-v1' }];
 const sections = { intro: 0, theme: 1, transition: 2, chorus: 3, bridge: 4, reprise: 5, outro: 6 };
-// The registry is the only entry point for adding an independent composition.
+// Built-in works are registered here; external files enter via the local imported library.
 // Versions can share a title while retaining separate identity and artifacts.
 export const SONGS: Song[] = [
   {

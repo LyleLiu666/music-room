@@ -2,7 +2,7 @@
 
 纯前端音乐工作台，支持歌曲与版本分组、局部音符查看、整小节循环试听和 A/B 版本比较。每个条目独立保存乐谱、MIDI 和成品音频，共用播放器、音色与混音界面。演奏、混音和 WAV 渲染都在浏览器本机完成，不使用业务后台、在线模型或付费 API。
 
-交互与实现规则见 [音乐工作台设计](docs/design/music-workbench.md)，逐轮开发和验收结果见 [开发记录](docs/design/development-rounds.md)。四轮开发均已完成。
+交互与实现规则见 [音乐工作台设计](docs/design/music-workbench.md)，逐轮开发和验收结果见 [开发记录](docs/design/development-rounds.md)。四轮工作台开发及独立创作接口已完成。外部创作流程见 [外部创作与本机作品库](docs/design/external-composition.md)。
 
 ## 开始试听
 
@@ -23,9 +23,25 @@ npm run dev -- --port 5173
 - 在“版本比较”选择另一版，进入 A/B。两版按明确对应段落和段内小节、拍切换，保留循环和播放状态；使用各版原始混音，轨道控件只读，响度不自动归一化。
 - 退出比较恢复进入前的版本、位置、混音与查看状态，保持暂停。比较要求固定速度相同、对应段落长度相同、选区在单一段落内；不满足时解释原因并禁用切换。
 - “导出试听 WAV”导出完整曲目，使用点击时的乐谱与混音快照；选区、循环、随后切版和修改音量都不改变该文件。
-- “下载原始成品”下载已保留的版本 WAV；MIDI、JSON 下载跟随当前版本。MIDI 的声音取决于接收软件的音源。
+- “下载原始成品”下载已保留的版本 WAV；MIDI、JSON 下载跟随当前版本，JSON 包含作品与版本信息。MIDI 的声音取决于接收软件的音源。
 
 页面地址中的 `#rain-letter-v1` 或 `#rain-letter-v2` 可以直接选择对应版本。
+
+## 不给 agent 全部源码，也能创作
+
+作品库支持“先做短乐句，再扩写”的流程，同一项目可以保存多版，时长可不同：
+
+1. 展开“让 agent 创作新曲子”，选择“先写 4 小节”或“先写 8 小节”，修改并复制提示词。
+2. 下载独立创作包 ZIP，一起交给 agent。它用任意语言运行作曲代码，交付 MIDI 或 JSON；不需要本项目源码。
+3. 点击“导入 MIDI / JSON”或把单个文件拖入导入区域。文件校验后保存在当前浏览器，用工作台音色试听、调整混音，导出 WAV、MIDI 和完整创作 JSON 到电脑。
+4. 片段满意后选“扩写当前版本”，点击“下载当前版本，交给 agent”，把 JSON 和新提示词交给 agent。新版本沿用 `work.id`，换 `revision.id`；导入后和草稿归在同一项目。
+5. 按用户试听反馈迭代，保留每版。A/B 只比较明确对应且等长的段落；扩写时可以把原 4/8 小节保留为独立段落。
+
+源文件和长期备份由用户保存在电脑。浏览器副本只为方便刷新后继续，清理站点数据会移除副本；没有云端上传或跨设备同步。本机最多保存 50 个导入版本。移除不改动电脑源文件，内置作品保留。
+
+完整 JSON 格式、音色/GM 对应、限制和离线校验命令见 [独立创作说明](src/music/authoring/README.md)，示例见 [八小节乐谱](src/music/authoring/example.json)，提示词见 [prompt.txt](src/music/authoring/prompt.txt)。普通 MIDI 自动建立独立项目，后续用该项目 JSON 保存版本关系。当前支持固定速度、4/4 和说明里的 GM 音色；踏板、弯音、表情及原混音暂不还原。
+
+`npm run dev` 和 `npm run build` 自动生成创作包；也可用 `npm run authoring:kit` 单独生成。开发打包使用系统的开源 `zip` 命令（macOS 自带）；静态页面和独立校验器使用者不需要它。包中的 `node check.mjs song.json` 没有第三方依赖。页面只读取生成的乐谱，不运行上传的作曲脚本。
 
 ## 当前作品
 
@@ -67,7 +83,7 @@ npm run dev -- --port 5173
 
 没有订阅或按生成次数收费。钢琴采样需随作品分发保留署名。许可说明见 [署名页](public/credits.html)，来源、固定提交与 SHA-256 见 [资产清单](public/samples/manifest.json)。钢琴使用单一力度层，弦乐与长笛使用部分持续音采样；拨弦是物理建模合成音色，不是真实古筝采样。
 
-## 曲目组织与新增作品
+## 内置曲目组织与开发接入
 
 | 文件 | 职责 |
 | --- | --- |
@@ -80,7 +96,7 @@ npm run dev -- --port 5173
 | `src/main.ts`、`src/workbench/` | 页面入口、作品库、片段查看、选择、混音和版本比较；规则与测试放近 |
 | `src/audio/playback.ts` | 循环范围校验与音频时钟位置换算 |
 
-增加歌曲时，在 `src/catalog.ts` 的 `WORKS` 注册歌曲 ID 和默认版本；在 `src/songs/` 编写独立作曲函数，并在 `SONGS` 添加带 `workId` 的版本条目。不同曲子可以有不同标题、速度、时长和段落；同一曲子的版本使用独立 ID，以 `workId` 明确归属；不通过标题推断分组。固定 4/4 和统一轨道定义是当前模型的边界。导出路径必须独立，避免覆盖旧作品。
+一般新增作品直接在页面导入文件。将作品随静态站点预置时，在 `src/catalog.ts` 的 `WORKS` 注册歌曲 ID 和默认版本；在 `src/songs/` 编写独立作曲函数，并在 `SONGS` 添加带 `workId` 的版本条目。不同曲子可以有不同标题、速度、时长和段落；同一曲子的版本使用独立 ID，以 `workId` 明确归属；不通过标题推断分组。固定 4/4 和统一轨道定义是当前模型的边界。导出路径必须独立，避免覆盖旧作品。
 
 `comparisonSections` 为每个版本配置“共同段落 ID → 乐谱段落索引”；需要比较的段落必须明确对应、长度相同。缺少对应关系的版本仍可单独播放。
 
@@ -105,7 +121,7 @@ npm run preview -- --port 5174
 MUSIC_ROOM_URL=http://127.0.0.1:5174 npm run verify:all
 ```
 
-`verify:all` 包括单元测试、构建和五组浏览器检查：工作台操作、AudioWorklet 实时循环录音、A/B 比较、加载与键盘边界，以及完整 WAV 导出。也可分别运行 `verify:workbench`、`verify:loop-audio`、`verify:comparison`、`verify:boundaries` 和 `verify:browser`。
+`verify:all` 包括单元测试、构建和六组浏览器检查：外部导入与创作包、工作台操作、AudioWorklet 实时循环录音、A/B 比较、加载与键盘边界，以及完整 WAV 导出。也可分别运行 `verify:imports`、`verify:workbench`、`verify:loop-audio`、`verify:comparison`、`verify:boundaries` 和 `verify:browser`。
 
 验证产物生成在忽略提交的 `test-results/`，不会覆盖 `public/exports/` 的原作品。包括桌面/390 px 截图、实时至少二十轮循环的录音测量、180 秒导出音频和各组 JSON 报告。第一版乐谱和原始 WAV 哈希另由单元测试保护。
 

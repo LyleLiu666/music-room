@@ -31,11 +31,11 @@ try {
  assert.ok(page.url().endsWith('#rain-letter-v2'),'comparison switches must not replace the original version URL');
  checks.push('paused musical position', 'original mix', 'read-only mixer', 'loop mapping', 'comparison URL');
  await page.locator('#play').click(); await page.waitForFunction(()=>window.musicRoom.engine.playing);
- await page.waitForTimeout(220);
+ await page.waitForFunction(()=>window.musicRoom.engine.currentTime()>23);
  await page.evaluate(()=>{for(let i=0;i<10;i++){document.querySelector('#compare-a').click();document.querySelector('#compare-b').click();}});
  assert.equal(await page.evaluate(()=>window.musicRoom.songId),'rain-letter-v1');
  assert.equal(await page.evaluate(()=>window.musicRoom.engine.playing),true);
- await page.waitForTimeout(150);
+ await page.waitForFunction(()=>window.musicRoom.engine.currentTime()>23);
  assert.ok(await page.evaluate(()=>window.musicRoom.engine.currentTime())>23);
  await page.locator('#volume').fill('0.3');
  await page.locator('#compare-exit').click();

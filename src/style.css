@@ -1032,3 +1032,40 @@ footer a:hover {
     order: 3;
   }
 }
+
+/* External composition entry and portable authoring instructions. */
+.authoring-tools {
+  border-top: 1px solid var(--line, #343c30);
+  margin-top: 20px;
+  padding-top: 20px;
+  display: grid;
+  gap: 12px;
+  font-size: 12px;
+}
+.authoring-tools p { line-height: 1.7; color: #a7ae9d; margin: 0; }
+.authoring-tools button { white-space: normal; padding: 10px; }
+.authoring-tools summary { cursor: pointer; padding: 8px 0; }
+.authoring-tools details > a { display: block; margin: 12px 0; color: #cce7a4; }
+.authoring-tools label { display: block; margin: 12px 0 8px; }
+.authoring-tools textarea {
+  width: 100%; min-width: 0; resize: vertical; border: 1px solid #414a39;
+  background: #191e17; color: #dbe2d2; padding: 10px; font: inherit; line-height: 1.6;
+  margin-bottom: 8px;
+}
+.work-header > div { min-width: 0; overflow-wrap: anywhere; }
+.work-group summary, .song-card, .listening-notes p, .listening-notes h3 { overflow-wrap: anywhere; }
+#chords > div { min-width: 0; overflow-wrap: anywhere; }
+.section { min-width: 0; overflow: hidden; }
+.section span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#compare-target { max-width: 200px; }
+.authoring-tools textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.import-drop {
+  border: 1px dashed #526044;
+  border-radius: 5px;
+  padding: 10px;
+  display: grid;
+  gap: 10px;
+  text-align: center;
+  color: var(--muted);
+}
+.import-drop.drag-over { background: #354629; border-color: var(--accent); color: var(--accent); }

@@ -23,8 +23,12 @@ try {
   engine.output.connect(recorder).connect(silent).connect(context.destination);
   engine.setLoop({startBeat:4,endBeat:8});
   const wait = ms => new Promise(resolve=>setTimeout(resolve,ms));
-  engine.play();
-  await wait(5300);
+  // Force first effect initialization to outlast the startup lookahead.
+  // Audio start must be chosen after construction, not before it.
+  const createConvolver=context.createConvolver.bind(context);let slowFirst=true;
+  context.createConvolver=()=>{if(slowFirst){slowFirst=false;const until=performance.now()+100;while(performance.now()<until){} } return createConvolver();};
+  engine.play();context.createConvolver=createConvolver;
+  await wait(5700);
   const loopPosition=engine.currentTime();
   engine.pause(); await wait(100);
   const samples = new Float32Array(chunks.reduce((sum,c)=>sum+c.length,0));
@@ -56,7 +60,7 @@ try {
  await writeFile(new URL('verification.json',output),JSON.stringify(result,null,2));
  assert.ok(result.cycles>=20, 'capture at least 20 actual playback cycles');
  assert.ok(result.maximumPeriodError<=.01, 'actual output timing error must stay within 10ms');
- assert.ok(result.worstDifference<.001, 'the first playback cycle must be complete after synthesis warmup');
+ assert.ok(result.worstDifference<.001, 'the first playback cycle must be complete after synthesis and effect initialization');
  assert.ok(result.stableDifference<.001, 'each recorded loop must repeat the same audio without accumulating tails or playing outside notes');
  assert.ok(result.residual<.00001, 'pause must clear audio and effect tails');
  assert.ok(result.heldNoteRms>.005, 'a note begun before the selection must actually sound when restored');

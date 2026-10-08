@@ -1,5 +1,9 @@
 import { TRACKS, type TrackId } from '../music/score.ts';
-import { SONGS, WORKS, versionsOf, songById, type Song } from '../catalog.ts';
+import { SONGS as BUILTIN_SONGS, WORKS as BUILTIN_WORKS, versionsOf as workVersions, type Song } from '../catalog.ts';
+import { ImportedLibrary } from '../music/import/library.ts';
+import { validateComposition, MAX_FILE_BYTES, type Composition } from '../music/authoring/validate.mjs';
+import { midiToComposition } from '../music/import/midi.ts';
+import { buildAuthoringPrompt, type AuthoringStage } from '../music/authoring/prompt.ts';
 import { MusicEngine, defaultMix, cloneMix, type Mix } from '../audio.ts';
 import { scoreToMidi } from '../midi.ts';
 
@@ -8,6 +12,11 @@ import { windowAt, beatAtSeconds, secondsAtBeat, notesInRange, pitchExtent, sele
 import { comparisonMapping } from './comparison.ts';
 import type { BeatRange } from '../audio/playback.ts';
 
+const imported = new ImportedLibrary({ getItem: key => localStorage.getItem(key), setItem: (key, value) => localStorage.setItem(key, value) }, BUILTIN_WORKS, BUILTIN_SONGS);
+let SONGS = [...BUILTIN_SONGS, ...imported.songs], WORKS = [...BUILTIN_WORKS, ...imported.works];
+const songById = (id: string) => SONGS.find(song => song.id === id);
+const versionsOf = (workId: string) => workVersions(workId, SONGS);
+const escapeHTML = (value: string) => value.replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]!));
 let selection: BeatRange | undefined, selecting = false;
 let viewStart = 0, viewSize = 4, follow = true;
 const defaultSong = songById(WORKS[0].defaultVersionId)!;
@@ -23,10 +32,11 @@ const app = document.querySelector<HTMLDivElement>('#app')!;
 app.innerHTML = `
   <header class="topbar"><a class="brand" href="./"><span class="brand-icon">♫</span> MUSIC ROOM</a><button id="library-toggle" aria-expanded="false" aria-controls="library">作品库</button><span class="top-label" id="catalog-position"></span><span class="local-badge">本地演奏</span></header>
   <div class="workspace">
-    <aside id="library" class="library" aria-label="作品库"><div class="library-heading"><h2>作品库</h2><span>${WORKS.length} 首歌曲 · ${SONGS.length} 个版本</span></div>${WORKS.map(work => `<details class="work-group" ${work.id === selected.workId ? 'open' : ''}><summary>${work.title}<small>${versionsOf(work.id).length} 个版本</small></summary><div class="song-list">${versionsOf(work.id).map(song => `<button class="song-card" data-song="${song.id}" aria-pressed="${song.id === selected.id}" aria-label="选择${song.title} ${song.edition}" style="--song:${song.color}"><strong>${song.edition}</strong><span>${song.summary}</span><span class="song-check">${song.id === selected.id ? '当前版本' : '切换试听'}</span></button>`).join('')}</div></details>`).join('')}</aside>
+    <aside id="library" class="library" aria-label="作品库"><div class="library-heading"><h2>作品库</h2><span id="library-count"></span></div><div id="library-works"></div>
+      <div class="authoring-tools"><div id="import-drop" class="import-drop"><button id="import-score">＋ 导入 MIDI / JSON</button><span>或把文件拖到这里</span></div><input id="import-file" type="file" accept=".json,.mid,.midi" hidden /><p>文件留在本机。导入后请下载备份。</p><button id="remove-import" hidden>移除本机版本</button><details><summary>让 agent 创作新曲子</summary><p>下载创作包，把它和下面的要求交给 agent。拿到乐谱后回到这里导入试听。</p><a href="./music-authoring-kit.zip" download>下载独立创作包 ZIP</a><a href="./authoring-kit/example.json" download>下载八小节示例 JSON</a><a href="./authoring-kit/README.md" download>下载创作说明</a><label for="authoring-stage">创作步骤</label><select id="authoring-stage"><option value="four">先写 4 小节</option><option value="eight" selected>先写 8 小节</option><option value="expand">扩写当前版本</option></select><button id="authoring-current">下载当前版本，交给 agent</button><label for="authoring-prompt">示例提示词（可修改后复制）</label><textarea id="authoring-prompt" rows="10"></textarea><button id="copy-prompt">复制提示词</button><p>代码由 agent 生成并运行，页面把生成的 MIDI / JSON 乐谱演奏成声音。</p></details></div></aside>
   <main>
     <section class="work-header">
-      <div><div class="eyebrow" id="edition">${selected.edition}</div><h1><span id="song-title" class="chinese-title">${selected.title}</span><span id="song-title-en">${selected.englishTitle ?? ''}</span></h1><p class="description" id="song-description">${selected.description}</p></div>
+      <div><div class="eyebrow" id="edition">${escapeHTML(selected.edition)}</div><h1><span id="song-title" class="chinese-title">${escapeHTML(selected.title)}</span><span id="song-title-en">${escapeHTML(selected.englishTitle ?? '')}</span></h1><p class="description" id="song-description">${escapeHTML(selected.description)}</p></div>
       <div class="work-meta"><div><strong id="total-duration">${format(score.duration)}</strong><span>完整时长</span></div><div><strong id="tempo">${score.bpm}</strong><span>BPM · 4/4</span></div><div><strong id="track-count">${new Set(score.notes.map(n => n.track)).size}</strong><span>独立轨道</span></div></div>
     </section>
     <section class="transport" aria-label="播放控制">
@@ -57,7 +67,7 @@ app.innerHTML = `
     </section>
     <section class="comparison-panel" aria-label="版本比较"><div class="comparison-heading"><h2>版本比较</h2><label>比较版本 <select id="compare-target" aria-label="比较版本"></select></label><button id="compare-start">开始 A/B 比较</button><div id="compare-session" hidden><button id="compare-a" aria-pressed="false">A</button><button id="compare-b" aria-pressed="false">B</button><button id="compare-exit">退出比较</button></div></div><p id="comparison-reason" role="status"></p><p id="comparison-note" hidden>比较使用两版原始混音，响度可能不同；退出后恢复试听设置。</p></section>
     <details id="mixer" class="mixer-panel"><summary>混音器 <span>静音、独奏、音量与旋律音色</span></summary><div class="mixer-tools"><label class="tone-control">旋律音色 <select id="lead" aria-label="旋律音色"><option value="piano">三角钢琴</option><option value="rhodes">电钢琴</option><option value="flute">长笛</option></select></label><button id="reset-mix">恢复本版默认混音</button></div><div class="mixer-grid">${TRACKS.map(track => `<div class="mixer-channel" style="--track:${track.color}"><strong>${track.name}</strong><div class="track-buttons"><button class="mute" data-id="${track.id}" aria-label="静音${track.name}" aria-pressed="false">静音</button><button class="solo" data-id="${track.id}" aria-label="独奏${track.name}" aria-pressed="false">独奏</button></div><input class="track-level" data-id="${track.id}" type="range" min="0" max="1.6" step="0.01" value="1" aria-label="${track.name}音量" /></div>`).join('')}</div></details>
-    <section class="listening-notes"><div><div class="eyebrow">NOW PLAYING</div><h3 id="section-name">${score.sections[0].name}</h3><p id="section-subtitle">${score.sections[0].subtitle}</p></div><div class="spectrum-wrap"><canvas id="spectrum" width="280" height="60" aria-label="实时声音频谱"></canvas><small>实时频谱</small></div><div class="note"><span>关于当前作品</span><p id="work-note">${selected.description}</p></div></section>
+    <section class="listening-notes"><div><div class="eyebrow">NOW PLAYING</div><h3 id="section-name">${escapeHTML(score.sections[0].name)}</h3><p id="section-subtitle">${escapeHTML(score.sections[0].subtitle)}</p></div><div class="spectrum-wrap"><canvas id="spectrum" width="280" height="60" aria-label="实时声音频谱"></canvas><small>实时频谱</small></div><div class="note"><span>关于当前作品</span><p id="work-note">${escapeHTML(selected.description)}</p></div></section>
     <footer><span>演奏与导出均在本机完成 · 无后台 · 无付费服务</span><a href="./credits.html">音色来源与开源许可 ↗</a><a id="finished-audio" href="./${selected.files.wav}" download>下载原始成品</a><a id="score-download" href="./${selected.files.score}" download>下载乐谱 JSON</a></footer>
   </main></div>`;
 
@@ -199,7 +209,7 @@ function drawLanes() {
   document.querySelector<HTMLInputElement>('#view-start')!.max = String(score.bars.length);
   document.querySelector<HTMLButtonElement>('#view-prev')!.disabled = viewStart === 0;
   document.querySelector<HTMLButtonElement>('#view-next')!.disabled = range.endBar === score.bars.length;
-  document.querySelector('#chords')!.innerHTML = score.bars.slice(range.startBar, range.endBar).map((bar, i) => `<div><small>${range.startBar + i + 1}</small><strong>${bar.chord}</strong></div>`).join('');
+  document.querySelector('#chords')!.innerHTML = score.bars.slice(range.startBar, range.endBar).map((bar, i) => `<div><small>${range.startBar + i + 1}</small><strong>${escapeHTML(bar.chord)}</strong></div>`).join('');
   document.querySelector('.ruler')!.innerHTML = Array.from({ length: range.endBar - range.startBar + 1 }, (_, i) => `<span>${range.startBar + i + 1}</span>`).join('');
   for (const track of TRACKS) {
     const canvas = document.querySelector<HTMLCanvasElement>(`[data-lane="${track.id}"]`)!;
@@ -334,7 +344,7 @@ function musicalPosition(beat: number) {
 function refreshComparisonChoices() {
   const select = document.querySelector<HTMLSelectElement>('#compare-target')!;
   const a = comparison?.a ?? selected, prior = comparison?.b.id ?? select.value;
-  select.innerHTML = versionsOf(a.workId).filter(song => song.id !== a.id).map(song => `<option value="${song.id}">${song.edition}</option>`).join('');
+  select.innerHTML = versionsOf(a.workId).filter(song => song.id !== a.id).map(song => `<option value="${song.id}">${escapeHTML(song.edition)}</option>`).join('');
   if ([...select.options].some(option => option.value === prior)) select.value = prior;
   updateComparisonUI();
 }
@@ -432,11 +442,13 @@ function showSong(song: Song, navigation: 'push' | 'replace' | 'none' = 'push') 
   document.querySelector('#track-count')!.textContent = String(new Set(score.notes.map(n => n.track)).size);
   document.querySelector('#score-info')!.textContent = `${score.bars.length} 小节 · ${song.key}`;
   document.querySelector<HTMLAnchorElement>('#score-download')!.href = `./${song.files.score}`;
-  document.querySelector<HTMLAnchorElement>('#finished-audio')!.href = `./${song.files.wav}`;
+  const finished = document.querySelector<HTMLAnchorElement>('#finished-audio')!;
+  finished.href = `./${song.files.wav}`; finished.hidden = !song.files.wav;
+  document.querySelector<HTMLButtonElement>('#remove-import')!.hidden = !imported.documents.some(d => d.revision.id === song.id);
   document.querySelector<HTMLSelectElement>('#lead')!.value = 'piano';
   document.querySelector<HTMLInputElement>('#volume')!.value = String(volume);
   for (const input of document.querySelectorAll<HTMLInputElement>('.track-level')) input.value = '1';
-  document.querySelector('.sections')!.innerHTML = score.sections.map((s, i) => `<button class="section" data-section="${i}" style="flex:${s.bars};--section:${s.color}"><span>${s.name}</span><small>${format(s.startBar * 4 * 60 / score.bpm)}</small></button>`).join('');
+  document.querySelector('.sections')!.innerHTML = score.sections.map((s, i) => `<button class="section" data-section="${i}" style="flex:${s.bars};--section:${s.color}"><span>${escapeHTML(s.name)}</span><small>${format(s.startBar * 4 * 60 / score.bpm)}</small></button>`).join('');
   document.querySelector('.ruler')!.innerHTML = Array.from({length:10}, (_, i) => `<span>${format(i * score.duration / 9)}</span>`).join('');
   for (const card of document.querySelectorAll<HTMLButtonElement>('[data-song]')) {
     const active = card.dataset.song === song.id;
@@ -445,15 +457,97 @@ function showSong(song: Song, navigation: 'push' | 'replace' | 'none' = 'push') 
     if (active) card.closest('details')!.open = true;
   }
   updateMixerUI(); drawLanes(); refreshComparisonChoices();
+  if (authoringStage.value === 'expand') refreshAuthoringPrompt();
   document.title = `${song.title} · ${song.edition} · Music Room`;
   if (navigation !== 'none') history[navigation === 'push' ? 'pushState' : 'replaceState'](null, '', `#${song.id}`);
   report(`已选择《${song.title}》${song.edition}。点击播放开始试听。`);
   Object.assign(window, { musicRoom: { engine, score, songId: song.id, view: () => ({ startBar: viewStart, size: viewSize, follow }), selection: () => selection, comparison: () => comparison && ({ a: comparison.a.id, b: comparison.b.id }) } });
 }
-for (const card of document.querySelectorAll<HTMLButtonElement>('[data-song]')) card.addEventListener('click', () => {
-  const song = songById(card.dataset.song!);
+function renderLibrary() {
+  document.querySelector('#library-count')!.textContent = `${WORKS.length} 首歌曲 · ${SONGS.length} 个版本`;
+  document.querySelector('#library-works')!.innerHTML = WORKS.map(work => `<details class="work-group" ${work.id === selected.workId ? 'open' : ''}><summary>${escapeHTML(work.title)}<small>${versionsOf(work.id).length} 个版本</small></summary><div class="song-list">${versionsOf(work.id).map(song => `<button class="song-card" data-song="${song.id}" aria-pressed="${song.id === selected.id}" aria-label="选择${escapeHTML(song.title)} ${escapeHTML(song.edition)}" style="--song:${song.color}"><strong>${escapeHTML(song.edition)}</strong><span>${escapeHTML(song.summary)}</span><span class="song-check">${song.id === selected.id ? '当前版本' : '切换试听'}</span></button>`).join('')}</div></details>`).join('');
+}
+function refreshImportedLibrary() {
+  SONGS = [...BUILTIN_SONGS, ...imported.songs]; WORKS = [...BUILTIN_WORKS, ...imported.works];
+  const ids = new Set(SONGS.map(s => s.id));
+  for (const id of scores.keys()) if (!ids.has(id)) scores.delete(id);
+  for (const song of SONGS) if (!scores.has(song.id)) scores.set(song.id, song.compose());
+  renderLibrary();
+}
+document.querySelector('#library-works')!.addEventListener('click', event => {
+  const card = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-song]');
+  const song = card && songById(card.dataset.song!);
   if (song && (song.id !== selected.id || comparison)) { comparison = undefined; showSong(song); }
 });
+const importFile = document.querySelector<HTMLInputElement>('#import-file')!;
+const importButton = document.querySelector<HTMLButtonElement>('#import-score')!;
+document.querySelector('#import-score')!.addEventListener('click', () => importFile.click());
+async function importCompositionFile(file: File) {
+  if (importButton.disabled) { report('正在导入，请等当前文件完成后再导入。'); return; }
+  importButton.disabled = true;
+  try {
+    if (file.size > MAX_FILE_BYTES) throw new Error('文件超过 4 MiB，请减少音符后重试。');
+    const isMidi = /\.(mid|midi)$/i.test(file.name);
+    if (!isMidi && !/\.json$/i.test(file.name)) throw new Error('请选择 .mid、.midi 或 .json 文件。');
+    const doc = isMidi ? midiToComposition(new Uint8Array(await file.arrayBuffer()), file.name, `midi-${crypto.randomUUID()}`) : validateComposition(await file.text());
+    imported.add(doc); refreshImportedLibrary(); comparison = undefined; showSong(songById(doc.revision.id)!);
+    report(isMidi ? 'MIDI 已保存在当前浏览器。按工作台音色演奏，踏板、弯音、表情及原混音暂不还原。请试听并下载备份。' : '乐谱已校验并保存在当前浏览器。点击播放试听；请下载 JSON / MIDI 备份。');
+  } catch(error) { report(`导入失败：${error instanceof Error ? error.message : error}`); }
+  finally { importButton.disabled = false; importFile.value = ''; }
+}
+importFile.addEventListener('change', () => { const file = importFile.files?.[0]; if (file) void importCompositionFile(file); });
+const dropZone = document.querySelector<HTMLElement>('#import-drop')!;
+let dragDepth = 0;
+const hasFiles = (event: DragEvent) => event.dataTransfer?.types.includes('Files');
+dropZone.addEventListener('dragenter', event => {
+  if (!hasFiles(event)) return; event.preventDefault(); dragDepth++; dropZone.classList.add('drag-over');
+});
+dropZone.addEventListener('dragover', event => {
+  if (!hasFiles(event)) return; event.preventDefault(); event.dataTransfer!.dropEffect = 'copy';
+});
+dropZone.addEventListener('dragleave', event => {
+  if (!hasFiles(event)) return; event.preventDefault(); if (--dragDepth <= 0) { dragDepth = 0; dropZone.classList.remove('drag-over'); }
+});
+dropZone.addEventListener('drop', event => {
+  event.preventDefault(); dragDepth = 0; dropZone.classList.remove('drag-over');
+  const files = event.dataTransfer?.files;
+  if (!files?.length) return;
+  if (files.length !== 1) { report('请一次拖入一个 MIDI 或 JSON 文件。'); return; }
+  void importCompositionFile(files[0]);
+});
+// A file dropped outside the target must not navigate away and lose listening state.
+window.addEventListener('dragover', event => { if (hasFiles(event)) event.preventDefault(); });
+window.addEventListener('drop', event => { if (hasFiles(event)) event.preventDefault(); });
+document.querySelector('#remove-import')!.addEventListener('click', () => {
+  try {
+    const old = selected; imported.remove(old.id); comparison = undefined; refreshImportedLibrary();
+    const next = versionsOf(old.workId)[0] ?? defaultSong; showSong(next, 'replace');
+    report('已移除本机版本。电脑上的源文件保留，可重新导入。');
+  } catch(error) { report((error as Error).message); }
+});
+const promptInput = document.querySelector<HTMLTextAreaElement>('#authoring-prompt')!;
+const authoringStage = document.querySelector<HTMLSelectElement>('#authoring-stage')!;
+function refreshAuthoringPrompt() { promptInput.value = buildAuthoringPrompt(authoringStage.value as AuthoringStage, currentDocument()); }
+authoringStage.addEventListener('change', refreshAuthoringPrompt);
+refreshAuthoringPrompt();
+document.querySelector('#authoring-current')!.addEventListener('click', () => {
+  download(new TextEncoder().encode(JSON.stringify(currentDocument(), null, 2)), `${selected.id}.json`, 'application/json');
+  report('已下载当前版本。把这个 JSON 和扩写提示词一起交给 agent，保留旧版再创作新版本。');
+});
+document.querySelector('#copy-prompt')!.addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText(promptInput.value); report('提示词已复制。把独立创作包一并交给 agent。'); }
+  catch { promptInput.focus(); promptInput.select(); report('浏览器无法自动复制，已选中提示词，请手动复制。'); }
+});
+function currentDocument(): Composition {
+  const saved = imported.documents.find(d => d.revision.id === selected.id);
+  return saved ?? {format:'music-room-score',version:1,work:{id:selected.workId,title:selected.title},revision:{id:selected.id,label:selected.edition,englishTitle:selected.englishTitle,summary:selected.summary,description:selected.description,key:selected.key},comparisonSections:selected.comparisonSections,score};
+}
+document.querySelector('#score-download')!.addEventListener('click', event => {
+  event.preventDefault();
+  download(new TextEncoder().encode(JSON.stringify(currentDocument(), null, 2)), `${selected.id}.json`, 'application/json');
+  report('已下载完整创作 JSON（含歌曲、版本、段落和音符）。可交给 agent 修改，新增版本请更换 revision.id。');
+});
+renderLibrary();
 const handleNavigation = () => {
   const wasComparing = !!comparison; comparison = undefined;
   const song = songById(location.hash.slice(1));
@@ -464,5 +558,6 @@ window.addEventListener('hashchange', handleNavigation);
 window.addEventListener('popstate', handleNavigation);
 const invalidAddress = !!location.hash && !songById(location.hash.slice(1));
 showSong(selected, 'replace');
-if (invalidAddress) report('未找到该版本，已打开默认作品。');
+if (imported.warning) report(imported.warning);
+else if (invalidAddress) report('未找到该版本，已打开默认作品。');
 frame();

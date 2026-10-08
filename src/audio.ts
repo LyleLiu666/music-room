@@ -246,17 +246,21 @@ export class MusicEngine {
     let position = Math.max(0, Math.min(this.score.duration, from));
     if (loop && (position < loop.start || position >= loop.end)) position = loop.start;
     else if (!loop && position >= this.score.duration) position = 0;
+    // Initialize effects before starting the audio clock, just like synthesis.
+    const graph = new Orchestra(this.context, this.mix, this.output);
     this.position = this.from = position;
-    this.audioStart = this.context.currentTime + .06;
+    // Give the new effect graph a silent preroll to settle before its first note.
+    // Loop successors already receive this preparation time from lookahead.
+    this.audioStart = this.context.currentTime + .25;
     this.anchor = this.audioStart - position;
     this.playing = true;
-    const pass = this.makePass(position, this.audioStart, loop?.end ?? this.score.duration);
+    const pass = this.makePass(position, this.audioStart, loop?.end ?? this.score.duration, graph);
     this.graph = pass.graph; this.nextBoundary = pass.boundary;
     this.schedule(); this.timer = setInterval(() => this.schedule(), 40);
   }
-  private makePass(from: number, audioStart: number, end: number) {
+  private makePass(from: number, audioStart: number, end: number, graph?: Orchestra) {
     const index = this.score.notes.findIndex(note => note.beat * 60 / this.score.bpm >= from);
-    const pass: Pass = { graph: new Orchestra(this.context!, this.mix, this.output), from, end, audioStart, boundary: audioStart + end - from, index: index < 0 ? this.score.notes.length : index, restored: false };
+    const pass: Pass = { graph: graph ?? new Orchestra(this.context!, this.mix, this.output), from, end, audioStart, boundary: audioStart + end - from, index: index < 0 ? this.score.notes.length : index, restored: false };
     this.passes.push(pass); this.applyPassMix(pass); return pass;
   }
   private applyPassMix(pass: Pass) {

@@ -1,0 +1,10 @@
+import { mkdir, copyFile, rm } from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+const files=['README.md','prompt.txt','example.json','validate.mjs','check.mjs'];
+const root=new URL('../',import.meta.url);
+const target=new URL('public/authoring-kit/',root);
+await mkdir(target,{recursive:true});
+for(const file of files) await copyFile(new URL(`src/music/authoring/${file}`,root),new URL(file,target));
+await rm(new URL('public/music-authoring-kit.zip',root),{force:true});
+execFileSync('zip',['-q','-X',new URL('public/music-authoring-kit.zip',root).pathname,...files],{cwd:target.pathname});
+console.log('独立创作包已生成：public/music-authoring-kit.zip');
