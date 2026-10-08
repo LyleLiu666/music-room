@@ -1,0 +1,82 @@
+import {spawn} from 'node:child_process';
+import {readFileSync,writeFileSync,existsSync,mkdirSync,unlinkSync} from 'node:fs';
+import {join,isAbsolute} from 'node:path';
+import {createInterface} from 'node:readline';
+import {z} from 'zod';
+
+const taskSchema=z.object({directory:z.string().refine(isAbsolute),owner:z.string().min(1),step:z.enum(['venv','dependencies','studio','check','models','instrumental','serve']),port:z.number().int().min(1).max(65535).optional(),nonce:z.string().regex(/^[a-f0-9]{64}$/).optional()}).strict();
+export type YuE2Task=z.infer<typeof taskSchema>;
+export function runtimeEnvironment(root:string,parent:NodeJS.ProcessEnv=process.env):NodeJS.ProcessEnv {
+  const env:NodeJS.ProcessEnv={};
+  for(const key of ['HOME','USER','LOGNAME','LANG','LC_ALL','HTTPS_PROXY','HTTP_PROXY','ALL_PROXY','NO_PROXY','https_proxy','http_proxy','all_proxy','no_proxy','SSL_CERT_FILE','SSL_CERT_DIR'])if(parent[key])env[key]=parent[key];
+  Object.assign(env,{PATH:`${join(root,'.venv','bin')}:${join(root,'bin')}:/usr/bin:/bin:/usr/sbin:/sbin`,YUE2_STUDIO_HOME:root,UV_NO_CONFIG:'1',UV_PYTHON_INSTALL_DIR:join(root,'python'),UV_PYTHON_BIN_DIR:join(root,'bin'),UV_CACHE_DIR:join(root,'cache','uv'),HF_HOME:join(root,'cache','huggingface'),HF_HUB_CACHE:join(root,'cache','huggingface','hub'),HF_XET_CACHE:join(root,'cache','huggingface','xet'),HF_ASSETS_CACHE:join(root,'cache','huggingface','assets'),XDG_CACHE_HOME:join(root,'cache'),XDG_DATA_HOME:join(root,'data'),XDG_CONFIG_HOME:join(root,'config'),XDG_STATE_HOME:join(root,'state'),PIP_CACHE_DIR:join(root,'cache','pip'),TORCH_HOME:join(root,'cache','torch'),NUMBA_CACHE_DIR:join(root,'cache','numba'),MPLCONFIGDIR:join(root,'cache','matplotlib'),PYTHONPYCACHEPREFIX:join(root,'cache','pycache'),TMPDIR:join(root,'tmp'),PYTHONUNBUFFERED:'1',MLX_ENABLE_TF32:'0',HF_HUB_DISABLE_PROGRESS_BARS:'1'});
+  return env;
+}
+const instrumental=`from huggingface_hub import hf_hub_download
+from pathlib import Path
+import os
+target=Path(os.environ['YUE2_STUDIO_HOME'])/'models'/'loras'
+target.mkdir(parents=True,exist_ok=True)
+for repo,rev,name in [('Mothersuperior/YuE2-instrumental-cot-full-loras','947f2f4b28978b2b6c3e316e6a87925c76bf3c4b','ar_lora_inst_v3abc.bf16.safetensors'),('Mothersuperior/yue2-mothersuperior-realaudio-tokenizer-v4','e2e63d859f3af879baf1b4d4e9f22d1eeda6fde5','nar_lora_joint_v4.bf16.safetensors')]:
+ print('Downloading instrumental adapter: '+name,flush=True)
+ hf_hub_download(repo,name,revision=rev,local_dir=str(target))`;
+const serve=`import os
+from yue2_studio.main import create_app
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import JSONResponse
+import uvicorn
+app=create_app(home=os.environ['YUE2_STUDIO_HOME'],fake=False)
+origin='http://127.0.0.1:'+os.environ['MUSIC_ROOM_YUE2_PORT']
+class LocalOnly(BaseHTTPMiddleware):
+ async def dispatch(self,request,call_next):
+  if request.headers.get('host')!='127.0.0.1:'+os.environ['MUSIC_ROOM_YUE2_PORT'] or request.headers.get('origin') not in (None,origin):
+   return JSONResponse({'error':'Local requests only'},status_code=403)
+  response=await call_next(request)
+  response.headers['X-Music-Room-Engine']=os.environ['MUSIC_ROOM_YUE2_NONCE']
+  return response
+app.add_middleware(LocalOnly)
+uvicorn.run(app,host='127.0.0.1',port=int(os.environ['MUSIC_ROOM_YUE2_PORT']),log_level='info')`;
+
+export function workerCommand(input:YuE2Task) {
+  const task=taskSchema.parse(input),root=task.directory,lock=join(root,'.music-room-yue2.lock');
+  if(!existsSync(lock)||JSON.parse(readFileSync(lock,'utf8')).owner!==task.owner)throw new Error('YuE2 目录不属于所属工作台');
+  const uv=join(root,'bin','uv'),python=join(root,'.venv','bin','python');
+  switch(task.step){
+    case 'venv':return {command:uv,args:['venv','--managed-python','--python','3.12',join(root,'.venv')]};
+    case 'dependencies':return {command:uv,args:['pip','sync','--python',python,'--require-hashes','--no-sources',join(root,'requirements.txt')]};
+    case 'studio':return {command:uv,args:['pip','install','--python',python,'--no-deps','--no-sources',join(root,'source')]};
+    case 'check':return {command:python,args:['-c','import yue2_studio, lyra, mlx.core; print("YuE2 Python environment ready",flush=True)']};
+    case 'models':return {command:python,args:[join(root,'source','scripts','setup.py')]};
+    case 'instrumental':return {command:python,args:['-c',instrumental]};
+    case 'serve':if(!task.port||!task.nonce)throw new Error('启动参数无效');return {command:python,args:['-c',serve]};
+  }
+}
+
+/** stdin remains open as a parent lease; EOF stops the owned process group. */
+export async function runYuE2Worker() {
+  const lines=createInterface({input:process.stdin});let started=false;
+  await new Promise<void>((resolve,reject)=>{
+    lines.once('line',line=>{
+      try{
+        if(line.length>16384)throw new Error('YuE2 任务参数过大');
+        const task=taskSchema.parse(JSON.parse(line)),spec=workerCommand(task);started=true;
+        const env=runtimeEnvironment(task.directory);if(task.port)env.MUSIC_ROOM_YUE2_PORT=String(task.port);if(task.nonce)env.MUSIC_ROOM_YUE2_NONCE=task.nonce;
+        mkdirSync(env.TMPDIR!,{recursive:true});
+        const child=spawn(spec.command,spec.args,{cwd:task.directory,env,detached:true,stdio:['ignore','inherit','inherit']});
+        const lockPath=join(task.directory,'.music-room-yue2.lock'),lock=JSON.parse(readFileSync(lockPath,'utf8'));
+        if(lock.owner===task.owner)writeFileSync(lockPath,JSON.stringify({...lock,workerPid:process.pid}));
+        let ending=false,timer:ReturnType<typeof setTimeout>|undefined;
+        const stop=()=>{if(ending)return;ending=true;try{if(child.pid)process.kill(-child.pid,'SIGTERM');}catch{}timer=setTimeout(()=>{try{if(child.pid)process.kill(-child.pid,'SIGKILL');}catch{}},5000);timer.unref();};
+        lines.once('close',stop);process.once('SIGTERM',stop);process.once('SIGINT',stop);
+        child.once('error',reject);
+        child.once('close',code=>{
+          if(timer)clearTimeout(timer);process.removeListener('SIGTERM',stop);process.removeListener('SIGINT',stop);lines.removeListener('close',stop);lines.close();process.stdin.destroy();
+          // Only a lost parent lease releases the root; successful installation stages retain it.
+          if(ending&&existsSync(lockPath)){const current=JSON.parse(readFileSync(lockPath,'utf8'));if(current.owner===task.owner){try{process.kill(current.pid,0);}catch{unlinkSync(lockPath);}}}
+          process.exitCode=code??1;resolve();
+        });
+      }catch(error){lines.close();process.stdin.destroy();reject(error);}
+    });
+    lines.once('close',()=>{if(!started)reject(new Error('缺少 YuE2 任务'));});
+  });
+}
