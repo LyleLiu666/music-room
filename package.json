@@ -24,7 +24,9 @@
     "test:service": "node --test src/service/**/*.test.ts"
   },
   "dependencies": {
-    "@tonejs/midi": "^2.0.28"
+    "@tonejs/midi": "^2.0.28",
+    "mpg123-decoder": "1.0.3",
+    "wav-decoder": "1.3.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",
