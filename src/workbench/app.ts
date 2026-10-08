@@ -1,4 +1,5 @@
 import { backend, ServicePanel, type ServerSnapshot } from './service.ts';
+import {YuE2Panel} from './yue2.ts';
 import { TRACKS, type TrackId } from '../music/score.ts';
 import { SONGS as BUILTIN_SONGS, WORKS as BUILTIN_WORKS, versionsOf as workVersions, type Song } from '../catalog.ts';
 import { ImportedLibrary } from '../music/import/library.ts';
@@ -21,6 +22,7 @@ if (backend) {
   catch(error) {serviceWarning=`本地服务连接失败：${(error as Error).message}`;}
 }
 let servicePanel: ServicePanel | undefined;
+let yue2Panel:YuE2Panel|undefined;
 const librarySongs = () => serverSnapshot ? imported.songs.map(song=>({...song,color:BUILTIN_SONGS.find(b=>b.id===song.id)?.color??song.color})) : [...BUILTIN_SONGS,...imported.songs];
 const libraryWorks = () => serverSnapshot ? serverSnapshot.projects.map(p=>({id:p.id,title:p.title,defaultVersionId:p.defaultRevisionId??''})) : [...BUILTIN_WORKS,...imported.works];
 let SONGS = librarySongs(), WORKS = libraryWorks();
@@ -90,7 +92,7 @@ const report = (message: string) => { status.textContent = message; };
 async function toggle() {
   if (busy) return;
   if (engine.playing) { engine.pause(); report('已暂停，可以调整配器或跳转段落。'); return; }
-  servicePanel?.pauseAudio();
+  servicePanel?.pauseAudio();yue2Panel?.pauseAudio();
   const epoch = selectionEpoch;
   busy = true; playButton.disabled = true;
   report('正在加载音色…');
@@ -434,7 +436,7 @@ document.querySelector('#compare-exit')!.addEventListener('click', () => {
   updateMixerUI(); updateComparisonUI(); report('已退出比较，恢复进入前的版本、位置与试听设置，保持暂停。');
 });
 function showSong(song: Song, navigation: 'push' | 'replace' | 'none' = 'push') {
-  servicePanel?.pauseAudio();
+  servicePanel?.pauseAudio();yue2Panel?.pauseAudio();
   selectionEpoch++;
   selected = song; score = scoreFor(song);
   const volume = engine.mix.volume;
@@ -610,5 +612,6 @@ if(backend) {
   const badge=document.querySelector('.local-badge')!;badge.textContent='本地服务';
   document.querySelector('footer > span')!.textContent='本机项目与后台渲染 · 内置 MCP · 无付费服务';
   document.querySelector('#import-drop')!.parentElement!.querySelector('p')!.textContent='版本由后台写入项目目录，清理浏览器不会丢失。';
-  servicePanel=new ServicePanel(backend,currentDocument,()=>selection?{start:selection.startBeat*60/score.bpm,end:selection.endBeat*60/score.bpm}:undefined,applyServerSnapshot,report,()=>{selectionEpoch++;busy=false;playButton.disabled=false;engine.pause();playButton.textContent='▶ 播放';});
+  servicePanel=new ServicePanel(backend,currentDocument,()=>selection?{start:selection.startBeat*60/score.bpm,end:selection.endBeat*60/score.bpm}:undefined,applyServerSnapshot,report,()=>{selectionEpoch++;busy=false;playButton.disabled=false;engine.pause();yue2Panel?.pauseAudio();playButton.textContent='▶ 播放';});
+  yue2Panel=new YuE2Panel(backend,()=>{selectionEpoch++;busy=false;playButton.disabled=false;engine.pause();servicePanel?.pauseAudio();playButton.textContent='▶ 播放';});
 }

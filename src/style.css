@@ -1083,3 +1083,15 @@ footer a:hover {
 
 .service-tools input:not([type="checkbox"]), .service-tools textarea, .service-panel textarea { background: #20251b; color: #e7e9df; border: 1px solid #526044; border-radius: 3px; font: inherit; padding: 8px; }
 .service-panel textarea { margin: 8px 0; }
+.yue2-panel label { display: block; margin: 12px 0 6px; }
+.yue2-panel p { line-height: 1.7; color: var(--muted); overflow-wrap: anywhere; }
+.yue2-panel summary { cursor: pointer; padding: 12px 0; }
+.yue2-panel input:not([type="checkbox"]), .yue2-panel select { background: #20251b; color: #e7e9df; border: 1px solid #526044; border-radius: 3px; padding: 8px; font: inherit; width: 100%; box-sizing: border-box; }
+.yue2-path { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.yue2-path input { flex: 1 1 300px; }
+.yue2-panel pre { max-height: 260px; overflow: auto; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; }
+#yue2-error { color: #ffc4a2; }
+#yue2-audio audio { width: 100%; }
+.yue2-actions { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.yue2-actions a { color: var(--accent); }
+.yue2-panel [hidden] { display: none !important; }

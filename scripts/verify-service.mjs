@@ -58,7 +58,7 @@ try {
   assert.ok(!(await page.evaluate(()=>Object.keys(localStorage))).includes('music-room-imports-v1'));
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:join(out,'mobile.png'),fullPage:true});
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),'mobile overflow');
-  await page.setViewportSize({width:1400,height:1000});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));assert.equal(await page.locator('.topbar').count(),1);await page.screenshot({path:join(out,'desktop.png')});await page.locator('.service-panel').screenshot({path:join(out,'tasks.png')});
+  await page.setViewportSize({width:1400,height:1000});await page.evaluate(()=>new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r))));assert.equal(await page.locator('.topbar').count(),1);await page.screenshot({path:join(out,'desktop.png')});await page.locator('#score-service-panel').screenshot({path:join(out,'tasks.png')});
   assert.deepEqual(errors,[]);await writeFile(join(out,'verification.json'),JSON.stringify({checks:14,audio,parent:doc.revision.id,persistedBuiltInSeconds:legacy.score.duration,nativeAudioResume:true,lateAudioCancelled:true,errors},null,2));
   console.log('Service browser verified: agent version discovery, actual backend audio, persisted feedback, refresh, parent import, no browser storage, mobile.');
 } finally {await client.close();await browser.close();await service.jobs.close();await http.close();await service.store.close();await rm(root,{recursive:true,force:true});}

@@ -1,5 +1,5 @@
 import {spawn} from 'node:child_process';
-import {readFileSync,writeFileSync,existsSync,mkdirSync,unlinkSync} from 'node:fs';
+import {readFileSync,existsSync,mkdirSync,unlinkSync} from 'node:fs';
 import {join,isAbsolute} from 'node:path';
 import {createInterface} from 'node:readline';
 import {z} from 'zod';
@@ -9,7 +9,7 @@ export type YuE2Task=z.infer<typeof taskSchema>;
 export function runtimeEnvironment(root:string,parent:NodeJS.ProcessEnv=process.env):NodeJS.ProcessEnv {
   const env:NodeJS.ProcessEnv={};
   for(const key of ['HOME','USER','LOGNAME','LANG','LC_ALL','HTTPS_PROXY','HTTP_PROXY','ALL_PROXY','NO_PROXY','https_proxy','http_proxy','all_proxy','no_proxy','SSL_CERT_FILE','SSL_CERT_DIR'])if(parent[key])env[key]=parent[key];
-  Object.assign(env,{PATH:`${join(root,'.venv','bin')}:${join(root,'bin')}:/usr/bin:/bin:/usr/sbin:/sbin`,YUE2_STUDIO_HOME:root,UV_NO_CONFIG:'1',UV_PYTHON_INSTALL_DIR:join(root,'python'),UV_PYTHON_BIN_DIR:join(root,'bin'),UV_CACHE_DIR:join(root,'cache','uv'),HF_HOME:join(root,'cache','huggingface'),HF_HUB_CACHE:join(root,'cache','huggingface','hub'),HF_XET_CACHE:join(root,'cache','huggingface','xet'),HF_ASSETS_CACHE:join(root,'cache','huggingface','assets'),XDG_CACHE_HOME:join(root,'cache'),XDG_DATA_HOME:join(root,'data'),XDG_CONFIG_HOME:join(root,'config'),XDG_STATE_HOME:join(root,'state'),PIP_CACHE_DIR:join(root,'cache','pip'),TORCH_HOME:join(root,'cache','torch'),NUMBA_CACHE_DIR:join(root,'cache','numba'),MPLCONFIGDIR:join(root,'cache','matplotlib'),PYTHONPYCACHEPREFIX:join(root,'cache','pycache'),TMPDIR:join(root,'tmp'),PYTHONUNBUFFERED:'1',MLX_ENABLE_TF32:'0',HF_HUB_DISABLE_PROGRESS_BARS:'1'});
+  Object.assign(env,{PATH:`${join(root,'.venv','bin')}:${join(root,'bin')}:/usr/bin:/bin:/usr/sbin:/sbin`,YUE2_STUDIO_HOME:root,UV_NO_CONFIG:'1',UV_PYTHON_INSTALL_DIR:join(root,'python'),UV_PYTHON_BIN_DIR:join(root,'bin'),UV_CACHE_DIR:join(root,'cache','uv'),HF_HOME:join(root,'cache','huggingface'),HF_HUB_CACHE:join(root,'cache','huggingface','hub'),HF_XET_CACHE:join(root,'cache','huggingface','xet'),HF_ASSETS_CACHE:join(root,'cache','huggingface','assets'),XDG_CACHE_HOME:join(root,'cache'),XDG_DATA_HOME:join(root,'data'),XDG_CONFIG_HOME:join(root,'config'),XDG_STATE_HOME:join(root,'state'),PIP_CACHE_DIR:join(root,'cache','pip'),TORCH_HOME:join(root,'cache','torch'),NUMBA_CACHE_DIR:join(root,'cache','numba'),MPLCONFIGDIR:join(root,'cache','matplotlib'),PYTHONPYCACHEPREFIX:join(root,'cache','pycache'),TMPDIR:join(root,'tmp'),PYTHONUNBUFFERED:'1',MLX_ENABLE_TF32:'0',HF_HUB_DISABLE_PROGRESS_BARS:'0',HF_XET_CHUNK_CACHE_SIZE_BYTES:'0'});
   return env;
 }
 const instrumental=`from huggingface_hub import hf_hub_download
@@ -42,7 +42,7 @@ export function workerCommand(input:YuE2Task) {
   if(!existsSync(lock)||JSON.parse(readFileSync(lock,'utf8')).owner!==task.owner)throw new Error('YuE2 目录不属于所属工作台');
   const uv=join(root,'bin','uv'),python=join(root,'.venv','bin','python');
   switch(task.step){
-    case 'venv':return {command:uv,args:['venv','--managed-python','--python','3.12',join(root,'.venv')]};
+    case 'venv':return {command:uv,args:['venv','--managed-python','--python','3.12','--allow-existing',join(root,'.venv')]};
     case 'dependencies':return {command:uv,args:['pip','sync','--python',python,'--require-hashes','--no-sources',join(root,'requirements.txt')]};
     case 'studio':return {command:uv,args:['pip','install','--python',python,'--no-deps','--no-sources',join(root,'source')]};
     case 'check':return {command:python,args:['-c','import yue2_studio, lyra, mlx.core; print("YuE2 Python environment ready",flush=True)']};
@@ -63,8 +63,7 @@ export async function runYuE2Worker() {
         const env=runtimeEnvironment(task.directory);if(task.port)env.MUSIC_ROOM_YUE2_PORT=String(task.port);if(task.nonce)env.MUSIC_ROOM_YUE2_NONCE=task.nonce;
         mkdirSync(env.TMPDIR!,{recursive:true});
         const child=spawn(spec.command,spec.args,{cwd:task.directory,env,detached:true,stdio:['ignore','inherit','inherit']});
-        const lockPath=join(task.directory,'.music-room-yue2.lock'),lock=JSON.parse(readFileSync(lockPath,'utf8'));
-        if(lock.owner===task.owner)writeFileSync(lockPath,JSON.stringify({...lock,workerPid:process.pid}));
+        const lockPath=join(task.directory,'.music-room-yue2.lock');
         let ending=false,timer:ReturnType<typeof setTimeout>|undefined;
         const stop=()=>{if(ending)return;ending=true;try{if(child.pid)process.kill(-child.pid,'SIGTERM');}catch{}timer=setTimeout(()=>{try{if(child.pid)process.kill(-child.pid,'SIGKILL');}catch{}},5000);timer.unref();};
         lines.once('close',stop);process.once('SIGTERM',stop);process.once('SIGINT',stop);

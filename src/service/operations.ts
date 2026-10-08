@@ -2,11 +2,22 @@ import {z} from 'zod';
 import {SCORE_ID_PATTERN,TRACK_IDS,type Composition} from '../music/authoring/validate.mjs';
 import type {Project,Revision,Feedback,ProjectStore} from './projects/store.ts';
 import type {Job} from './jobs/jobs.ts';
+import type {YuE2Status} from './yue2/engine.ts';
+import {yue2JobId,type YuE2Job,type YuE2JobResult} from './yue2/contracts.ts';
 export const id=z.string().regex(SCORE_ID_PATTERN);
 const jobId=z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/);
 const ref={projectId:id,revisionId:id};
 const text=z.string().min(1).max(8000);
 export const operations = {
+  yue2_status:{description:'查看 YuE2 安装目录、准备进度、日志与真实模型就绪状态。',schema:z.object({}).strict()},
+  yue2_choose_directory:{description:'弹出本机文件夹选择窗口，用户指定 YuE2 程序、Python、模型、缓存和产物的统一目录。',schema:z.object({}).strict()},
+  prepare_yue2:{description:'在用户指定的空文件夹安装 YuE2 专用环境并启动。downloadModels=true 下载约 10GB 权重及器乐适配器；后台运行，用 yue2_status 轮询。',schema:z.object({directory:z.string().min(1).max(4096),downloadModels:z.boolean().default(true)}).strict()},
+  start_yue2:{description:'后台启动已安装的 YuE2；以后启动工作台时自动恢复。',schema:z.object({}).strict()},
+  stop_yue2:{description:'停止所属 YuE2 及安装下载进程，保留文件；关闭自动启动。',schema:z.object({}).strict()},
+  yue2_generate:{description:'使用本地真实 YuE2 模型生成音乐，立即返回 job.id。instrumental 默认 true，自动使用器乐适配器；lyrics 为段落结构（如 [instrumental]），cot=full。用 yue2_get_job 查询，done 后 audioPath 是本机 FLAC。',schema:z.object({style:z.string().min(1).max(8000),lyrics:z.string().min(1).max(16000).default('[instrumental]'),preset:z.enum(['fast','quality']).default('fast'),instrumental:z.boolean().default(true),seed:z.number().int().min(0).max(2147483647).optional(),title:z.string().min(1).max(200).optional()}).strict()},
+  yue2_get_job:{description:'查询 YuE2 真实生成状态、失败原因及完成后音频路径。',schema:z.object({jobId:yue2JobId}).strict()},
+  yue2_list_jobs:{description:'列出 YuE2 最近 30 个任务，网页重开后仍可查询和试听。',schema:z.object({}).strict()},
+  yue2_cancel_job:{description:'取消 YuE2 排队或生成中的指定任务。',schema:z.object({jobId:yue2JobId}).strict()},
   status:{description:'查看本地创作服务、工作目录与引擎可用情况。',schema:z.object({}).strict()},
   list_projects:{description:'列出本地作品项目及每个项目的不可覆盖版本。',schema:z.object({}).strict()},
   get_project:{description:'读取项目版本、创作要求和逐版本听评。',schema:z.object({projectId:id}).strict()},
@@ -29,6 +40,8 @@ export type RevisionDocument = Awaited<ReturnType<ProjectStore['revision']>>;
 export type LibrarySnapshot = {projects:Project[];documents:Composition[];jobs:Job[]};
 export type AuthoringContext = {project?:Project;revision?:RevisionDocument;feedback:Feedback[];guide:string;example:Composition;prompt:string;rules:string;workflow:Operation[];tracks:string};
 export type OperationResults = {
+  yue2_status:YuE2Status;yue2_choose_directory:{directory?:string};prepare_yue2:YuE2Status;start_yue2:YuE2Status;stop_yue2:YuE2Status;
+  yue2_generate:YuE2JobResult;yue2_get_job:YuE2JobResult;yue2_cancel_job:YuE2JobResult;yue2_list_jobs:{jobs:YuE2Job[]};
   status:{name:string;version:string;workspace:string;engines:{id:string;available:boolean}[]};
   list_projects:{projects:Project[]};get_project:{project:Project;feedback:Feedback[]};create_project:Project;
   get_authoring_context:AuthoringContext;validate_score:{valid:true;composition:Composition};

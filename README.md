@@ -16,7 +16,7 @@ npm run build:binary
 
 按终端 URL 在已有浏览器听评。构建产物是 `release/music-room` 和启动脚本 `release/start.sh`，运行它们无需安装 Node/Python；构建工具仅用于开发。Agent 通过 stdio / HTTP MCP 调用相同的项目、版本、后台渲染和反馈能力。二进制对应构建机器的操作系统与架构。
 
-[启动、MCP 连接与构建说明](docs/local-service.md) · [技术设计与四轮边界](docs/design/local-service.md)。MIDI/JSON 创作闭环已经实现；音视频识谱与 YuE2 是后续可选引擎，尚未接入。下面保留独立静态网页模式的说明。
+[启动、MCP 连接与构建说明](docs/local-service.md) · [YuE2 自动安装与生成](docs/yue2.md) · [技术设计与四轮边界](docs/design/local-service.md)。MIDI/JSON 创作闭环已经实现；YuE2 由后台管理专用目录、自动安装、下载模型及启动，通过网页或内置 MCP 生成音频。音视频识谱尚未接入。下面保留独立静态网页模式的说明。
 
 ## 独立静态网页模式
 

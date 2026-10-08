@@ -1,10 +1,10 @@
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js';
 import {operations,operationName,parseOperation,type ServiceCaller} from '../service/operations.ts';
 export function musicMcp(call:ServiceCaller) {
-  const server=new McpServer({name:'music-room',version:'1.0.0'},{instructions:'本地音乐创作工作台。先 get_authoring_context 了解格式和已有项目，写短主题，validate_score 后 import_revision，render_revision 后轮询 get_job。用户试听反馈决定好听与否。不要复用版本 ID，不执行上传源码。'});
+  const server=new McpServer({name:'music-room',version:'1.0.0'},{instructions:'本地音乐创作工作台。乐谱路线：先 get_authoring_context 了解格式和已有项目，写短主题，validate_score 后 import_revision，render_revision 后轮询 get_job。YuE2 音频路线：先 yue2_status，用户指定目录后 prepare_yue2 安装并启动，轮询就绪后 yue2_generate，用 yue2_get_job 查询到 done 并读取 audioPath。两种引擎与任务状态不同，音频不会自动转为 MIDI。用户试听反馈决定好听与否。不要复用版本 ID，不执行上传源码。'});
   for(const [name,op] of Object.entries(operations)) {
     if(name==='library')continue;
-    server.registerTool(name,{description:op.description,inputSchema:op.schema,annotations:{readOnlyHint:['status','list_projects','get_project','get_authoring_context','validate_score','get_revision','get_job','list_jobs'].includes(name),destructiveHint:false,openWorldHint:false}},async (args:Record<string,unknown>)=> {
+    server.registerTool(name,{description:op.description,inputSchema:op.schema,annotations:{readOnlyHint:['status','list_projects','get_project','get_authoring_context','validate_score','get_revision','get_job','list_jobs','yue2_status','yue2_get_job','yue2_list_jobs'].includes(name),destructiveHint:name==='stop_yue2'||name==='yue2_cancel_job',openWorldHint:name==='prepare_yue2'}},async (args:Record<string,unknown>)=> {
       try {const key=operationName(name),result=await call(key,parseOperation(key,args));return {content:[{type:'text' as const,text:JSON.stringify(result)}],structuredContent:result};}
       catch(error:any){return {isError:true,content:[{type:'text' as const,text:JSON.stringify({code:error.code??'INVALID_REQUEST',message:error.message})}]};}
     });

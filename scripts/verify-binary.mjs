@@ -45,7 +45,7 @@ try {
   // Browser preview must also fetch its actual sound bank from the embedded executable.
   await page.click('#play');const listen=page.locator('#service-jobs button').filter({hasText:'试听后台 WAV'}).first();await listen.click();await page.waitForFunction(()=>document.querySelector('#service-audio audio')?.currentTime>.05);
   assert.equal(await page.$eval('#service-audio audio',a=>a.duration),40);
-  await page.screenshot({path:join(out,'desktop.png')});await page.locator('.service-panel').screenshot({path:join(out,'tasks.png')});assert.deepEqual(errors,[]);results.push('embedded page previews real samples, plays saved WAV, shows feedback');
+  await page.screenshot({path:join(out,'desktop.png')});await page.locator('#score-service-panel').screenshot({path:join(out,'tasks.png')});assert.deepEqual(errors,[]);results.push('embedded page previews real samples, plays saved WAV, shows feedback');
   await browser.close();browser=undefined;await httpClient.close();httpClient=undefined;
   await client.close();client=undefined;
   // stdio-owned service exits; reopen the same workspace from the copied binary.

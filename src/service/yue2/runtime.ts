@@ -1,5 +1,5 @@
 import {createHash,randomBytes} from 'node:crypto';
-import {mkdirSync,existsSync,readFileSync,writeFileSync,renameSync,lstatSync} from 'node:fs';
+import {mkdirSync,existsSync,readFileSync,writeFileSync,renameSync,lstatSync,readdirSync,statSync} from 'node:fs';
 import {open} from 'node:fs/promises';
 import {spawn,execFile} from 'node:child_process';
 import {createServer} from 'node:net';
@@ -18,7 +18,14 @@ export function startWorker(command:string,args:string[],task:YuE2Task,context:Y
   const child=spawn(command,args,{stdio:['pipe','pipe','pipe']});let ended=false;
   let failure:Error|undefined;
   const exited=new Promise<number|null>(resolve=>{child.once('error',error=>{failure=error;resolve(1);});child.once('close',code=>{ended=true;resolve(code);});});
-  child.stdin.on('error',()=>{});child.stdin.write(JSON.stringify(task)+'\n');
+  child.stdin.on('error',()=>{});
+  try{
+    const lockPath=join(task.directory,'.music-room-yue2.lock'),lock=JSON.parse(readFileSync(lockPath,'utf8'));
+    if(lock.owner!==task.owner)throw new Error('YuE2 安装目录的所属工作台已改变');
+    // Publish the supervisor PID before granting its stdin lease; recovery cannot race an orphan.
+    writeFileSync(lockPath+'.tmp',JSON.stringify({...lock,workerPid:child.pid}));renameSync(lockPath+'.tmp',lockPath);
+    child.stdin.write(JSON.stringify(task)+'\n');
+  }catch(error){child.stdin.end();throw error;}
   for(const output of [child.stdout,child.stderr]){let pending='';output.on('data',chunk=>{pending+=chunk.toString();const lines=pending.split(/[\r\n]/);pending=lines.pop()??'';for(const line of lines)context.report(line);if(pending.length>2000){context.report(pending);pending='';}});output.on('end',()=>{if(pending)context.report(pending);});}
   const stop=async()=>{if(ended)return;child.stdin.end();await exited;};
   const abort=()=>{void stop();};context.signal.addEventListener('abort',abort,{once:true});
@@ -46,6 +53,7 @@ async function untar(archive:string,target:string,context:YuE2Context) {
   });
 }
 async function freePort(){const server=createServer();return new Promise<number>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',()=>{const port=(server.address() as {port:number}).port;server.close(error=>error?reject(error):resolve(port));});});}
+function writtenBytes(directory:string):number {let total=0;try{for(const entry of readdirSync(directory,{withFileTypes:true})){const path=join(directory,entry.name);if(entry.isDirectory())total+=writtenBytes(path);else if(entry.isFile())total+=statSync(path).blocks*512;}}catch{}return total;}
 export function createYuE2Driver(read:AssetReader,command=process.execPath,args=[fileURLToPath(new URL('./worker-entry.ts',import.meta.url))]):YuE2Driver {
   let choosing=false;
   return {
@@ -68,7 +76,11 @@ export function createYuE2Driver(read:AssetReader,command=process.execPath,args=
         context.report('安装专用 Python 3.12');await run('venv');context.report('安装已锁定版本的 YuE2 依赖');await run('dependencies');await run('studio');await run('check');
         const marker=join(root,'installed.json');writeFileSync(marker+'.tmp',JSON.stringify({version:1,revision,directory:root}));renameSync(marker+'.tmp',marker);
       }
-      if(models){context.report('下载并校验 YuE2 生成模型（约 10 GB，可续传）');await run('models');context.report('下载纯器乐适配器');await run('instrumental');}
+      if(models){
+        context.report('下载并校验 YuE2 生成模型（约 10 GB，可续传）');
+        const progress=setInterval(()=>context.report(`模型下载 / 校验进行中 · 模型目录已写入 ${(writtenBytes(join(root,'models'))/1073741824).toFixed(2)} GB`),10000);
+        try{await run('models');context.report('下载纯器乐适配器');await run('instrumental');}finally{clearInterval(progress);}
+      }
     },
     launch:async(root,context):Promise<YuE2Process>=>{
       const port=await freePort(),nonce=randomBytes(32).toString('hex'),url=`http://127.0.0.1:${port}`;

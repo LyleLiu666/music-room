@@ -1,0 +1,30 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {join} from 'node:path';
+import {tmpdir} from 'node:os';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import {MusicService} from '../service/service.ts';
+import {serveHttp} from './http.ts';
+import type {YuE2Driver} from '../service/yue2/engine.ts';
+test('official MCP exposes managed install/start/stop and strict generation contracts',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'yue2-mcp-')),directory=join(root,'专用引擎 目录');let installed=false,models=false,started=0,stopped=0;
+  const driver:YuE2Driver={unsupported:()=>undefined,installed:()=>installed,chooseDirectory:async()=>directory,prepare:async(_root,download)=>{installed=true;models=download;},launch:async()=>{
+    started++;let end!:(code:number)=>void;const exited=new Promise<number>(r=>{end=r;});return {url:'http://127.0.0.1:19876',exited,status:async()=>({modelsPresent:models,fake:false}),stop:async()=>{stopped++;end(0);}};
+  }};
+  const read=async()=>new Uint8Array(),service=await MusicService.open(join(root,'projects'),()=>{throw new Error('unused');},read,false,driver),http=await serveHttp(service,{read,has:()=>false,embedded:false});
+  const client=new Client({name:'engine-contract-test',version:'1'});
+  t.after(async()=>{await client.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});});
+  await client.connect(new StreamableHTTPClientTransport(new URL(http.runtime.url+'/mcp'),{requestInit:{headers:{authorization:`Bearer ${http.runtime.token}`}}}));
+  const tools=(await client.listTools()).tools;for(const name of ['yue2_status','yue2_generate','prepare_yue2','yue2_get_job','start_yue2','stop_yue2'])assert.ok(tools.some(x=>x.name===name));
+  assert.equal(tools.find(x=>x.name==='prepare_yue2')!.annotations!.openWorldHint,true);
+  const call=async(name:string,args:Record<string,unknown>={})=>{const result=await client.callTool({name,arguments:args});assert.ok(!result.isError,JSON.stringify(result));return JSON.parse((result.content as {text:string}[])[0].text);};
+  assert.equal((await call('yue2_choose_directory')).directory,directory);
+  await call('prepare_yue2',{directory});
+  for(let i=0;i<100&&!(await service.call('yue2_status',{})).canGenerate;i++)await new Promise(r=>setTimeout(r,5));
+  assert.equal((await call('yue2_status')).canGenerate,true);assert.equal((await call('status')).engines.find((x:{id:string})=>x.id==='yue2').available,true);
+  await call('start_yue2');assert.equal(started,1);await call('stop_yue2');assert.equal(stopped,1);
+  assert.ok((await client.callTool({name:'yue2_generate',arguments:{style:'music',directory:'unapproved'}})).isError);
+  assert.ok((await client.callTool({name:'yue2_get_job',arguments:{jobId:'../../etc/passwd'}})).isError);
+});

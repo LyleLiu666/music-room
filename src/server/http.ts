@@ -17,7 +17,7 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
       const origin=runtime.url;
       if(req.headers.host!==new URL(origin).host || req.headers.origin && req.headers.origin!==origin){json(res,403,{code:'FORBIDDEN_ORIGIN',message:'来源不允许'});return;}
       const url=new URL(req.url??'/',origin),path=decodeURIComponent(url.pathname);
-      const protectedRoute=path.startsWith('/api/') || path==='/mcp' || path.startsWith('/artifacts/');
+      const protectedRoute=path.startsWith('/api/') || path==='/mcp' || path.startsWith('/artifacts/')||path.startsWith('/yue2-audio/');
       if(protectedRoute) {
         const candidate=Buffer.from(req.headers.authorization??''),expected=Buffer.from(`Bearer ${token}`);
         if(candidate.length!==expected.length || !timingSafeEqual(candidate,expected)){json(res,401,{code:'UNAUTHORIZED',message:'需要本地访问令牌'});return;}
@@ -39,6 +39,11 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
         const parts=path.slice(11).split('/');if(parts.length!==3)throw new ServiceError('NOT_FOUND','产物不存在');
         const {bytes,metadata}=await service.store.artifact(parts[0],parts[1],parts[2]);
         res.writeHead(200,{'content-type':'audio/wav','content-length':bytes.length,'content-disposition':`attachment; filename="${metadata.id}.wav"`,'cache-control':'no-store'});res.end(bytes);return;
+      }
+      if(path.startsWith('/yue2-audio/')) {
+        if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
+        const id=path.slice(12),bytes=await service.yue2Client.audio(id);
+        res.writeHead(200,{'content-type':'audio/flac','content-length':bytes.length,'cache-control':'no-store'});res.end(bytes);return;
       }
       if(req.method!=='GET' && req.method!=='HEAD'){json(res,405,{message:'方法不支持'});return;}
       const asset=path==='/'?'index.html':path.slice(1);

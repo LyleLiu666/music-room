@@ -5,15 +5,20 @@ import {buildAuthoringPrompt} from '../music/authoring/prompt.ts';
 import {SONGS} from '../catalog.ts';
 import type {AssetReader} from './render/renderer.ts';
 import type {Renderer} from './render/process.ts';
+import {YuE2Engine,type YuE2Driver} from './yue2/engine.ts';
+import {createYuE2Driver} from './yue2/runtime.ts';
+import {YuE2Client} from './yue2/client.ts';
 import {parseOperation,type Operation,type OperationInput,type OperationArgs,type OperationResults,type OperationHandlers,type ServiceCaller} from './operations.ts';
 export type {ServiceCaller} from './operations.ts';
 export class MusicService {
-  store:ProjectStore; jobs:JobManager; read:AssetReader;
-  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader) {this.store=store;this.jobs=jobs;this.read=read;}
-  static async open(root:string,renderer:Renderer,read:AssetReader,seed=true) {
+  store:ProjectStore; jobs:JobManager; read:AssetReader;yue2:YuE2Engine;yue2Client:YuE2Client;
+  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine) {this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2);}
+  static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read)) {
     const store=await ProjectStore.open(root);
+    let jobs:JobManager|undefined,yue2:YuE2Engine|undefined;
     try {
-      const service=new MusicService(store,await JobManager.open(store,renderer),read);
+      jobs=await JobManager.open(store,renderer);yue2=await YuE2Engine.open(store,driver);
+      const service=new MusicService(store,jobs,read,yue2);
       if(seed) {
         const existing=await store.documents();
         for(const song of SONGS) if(!existing.some(d=>d.revision.id===song.id)) {
@@ -21,10 +26,13 @@ export class MusicService {
         }
       }
       return service;
-    } catch(error){await store.close();throw error;}
+    } catch(error){await yue2?.close();await jobs?.close();await store.close();throw error;}
   }
   private handlers:OperationHandlers = {
-    status:async()=>({name:'Music Room',version:'1.0.0',workspace:this.store.root,engines:[{id:'sample-pcm-v1',available:true},{id:'transcription',available:false},{id:'yue2',available:false}]}),
+    yue2_status:async()=>this.yue2.status(),yue2_choose_directory:async()=>this.yue2.chooseDirectory(),
+    prepare_yue2:async args=>this.yue2.prepare(args.directory,args.downloadModels),start_yue2:async()=>this.yue2.start(),stop_yue2:async()=>this.yue2.stop(),
+    yue2_generate:async args=>this.yue2Client.generate(args),yue2_get_job:async args=>this.yue2Client.job(args.jobId),yue2_cancel_job:async args=>this.yue2Client.cancel(args.jobId),yue2_list_jobs:async()=>this.yue2Client.list(),
+    status:async()=>({name:'Music Room',version:'1.0.0',workspace:this.store.root,engines:[{id:'sample-pcm-v1',available:true},{id:'transcription',available:false},{id:'yue2',available:(await this.yue2.status()).canGenerate}]}),
     list_projects:async()=>({projects:await this.store.projects()}),
     get_project:async args=>({project:await this.store.project(args.projectId),feedback:await this.store.feedback(args.projectId)}),
     create_project:async args=>this.store.createProject(args.projectId,args.title,args.requirements??''),
@@ -55,5 +63,5 @@ export class MusicService {
     const handler=this.handlers[name] as (args:OperationArgs<K>)=>Promise<OperationResults[K]>;
     return handler(parseOperation(name,args));
   };
-  async close() {await this.jobs.close();await this.store.close();}
+  async close() {await this.yue2.close();await this.jobs.close();await this.store.close();}
 }
