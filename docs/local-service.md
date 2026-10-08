@@ -75,6 +75,6 @@ Bun 1.4.2 是项目内锁定的开发依赖，不更新全局 Bun。产物为 `r
 
 SDK、解码器与运行时版本变更后必须重跑独立验收。Bun 打包对当前 MP3 库未使用 worker 导出的处理由 `scripts/compile-binary.mjs` 明确限定为同步解码器入口；不会改动 npm 包或解码/WASM 实现。
 
-源代码运行可用 `npm run build`、`npm run serve -- --workspace <目录>`，此模式使用现有开发 Node 和 `dist`。服务测试为 `npm run test:service`，浏览器服务验证为 `npm run verify:service`；静态网页仍可用 `npm run dev`。
+源代码运行可用 `npm run build`、`npm run serve -- --workspace <目录>`，此模式使用现有开发 Node 和 `dist`。服务测试为 `npm run test:service`，浏览器服务验证为 `npm run verify:service`，包含听评保存期间继续编辑/切换版本、保存失败和首次连接失败后的版本链接恢复；静态网页仍可用 `npm run dev`。
 
 产品、存储与逐轮设计见[本地服务方案](design/local-service.md)。音色与组件声明见[署名页](../public/credits.html)和[服务依赖说明](../public/service-licenses.txt)。

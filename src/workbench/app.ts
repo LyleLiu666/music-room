@@ -29,8 +29,8 @@ const versionsOf = (workId: string) => workVersions(workId, SONGS);
 const escapeHTML = (value: string) => value.replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]!));
 let selection: BeatRange | undefined, selecting = false;
 let viewStart = 0, viewSize = 4, follow = true;
-const defaultSong = WORKS.map(work=>songById(work.defaultVersionId)).find(song=>song!==undefined)??SONGS[0];
-let selected = songById(location.hash.slice(1)) ?? defaultSong;
+const defaultSong = () => WORKS.map(work=>songById(work.defaultVersionId)).find(song=>song!==undefined)??SONGS[0];
+let selected = songById(location.hash.slice(1)) ?? defaultSong();
 const scores = new Map(SONGS.map(song => [song.id, song.compose()]));
 const scoreFor = (song: Song) => scores.get(song.id)!;
 let score = scoreFor(selected);
@@ -546,7 +546,7 @@ window.addEventListener('drop', event => { if (hasFiles(event)) event.preventDef
 document.querySelector('#remove-import')!.addEventListener('click', () => {
   try {
     const old = selected; imported.remove(old.id); comparison = undefined; refreshImportedLibrary();
-    const next = versionsOf(old.workId)[0] ?? defaultSong; showSong(next, 'replace');
+    const next = versionsOf(old.workId)[0] ?? defaultSong(); showSong(next, 'replace');
     report('已移除本机版本。电脑上的源文件保留，可重新导入。');
   } catch(error) { report((error as Error).message); }
 });
@@ -577,22 +577,32 @@ const handleNavigation = () => {
   const wasComparing = !!comparison; comparison = undefined;
   const song = songById(location.hash.slice(1));
   if (song && (song.id !== selected.id || wasComparing)) showSong(song, 'none');
-  else if (!song) { showSong(defaultSong, 'replace'); report('未找到该版本，已打开默认作品。'); }
+  else if (!song) {
+    if(backend&&!serverSnapshot){showSong(defaultSong(),'none');report('正在等待本地作品库，保留当前版本链接。');}
+    else {showSong(defaultSong(),'replace');report('未找到该版本，已打开默认作品。');}
+  }
 };
 window.addEventListener('hashchange', handleNavigation);
 window.addEventListener('popstate', handleNavigation);
 const invalidAddress = !!location.hash && !songById(location.hash.slice(1));
-showSong(selected, 'replace');
+showSong(selected, backend&&!serverSnapshot?'none':'replace');
 if (serviceWarning) report(serviceWarning);
 else if (imported.warning) report(imported.warning);
 else if (invalidAddress) report('未找到该版本，已打开默认作品。');
 frame();
 
 function applyServerSnapshot(snapshot:ServerSnapshot) {
-  const previousScore=score;
+  const previousScore=score,wasWaiting=backend&&!serverSnapshot;
   serverSnapshot=snapshot;imported.documents=snapshot.documents;refreshImportedLibrary();
   // A recovered connection may replace an offline catalog fallback with its stored original.
   for(const doc of snapshot.documents)scores.set(doc.revision.id,doc.score);
+  if(wasWaiting) {
+    // Read the current address: later user navigation supersedes the original request.
+    const requested=songById(location.hash.slice(1)),missing=!!location.hash&&!requested;
+    comparison=undefined;showSong(requested??defaultSong(),'replace');
+    if(missing)report('未找到该版本，已打开默认作品。');
+    return;
+  }
   const current=songById(selected.id);
   if(current&&JSON.stringify(previousScore)!==JSON.stringify(scoreFor(current))){comparison=undefined;showSong(current,'none');}
 }

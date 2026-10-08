@@ -22,6 +22,7 @@ export const backend=element?new WorkbenchService(JSON.parse(element.textContent
 
 export class ServicePanel {
   private signature=''; private polling=false; private sequence=0; private audioSequence=0; private audioUrl?:string; private draftId=''; private drafts=new Map<string,string>();
+  private draftEdits=new Map<string,number>();
   private service:WorkbenchService; private current:()=>Composition; private range:()=>{start:number;end:number}|undefined;
   private onLibrary:(snapshot:ServerSnapshot)=>void; private report:(message:string)=>void;private pause:()=>void;
   constructor(service:WorkbenchService,current:()=>Composition,range:()=>{start:number;end:number}|undefined,onLibrary:(snapshot:ServerSnapshot)=>void,report:(message:string)=>void,pause:()=>void) {
@@ -35,9 +36,23 @@ export class ServicePanel {
       const title=document.querySelector<HTMLInputElement>('#service-title')!,requirements=document.querySelector<HTMLTextAreaElement>('#service-requirements')!;
       await service.call('create_project',{projectId:`work-${crypto.randomUUID()}`,title:title.value,requirements:requirements.value});await this.refresh();title.value='';report('项目已写盘。让 agent 获取项目要求，先写一个好听的短乐句。');
     }));
-    document.querySelector('#service-save-feedback')!.addEventListener('click',()=>this.action(async()=>{
+    document.querySelector('#service-feedback')!.addEventListener('input',()=>{
+      const id=this.current().revision.id;this.draftEdits.set(id,(this.draftEdits.get(id)??0)+1);
+    });
+    const saveFeedback=document.querySelector<HTMLButtonElement>('#service-save-feedback')!;
+    saveFeedback.addEventListener('click',()=>this.action(async()=>{
       const doc=this.current(),input=document.querySelector<HTMLTextAreaElement>('#service-feedback')!;
-      await service.call('add_feedback',{projectId:doc.work.id,revisionId:doc.revision.id,text:input.value,range:this.range()});this.drafts.delete(doc.revision.id);if(this.current().revision.id===doc.revision.id)input.value='';await this.selectionChanged();report('听评已保存，agent 可通过 MCP 读取。');
+      const id=doc.revision.id,text=input.value,edits=this.draftEdits.get(id)??0;
+      saveFeedback.disabled=true;
+      try {
+        await service.call('add_feedback',{projectId:doc.work.id,revisionId:id,text,range:this.range()});
+        // Only the submitted, unchanged draft is consumed, including while its version is hidden.
+        if((this.draftEdits.get(id)??0)===edits) {
+          if(this.current().revision.id===id && input.value===text){input.value='';this.drafts.delete(id);}
+          else if(this.drafts.get(id)===text)this.drafts.delete(id);
+        }
+        await this.selectionChanged();report('听评已保存，agent 可通过 MCP 读取。');
+      } finally {saveFeedback.disabled=false;}
     }));
     setInterval(()=>{void this.refresh();},1500);void this.refresh();void this.selectionChanged();
   }

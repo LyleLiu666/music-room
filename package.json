@@ -24,7 +24,7 @@
     "test:service": "node --test src/service/**/*.test.ts src/server/*.test.ts",
     "serve": "node src/server/dev.ts serve",
     "mcp": "node src/server/dev.ts mcp",
-    "verify:service": "node scripts/verify-service.mjs",
+    "verify:service": "node scripts/verify-service.mjs && node --test scripts/verify-service-boundaries.test.mjs",
     "build:binary": "npm run build && node scripts/build-binary.mjs",
     "verify:binary": "node scripts/verify-binary.mjs"
   },
