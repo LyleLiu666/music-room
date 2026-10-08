@@ -75,3 +75,13 @@ test('copy-free workspace move and stale owner recovery', async t => {
   try { assert.equal((await reopened.revision('window-study','window-study-v1')).composition.work.title,example.work.title); }
   finally { await reopened.close(); }
 });
+
+test('new project identities can always be represented by a valid composition',async t=>{
+  const {store}=await fixture(t);
+  for(const id of ['123','a'.repeat(65)])await assert.rejects(store.createProject(id,'窗边练习'),/ID/);
+  for(const id of ['a','a'.repeat(64)]) {
+    await store.createProject(id,example.work.title);
+    await store.importRevision({...example,work:{...example.work,id},revision:{...example.revision,id:`${id.slice(0,61)}-v1`}});
+    assert.equal((await store.project(id)).revisions.length,1);
+  }
+});

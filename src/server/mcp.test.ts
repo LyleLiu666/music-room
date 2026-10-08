@@ -21,6 +21,11 @@ test('official HTTP MCP client authors, renders, reads artifacts/resources and r
   assert.ok((await client.listTools()).tools.some(x=>x.name==='render_revision'));
   const guide=await client.readResource({uri:'music-room://authoring/guide'});assert.ok((guide.contents[0] as any).text.includes('music-room-score'));
   const invoke=async(name:string,args:Record<string,unknown>={})=>{const result=await client.callTool({name,arguments:args});assert.ok(!result.isError,JSON.stringify(result));return JSON.parse((result.content as any)[0].text);};
+  for(const projectId of ['123','a'.repeat(65)])assert.ok((await client.callTool({name:'create_project',arguments:{projectId,title:'窗边练习'}})).isError);
+  assert.equal((await invoke('list_projects')).projects.length,0);
+  const boundaryId='a'.repeat(64);
+  await invoke('create_project',{projectId:boundaryId,title:example.work.title});
+  await invoke('import_revision',{compositionJson:JSON.stringify({...example,work:{...example.work,id:boundaryId},revision:{...example.revision,id:boundaryId}})});
   await invoke('create_project',{projectId:example.work.id,title:example.work.title});
   await invoke('validate_score',{compositionJson:JSON.stringify(example)});
   await invoke('import_revision',{compositionJson:JSON.stringify(example)});

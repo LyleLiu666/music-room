@@ -1,6 +1,7 @@
 // Shared by the standalone CLI and Music Room. No packages, browser or project source required.
 export const TRACK_IDS = ['melody','piano','rhodes','pluck','flute','strings','bass','kick','snare','hat','cymbal'];
 export const MAX_FILE_BYTES = 4 * 1024 * 1024;
+export const SCORE_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 const fail = (path, message) => { throw new Error(`${path}: ${message}`); };
 function object(value, path, keys) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail(path, '应为对象');
@@ -13,7 +14,7 @@ function number(value, path, min, max, integer = false) {
   if (!Number.isFinite(value) || value < min || value > max || (integer && !Number.isInteger(value))) fail(path, `应为 ${min}—${max} 范围内的${integer ? '整数' : '有限数值'}`);
 }
 function id(value, path) {
-  if (typeof value !== 'string' || !/^[a-z][a-z0-9-]{0,63}$/.test(value)) fail(path, '使用小写英文字母开头的字母、数字、短横线，最长 64 字符');
+  if (typeof value !== 'string' || !SCORE_ID_PATTERN.test(value)) fail(path, '使用小写英文字母开头的字母、数字、短横线，最长 64 字符');
 }
 function array(value, path, min, max) {
   if (!Array.isArray(value) || value.length < min || value.length > max) fail(path, `应为数组，包含 ${min}—${max} 项`);

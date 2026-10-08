@@ -1,7 +1,7 @@
 import { randomUUID, createHash } from 'node:crypto';
 import { mkdirSync, openSync, closeSync, writeFileSync, readFileSync, renameSync, unlinkSync, rmSync, readdirSync, lstatSync, realpathSync, fsyncSync } from 'node:fs';
 import { resolve, join, relative, sep } from 'node:path';
-import { validateComposition, type Composition } from '../../music/authoring/validate.mjs';
+import { validateComposition, SCORE_ID_PATTERN, type Composition } from '../../music/authoring/validate.mjs';
 
 export class ServiceError extends Error {
   code: string;
@@ -99,7 +99,7 @@ export class ProjectStore {
     return this.mutate(()=>this.create(id,title,requirements));
   }
   private create(id: string, title: string, requirements: string): Project {
-    identity(id);
+    if(typeof id!=='string' || !SCORE_ID_PATTERN.test(id))fail('INVALID_ID','项目 ID 必须以小写英文字母开头，使用字母、数字或连字符，最长 64 字符');
     if (typeof title!=='string' || !title.trim() || title.length>120 || typeof requirements!=='string' || requirements.length>8000) fail('INVALID_PROJECT','项目标题或要求无效');
     const dir = this.path('projects',id);
     if (exists(dir)) fail('CONFLICT','项目 ID 已存在');

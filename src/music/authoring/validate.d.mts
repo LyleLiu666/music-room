@@ -8,4 +8,5 @@ export type Composition = {
 };
 export const TRACK_IDS: TrackId[];
 export const MAX_FILE_BYTES: number;
+export const SCORE_ID_PATTERN: RegExp;
 export function validateComposition(source: string): Composition;

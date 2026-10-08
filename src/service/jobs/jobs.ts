@@ -63,16 +63,22 @@ export class JobManager {
       finally {
         if(this.closing && !j.artifact){j.state='interrupted';j.stage='退出服务，任务中断';}
         else if(active.cancelled){j.state='cancelled';j.stage='已取消';}
-        this.active=undefined;try{this.save(j);}finally{queueMicrotask(()=>this.pump());}
+        try {this.save(j);}catch(error){console.error('任务状态保存失败：',error);}
+        finally {if(this.active===active)this.active=undefined;queueMicrotask(()=>this.pump());}
       }
     })();
     // A disk failure during terminal status write must not become an unhandled rejection.
-    active.done.catch(error=>{console.error('任务状态保存失败：',error);this.active=undefined;});
+    active.done.catch(error=>{console.error('任务执行收尾失败：',error);});
   }
   async cancel(id:string) {
     const j=this.jobs.get(identity(id));if(!j)throw new ServiceError('NOT_FOUND','任务不存在');
     if(terminal(j.state))return this.public(j);
-    if(this.active?.job===j){const active=this.active;if(active.committing)return this.public(j);active.cancelled=true;j.stage='正在取消';this.save(j);active.cancel();await active.done;}
+    if(this.active?.job===j){
+      const active=this.active;if(active.committing)return this.public(j);
+      active.cancelled=true;j.stage='正在取消';let saveError:unknown;
+      try{this.save(j);}catch(error){saveError=error;}
+      active.cancel();await active.done;if(saveError)throw saveError;
+    }
     else {j.state='cancelled';j.stage='已取消';this.save(j);}return this.public(j);
   }
   async wait(id:string,timeoutMs=120000) {
