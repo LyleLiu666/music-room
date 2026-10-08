@@ -1,7 +1,23 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { SONGS, songById } from '../src/catalog.ts';
+import { SONGS, WORKS, songById, versionsOf, validateCatalog } from '../src/catalog.ts';
+
+test('work grouping uses stable identity and supports different tempos and lengths', () => {
+  assert.equal(WORKS.length, 1);
+  assert.equal(versionsOf(WORKS[0].id).length, 2);
+  const short = { ...SONGS[0], id: 'other-v1', workId: 'other', title: SONGS[0].title,
+    files: { wav: 'other.wav', midi: 'other.mid', score: 'other.json' },
+    comparisonSections: {}, compose: () => ({ ...SONGS[0].compose(), bpm: 120, duration: 4 }) };
+  const works = [...WORKS, { id: 'other', title: SONGS[0].title, defaultVersionId: short.id }];
+  assert.doesNotThrow(() => validateCatalog(works, [...SONGS, short]));
+  assert.deepEqual(versionsOf('other', [...SONGS, short]).map(s => s.id), ['other-v1']);
+  assert.throws(() => validateCatalog(works, [...SONGS, { ...short, workId: 'missing' }]));
+  assert.throws(() => validateCatalog(WORKS, [...SONGS, { ...SONGS[0] }]));
+  assert.throws(() => validateCatalog(WORKS, [SONGS[0], { ...SONGS[1], files: SONGS[0].files }]));
+  assert.throws(() => validateCatalog([{ ...WORKS[0], defaultVersionId: 'missing' }], SONGS));
+  assert.throws(() => validateCatalog(WORKS, [{ ...SONGS[0], comparisonSections: { theme: 99 } }, SONGS[1]]));
+});
 
 test('each song has its own identity, score and export paths', () => {
   assert.ok(SONGS.length >= 2);
