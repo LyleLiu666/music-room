@@ -1,5 +1,5 @@
 import {createHash,randomBytes} from 'node:crypto';
-import {mkdirSync,existsSync,readFileSync,writeFileSync,renameSync,lstatSync,readdirSync,statSync} from 'node:fs';
+import {mkdirSync,existsSync,readFileSync,writeFileSync,renameSync,lstatSync,readdirSync,statSync,unlinkSync} from 'node:fs';
 import {open} from 'node:fs/promises';
 import {spawn,execFile} from 'node:child_process';
 import {createServer} from 'node:net';
@@ -14,6 +14,7 @@ const archives={
   source:{url:`https://codeload.github.com/ianiv/YuE2/tar.gz/${revision}`,hash:'d71535dbbb6e7fc79c5cd8f8fa93e247b0176391649c7c719482c59e915afc3b'},
   mlx:{url:'https://codeload.github.com/ianiv/mlx-Yue/tar.gz/1332b148bf5588c357a14323a03c9b9e9f2b2737',hash:'6781272d227d3f7010b76cfd2a9d2a960a8021fe6b41909c361361e23ba2f749'},
 };
+function installationReady(root:string){try{const value=JSON.parse(readFileSync(join(root,'installed.json'),'utf8'));return value.revision===revision&&value.directory===root&&existsSync(join(root,'.venv','bin','python'))&&existsSync(join(root,'source','yue2_studio','main.py'));}catch{return false;}}
 export function startWorker(command:string,args:string[],task:YuE2Task,context:YuE2Context) {
   const child=spawn(command,args,{stdio:['pipe','pipe','pipe']});let ended=false;
   let failure:Error|undefined;
@@ -54,11 +55,20 @@ async function untar(archive:string,target:string,context:YuE2Context) {
 }
 async function freePort(){const server=createServer();return new Promise<number>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',()=>{const port=(server.address() as {port:number}).port;server.close(error=>error?reject(error):resolve(port));});});}
 function writtenBytes(directory:string):number {let total=0;try{for(const entry of readdirSync(directory,{withFileTypes:true})){const path=join(directory,entry.name);if(entry.isDirectory())total+=writtenBytes(path);else if(entry.isFile())total+=statSync(path).blocks*512;}}catch{}return total;}
+/** The pinned HF version uses unique temporary names; interrupted files cannot be reused. */
+export function cleanDownloadPartials(root:string) {
+  if(!existsSync(join(root,'models'))||lstatSync(join(root,'models')).isSymbolicLink())return;
+  const visit=(directory:string)=>{if(!existsSync(directory)||lstatSync(directory).isSymbolicLink())return;for(const entry of readdirSync(directory,{withFileTypes:true})){const path=join(directory,entry.name);if(entry.isDirectory())visit(path);else if(entry.isFile()&&entry.name.endsWith('.incomplete'))unlinkSync(path);}};
+  for(const model of ['converted','vae','loras']){
+    const path=join(root,'models',model);if(!existsSync(path)||lstatSync(path).isSymbolicLink())continue;
+    let directory=path;for(const name of ['.cache','huggingface','download']){directory=join(directory,name);if(!existsSync(directory)||lstatSync(directory).isSymbolicLink()){directory='';break;}}if(directory)visit(directory);
+  }
+}
 export function createYuE2Driver(read:AssetReader,command=process.execPath,args=[fileURLToPath(new URL('./worker-entry.ts',import.meta.url))]):YuE2Driver {
   let choosing=false;
   return {
     unsupported:()=>process.platform!=='darwin'||process.arch!=='arm64'?'当前自动安装支持 Apple Silicon Mac；此电脑仍可使用乐谱创作与音频渲染。':undefined,
-    installed:root=>{try{const value=JSON.parse(readFileSync(join(root,'installed.json'),'utf8'));return value.revision===revision&&value.directory===root&&existsSync(join(root,'.venv','bin','python'))&&existsSync(join(root,'source','yue2_studio','main.py'));}catch{return false;}},
+    installed:installationReady,
     chooseDirectory:async()=>{
       if(choosing)throw new Error('文件夹选择窗口已经打开');choosing=true;
       try{return await new Promise<string|undefined>((resolve,reject)=>execFile('/usr/bin/osascript',['-e','POSIX path of (choose folder with prompt "选择 YuE2 专用空文件夹：程序、模型及缓存将全部保存在这里")'],{timeout:300000,maxBuffer:16384},(error,stdout,stderr)=>{if(error){if(stderr.includes('(-128)'))resolve(undefined);else reject(new Error('无法打开文件夹选择窗口，请直接填写安装目录'));}else resolve(stdout.trim());}));}finally{choosing=false;}
@@ -66,7 +76,7 @@ export function createYuE2Driver(read:AssetReader,command=process.execPath,args=
     prepare:async(root,models,context)=>{
       for(const name of ['bin','downloads','source','cache','tmp','python','models','data','config','state']){const path=join(root,name);if(existsSync(path)&&lstatSync(path).isSymbolicLink())throw new Error(`YuE2 ${name} 不能是符号链接`);mkdirSync(path,{recursive:true});}
       const run=(step:YuE2Task['step'])=>stage(command,args,{directory:root,owner:context.owner,step},context);
-      const installed=(()=>{try{return JSON.parse(readFileSync(join(root,'installed.json'),'utf8')).revision===revision;}catch{return false;}})();
+      const installed=installationReady(root);
       if(!installed){
         const uv=join(root,'downloads','uv.tar.gz'),source=join(root,'downloads','source.tar.gz');
         await download(uv,archives.uv,context);await untar(uv,join(root,'bin'),context);
@@ -77,9 +87,9 @@ export function createYuE2Driver(read:AssetReader,command=process.execPath,args=
         const marker=join(root,'installed.json');writeFileSync(marker+'.tmp',JSON.stringify({version:1,revision,directory:root}));renameSync(marker+'.tmp',marker);
       }
       if(models){
-        context.report('下载并校验 YuE2 生成模型（约 10 GB，可续传）');
+        cleanDownloadPartials(root);context.report('下载并校验 YuE2 生成模型（约 10 GB，保留已完成文件）');
         const progress=setInterval(()=>context.report(`模型下载 / 校验进行中 · 模型目录已写入 ${(writtenBytes(join(root,'models'))/1073741824).toFixed(2)} GB`),10000);
-        try{await run('models');context.report('下载纯器乐适配器');await run('instrumental');}finally{clearInterval(progress);}
+        try{await run('models');context.report('下载纯器乐适配器');await run('instrumental');}finally{clearInterval(progress);cleanDownloadPartials(root);}
       }
     },
     launch:async(root,context):Promise<YuE2Process>=>{

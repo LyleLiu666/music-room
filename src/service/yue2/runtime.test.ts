@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {runtimeEnvironment,workerCommand} from './worker.ts';
+import {cleanDownloadPartials} from './runtime.ts';
 
 test('all engine caches, Python and temporary files stay in selected directory; credentials are not inherited',()=>{
   const root='/tmp/用户选择 YuE2';
@@ -40,4 +41,8 @@ test('worker uses only fixed commands and requires ownership of the managed dire
     assert.equal(command.args.at(-1),join(root,'.venv'));
     assert.throws(()=>workerCommand({...task,step:'rm' as any}),/Invalid option/);
   }finally{rmSync(root,{recursive:true,force:true});}
+});
+test('retry removes abandoned model download partials while preserving completed weights and other files',()=>{
+  const root=mkdtempSync(join(tmpdir(),'yue2 partials ')),downloads=join(root,'models','converted','.cache','huggingface','download');
+  try{mkdirSync(downloads,{recursive:true});writeFileSync(join(downloads,'abandoned.incomplete'),'partial');writeFileSync(join(downloads,'weights.metadata'),'metadata');writeFileSync(join(root,'models','converted','ar-8bit.safetensors'),'complete');writeFileSync(join(root,'keep.incomplete'),'unrelated');cleanDownloadPartials(root);assert.equal(existsSync(join(downloads,'abandoned.incomplete')),false);assert.ok(existsSync(join(downloads,'weights.metadata')));assert.ok(existsSync(join(root,'models','converted','ar-8bit.safetensors')));assert.ok(existsSync(join(root,'keep.incomplete')));}finally{rmSync(root,{recursive:true,force:true});}
 });

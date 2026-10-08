@@ -4,7 +4,7 @@ import {StreamableHTTPClientTransport} from '@modelcontextprotocol/sdk/client/st
 import {chromium} from 'playwright';
 import {mkdtemp,copyFile,chmod,mkdir,readFile,writeFile,rm,rename,stat,realpath} from 'node:fs/promises';
 import {existsSync} from 'node:fs';
-import {execFileSync} from 'node:child_process';
+import {execFileSync,spawn} from 'node:child_process';
 import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
@@ -21,7 +21,12 @@ try {
   client=await connect();
   const tool=async(name,args={})=>{const r=await client.callTool({name,arguments:args});assert.ok(!r.isError,JSON.stringify(r));return JSON.parse(r.content[0].text);};
   const status=await tool('status');assert.equal(status.workspace,await realpath(workspace));assert.equal(status.engines.find(e=>e.id==='yue2').available,false);
+  assert.equal((await tool('yue2_status')).phase,'uninstalled');assert.ok((await client.listTools()).tools.some(t=>t.name==='yue2_generate'));
   const runtime=JSON.parse(await readFile(join(workspace,'.music-room.runtime.json'),'utf8'));assert.equal(runtime.command,await realpath(binary));
+  const requirements=await fetch(runtime.url+'/yue2-runtime/requirements.txt');assert.equal(requirements.status,200);assert.ok((await requirements.text()).includes('MUSIC_ROOM_MLX_YUE_ARCHIVE'));results.push('YuE2 contracts and hash-locked installer requirements are embedded');
+  const managed=join(root,'模型 程序 测试');await mkdir(join(managed,'bin'),{recursive:true});await writeFile(join(managed,'.music-room-yue2.lock'),JSON.stringify({pid:process.pid,owner:'binary-lease'}));await writeFile(join(managed,'bin','uv'),'#!/bin/sh\nsleep 60 &\nprintf "%s" "$!" > child.pid\nwait\n');await chmod(join(managed,'bin','uv'),0o755);
+  const supervisor=spawn(binary,['yue2-worker'],{cwd:root,env,stdio:['pipe','pipe','pipe']});let diagnostics='';supervisor.stderr.on('data',chunk=>diagnostics+=chunk);const supervised=new Promise(r=>supervisor.once('close',r));
+  try{supervisor.stdin.write(JSON.stringify({directory:managed,owner:'binary-lease',step:'venv'})+'\n');for(let i=0;!existsSync(join(managed,'child.pid'))&&i<300;i++)await new Promise(r=>setTimeout(r,20));assert.ok(existsSync(join(managed,'child.pid')),diagnostics);const pid=Number(await readFile(join(managed,'child.pid'),'utf8'));supervisor.stdin.end();await supervised;let dead=false;for(let i=0;i<100;i++){try{process.kill(pid,0);}catch{dead=true;break;}await new Promise(r=>setTimeout(r,20));}assert.ok(dead,'compiled worker must stop owned process tree on parent EOF');}finally{supervisor.stdin.end();await supervised;}results.push('compiled YuE2 supervisor stops its fixture process tree on parent EOF (not inference)');
   assert.equal(JSON.parse(execFileSync(join(root,'start.sh'),['--workspace',workspace],{cwd:root,env,encoding:'utf8'})).reused,true);results.push('plain shell launcher reuses service without an App');
   const ctx=await tool('get_authoring_context',{stage:'eight'});assert.equal(ctx.example.score.bars.length,8);assert.ok(ctx.guide.includes('music-room-score'));results.push('stdio MCP tools, authoring resource, actual embedded example');
   await tool('create_project',{projectId:example.work.id,title:example.work.title,requirements:'先听 8 小节，再扩写'});

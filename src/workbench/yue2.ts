@@ -3,6 +3,13 @@ import type {YuE2Status} from '../service/yue2/engine.ts';
 import type {YuE2Job} from '../service/yue2/contracts.ts';
 const phases:Record<YuE2Status['phase'],string>={uninstalled:'尚未启用',preparing:'正在安装',stopped:'已停止',starting:'正在启动',running:'正在运行',stopping:'正在停止',failed:'操作失败',unsupported:'此电脑暂不支持'};
 const states:Record<YuE2Job['status'],string>={queued:'排队中',running:'生成中',done:'已完成',failed:'失败',cancelled:'已取消'};
+export function describeYuE2Progress(progress:YuE2Job['progress']) {
+  if(!progress)return '';if(progress.type==='abc')return '编写音乐结构';if(progress.type==='token')return '生成演奏';
+  if(progress.type!=='stage')return '';
+  const names:Record<string,string>={load:'准备模型与音色',plan:'编写音乐结构',semantic:'生成演奏',synthesize:'合成声音',decode:'导出音频',transcribe:'识别音符'};
+  const label=typeof progress.stage==='string'?names[progress.stage]??'处理中':'处理中',done=progress.completed,total=progress.total;
+  return label+(typeof done==='number'&&Number.isFinite(done)&&typeof total==='number'&&Number.isFinite(total)&&total>0?` · ${Math.min(100,Math.max(0,Math.round(done/total*100)))}%`:'');
+}
 export class YuE2Panel {
   private service:WorkbenchService;private polling=false;private busy=false;private initialized=false;private directoryEdited=false;private state?:YuE2Status;private jobSignature='';private audioUrl?:string;private audioSequence=0;private pause:()=>void;
   constructor(service:WorkbenchService,pause:()=>void) {
@@ -45,7 +52,7 @@ export class YuE2Panel {
   }
   private async refreshJobs(){const data=await this.service.call('yue2_list_jobs',{}),signature=JSON.stringify(data.jobs);if(signature===this.jobSignature)return;this.jobSignature=signature;
     const rows=document.querySelector('#yue2-jobs')!;rows.replaceChildren();
-    for(const job of data.jobs){const row=document.createElement('div');row.className='service-job';const label=document.createElement('span');label.textContent=`${job.title??job.id.slice(0,8)} · ${states[job.status]}${job.error?' · '+job.error:''}${job.progress?' · '+JSON.stringify(job.progress):''}`;row.append(label);
+    for(const job of data.jobs){const row=document.createElement('div');row.className='service-job';const label=document.createElement('span'),progress=describeYuE2Progress(job.progress);label.textContent=`${job.title??job.id.slice(0,8)} · ${states[job.status]}${job.error?' · '+job.error:''}${progress?' · '+progress:''}`;row.append(label);
       if(job.status==='done')for(const listen of [true,false]){const button=document.createElement('button');button.textContent=listen?'试听':'下载 FLAC';row.append(button);button.addEventListener('click',()=>this.action(async()=>{
         const sequence=listen?++this.audioSequence:0,response=await fetch('/yue2-audio/'+job.id,{headers:{authorization:`Bearer ${this.service.bootstrap.token}`}});if(!response.ok)throw new Error('无法读取 YuE2 音频');const blob=await response.blob();if(listen&&sequence!==this.audioSequence)return;const url=URL.createObjectURL(blob);
         if(listen){this.pauseAudio();if(this.audioUrl)URL.revokeObjectURL(this.audioUrl);this.audioUrl=url;const player=document.createElement('audio');player.controls=true;player.src=url;player.addEventListener('play',this.pause);document.querySelector('#yue2-audio')!.replaceChildren(player);await player.play();}else{const a=document.createElement('a');a.href=url;a.download=`${job.id}.flac`;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);}

@@ -34,7 +34,7 @@ export class YuE2Engine {
   }
   private report=(line:string)=>{
     const clean=line.replace(/\x1b\[[0-9;?]*[A-Za-z]/g,'').replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g,'').trim().slice(-700);
-    if(clean){this.message=clean;this.logs.push(clean);this.logs=this.logs.slice(-60);}
+    if(clean){if(this.phase!=='running')this.message=clean;this.logs.push(clean);this.logs=this.logs.slice(-60);}
   };
   private fail(error:unknown){this.phase='failed';this.error=error instanceof Error?error.message:String(error);this.report(`YuE2 操作失败：${this.error}`);}
   private persist(autoStart:boolean) {
@@ -46,7 +46,7 @@ export class YuE2Engine {
     const installed=!!this.config&&this.driver.installed(this.config.directory);let modelsReady=false;
     const running=this.process;
     if(running&&this.phase==='running') {
-      try {const status=await running.status();if(this.process===running&&this.phase==='running')modelsReady=status.modelsPresent&&!status.fake;}
+      try {const status=await running.status();if(this.process===running&&this.phase==='running'){modelsReady=status.modelsPresent&&!status.fake;this.message='YuE2 服务已启动';}}
       catch(error){if(this.process===running)this.message=`YuE2 状态暂时无法读取：${error instanceof Error?error.message:String(error)}`;}
     }
     return {phase:this.phase,directory:this.config?.directory,defaultDirectory:join(homedir(),'Music','YuE2'),installed,autoStart:this.config?.autoStart??false,modelsReady,canGenerate:this.phase==='running'&&modelsReady,url:this.phase==='running'?this.process?.url:undefined,message:this.message,error:this.error,logs:[...this.logs]};
@@ -123,8 +123,12 @@ export class YuE2Engine {
     this.phase='starting';context.report('正在启动 YuE2');
     const run=await this.driver.launch(this.config!.directory,context);
     if(context.signal.aborted){await run.stop();throw context.signal.reason;}
-    this.process=run;this.phase='running';context.report('YuE2 服务已启动');
-    void run.exited.then(code=>{if(this.process===run){this.process=undefined;this.release();this.fail(new Error(`YuE2 进程已退出（${code??'信号'}），可以重新启动`));}});
+    this.process=run;this.phase='running';this.message='YuE2 服务已启动';context.report(this.message);
+    void run.exited.then(code=>{
+      if(this.process!==run)return;this.process=undefined;
+      try{this.release();}catch(error){this.report(`释放引擎目录锁失败：${error instanceof Error?error.message:String(error)}`);}
+      this.fail(new Error(`YuE2 进程已退出（${code??'信号'}），可以重新启动`));
+    }).catch(error=>{if(this.process===run){this.process=undefined;this.fail(error);}});
   }
   private async stopOwned(){const run=this.process;this.process=undefined;if(run)await run.stop();}
   async stop() {

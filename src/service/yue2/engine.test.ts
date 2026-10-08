@@ -17,11 +17,11 @@ async function fixture(t:any) {
     prepare:async(_directory,downloadModels,{signal,report})=>{
       preparations++;report('下载运行环境');if(signal.aborted)throw signal.reason;installed=true;if(downloadModels)models=true;
     },
-    launch:async(_directory,{signal})=>{
+    launch:async(_directory,{signal,report})=>{
       launches++;if(signal.aborted)throw signal.reason;
       let finish!:(code:number|null)=>void;
       const exited=new Promise<number|null>(resolve=>{finish=resolve;});
-      const run={url:'http://127.0.0.1:18999',exited,status:async()=>({modelsPresent:models,fake:false}),stop:async()=>{stops++;finish(0);}};
+      const run={url:'http://127.0.0.1:18999',exited,status:async()=>{report('raw engine access log');return {modelsPresent:models,fake:false};},stop:async()=>{stops++;finish(0);}};
       processes.push(run);return run;
     },
   };
@@ -37,6 +37,7 @@ test('one enable action installs into the selected folder, starts the engine and
   assert.equal((await engine.status()).phase,'uninstalled');
   await engine.prepare(directory,true);const running=await settled(engine);
   assert.equal(running.phase,'running');assert.equal(running.modelsReady,true);assert.equal(running.canGenerate,true);
+  assert.equal(running.message,'YuE2 服务已启动','raw access logs must not replace the user-facing ready message');
   assert.equal(running.directory,await realpath(directory));assert.deepEqual(counts(),{preparations:1,launches:1,stops:0});
   await engine.start();assert.equal(counts().launches,1,'repeated start cannot spawn a second engine');
   await engine.close();assert.equal(counts().stops,1);
@@ -93,4 +94,10 @@ test('corrupt optional engine settings do not prevent opening the project librar
   const {engine,store,driver}=await fixture(t);await engine.close();await mkdir(store.path('engines'));await writeFile(store.path('engines','yue2.json'),'{broken');
   const recovered=await YuE2Engine.open(store,driver);t.after(()=>recovered.close());
   assert.equal((await recovered.status()).phase,'failed');assert.deepEqual(await store.projects(),[]);
+});
+test('an unexpected engine exit remains contained even when releasing its directory lock fails',async t=>{
+  const {engine,directory,processes}=await fixture(t);await engine.prepare(directory,true);await settled(engine);
+  const path=join(directory,'.music-room-yue2.lock'),original=await readFile(path,'utf8');await writeFile(path,'{broken');
+  try{await processes[0].stop();await new Promise(r=>setTimeout(r,10));assert.equal((await engine.status()).phase,'failed');}
+  finally{await writeFile(path,original);}
 });
