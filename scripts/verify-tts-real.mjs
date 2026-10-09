@@ -7,13 +7,15 @@ import {chromium} from 'playwright';
 import {wavInfo} from '../src/service/tts/speech.ts';
 import {sourceRevision} from '../src/service/tts/runtime.ts';
 import {modelRevision} from '../src/service/tts/python.ts';
+import {nativeDistribution} from '../src/service/tts/native-install.ts';
 const workspace=process.env.MUSIC_ROOM_WORKSPACE;
 if(process.env.MUSIC_ROOM_TTS_REAL!=='1'||!workspace)throw Error('Set MUSIC_ROOM_TTS_REAL=1 and MUSIC_ROOM_WORKSPACE; prepare the real models first.');
 const runtime=JSON.parse(await readFile(join(workspace,'.music-room.runtime.json'),'utf8'));
 async function call(name,args={}){const r=await fetch(runtime.url+'/api/'+name,{method:'POST',headers:{authorization:'Bearer '+runtime.token,'content-type':'application/json'},body:JSON.stringify(args)}),v=await r.json();assert.ok(r.ok,JSON.stringify(v));return v;}
 const library=await call('tts_library');assert.equal(library.status.engine,'IndexTTS 2.0');assert.equal(library.status.canGenerate,true);assert.ok(library.voices.length,'Reference voice required');
 const existingIds=new Set(library.versions.map(v=>v.id));
-const installed=JSON.parse(await readFile(join(library.status.directory,'installed.json'),'utf8'));assert.equal(installed.sourceRevision,sourceRevision);assert.equal(installed.modelRevision,modelRevision);
+const native=library.status.backend==='audio.cpp F16';
+const installed=JSON.parse(await readFile(join(library.status.directory,native?'audio-cpp/installed.json':'installed.json'),'utf8'));if(native){assert.equal(installed.version,nativeDistribution.version);assert.equal(installed.modelSha256,nativeDistribution.modelSha256);assert.equal(installed.precision,'f16');}else{assert.equal(installed.sourceRevision,sourceRevision);assert.equal(installed.modelRevision,modelRevision);}
 const id='speech-studio',title='语音创作';let projects=(await call('list_projects')).projects;
 if(!projects.some(p=>p.id===id))await call('create_project',{projectId:id,title});
 let sound=library.sounds.find(s=>s.projectId===id&&s.title==='中文旁白');if(!sound)sound=await call('tts_create_sound',{projectId:id,title:'中文旁白'});
@@ -35,5 +37,5 @@ try{
  await page.locator('[data-action="final"]').click();await page.waitForFunction(()=>document.querySelector('[data-action="final"]')?.textContent.includes('已选为成品'));
  await page.reload();await page.locator(`[data-action="project"][data-id="${id}"]`).click();await page.locator(`[data-action="sound"][data-id="${sound.id}"]`).click();await page.locator('#version-audio').waitFor();assert.match(await page.locator('.listening-top').innerText(),new RegExp('V'+job.number));await page.locator('[data-action="compose"]').click();assert.equal(await page.inputValue('#creation-text'),text);await page.click('[data-action="close"]');
  await page.screenshot({path:join(out,'desktop.png'),fullPage:true});await page.setViewportSize({width:390,height:844});await page.waitForTimeout(500);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:join(out,'mobile.png'),fullPage:true});assert.deepEqual(errors,[]);
- const report={realModel:true,engine:'IndexTTS 2.0',sourceRevision,modelRevision,versionId:job.id,audioPath,sha256,bytes:bytes.length,analysis,checks:['production browser submits real inference','fixed v2.0 source and weights','reference voice and text emotion inference','saved audible PCM WAV','authenticated bytes equal saved WAV','browser playback and duration','download bytes match saved WAV','selected final and draft survive reload','mobile layout'],errors};await writeFile(join(out,'verification.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+ const report={realModel:true,engine:'IndexTTS 2.0',backend:library.status.backend,installation:installed,...(native?{modelSha256:nativeDistribution.modelSha256}:{sourceRevision,modelRevision}),versionId:job.id,audioPath,sha256,bytes:bytes.length,analysis,checks:['production browser submits real inference','fixed backend release and model identity','reference voice and text emotion inference','saved audible PCM WAV','authenticated bytes equal saved WAV','browser playback and duration','download bytes match saved WAV','selected final and draft survive reload','mobile layout'],errors};await writeFile(join(out,'verification.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 }finally{if(job&&!done&&['queued','running'].includes(job.state))await call('tts_cancel',{versionId:job.id});await browser.close();}

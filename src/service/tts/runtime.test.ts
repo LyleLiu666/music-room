@@ -174,3 +174,14 @@ exec(${JSON.stringify(entry)})
   assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/SEGMENTATION_VERIFIED/);
  }
 });
+
+
+test('Apple Silicon defaults to native inference and explicit Python selection remains available',()=>{
+ const old=process.env.MUSIC_ROOM_TTS_BACKEND;
+ try{
+  delete process.env.MUSIC_ROOM_TTS_BACKEND;
+  if(process.platform==='darwin'&&process.arch==='arm64')assert.equal(createSpeechDriver().engineLabel,'audio.cpp F16');
+  process.env.MUSIC_ROOM_TTS_BACKEND='python';assert.equal(createSpeechDriver().engineLabel,'PyTorch');
+  process.env.MUSIC_ROOM_TTS_BACKEND='unknown';assert.throws(()=>createSpeechDriver(),/MUSIC_ROOM_TTS_BACKEND/);
+ }finally{if(old===undefined)delete process.env.MUSIC_ROOM_TTS_BACKEND;else process.env.MUSIC_ROOM_TTS_BACKEND=old;}
+});

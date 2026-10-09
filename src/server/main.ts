@@ -7,6 +7,7 @@ import {MusicService} from '../service/service.ts';
 import {processRenderer} from '../service/render/process.ts';
 import {runRenderWorker} from '../service/render/worker.ts';
 import {runSpeechWorker} from '../service/tts/supervisor.ts';
+import {runNativeSpeechWorker} from '../service/tts/native-server.ts';
 import {createSpeechDriver} from '../service/tts/runtime.ts';
 import {runYuE2Worker} from '../service/yue2/worker.ts';
 import {createYuE2Driver} from '../service/yue2/runtime.ts';
@@ -29,7 +30,7 @@ export function readRuntime(directory:string):Runtime|undefined {
 }
 function options(argv:string[]) {
   const mode=argv[0]??'serve',args=argv.slice(1),out:Record<string,string>={};
-  if(!['serve','mcp','status','call','--help','help','render-worker','yue2-worker','tts-worker'].includes(mode))throw new Error('未知命令，请运行 --help');
+  if(!['serve','mcp','status','call','--help','help','render-worker','yue2-worker','tts-worker','tts-native-worker'].includes(mode))throw new Error('未知命令，请运行 --help');
   if(mode==='call'){out.operation=args.shift()??'';}
   for(let i=0;i<args.length;i+=2){if(!['--workspace','--port','--input'].includes(args[i]) || !args[i+1] || args[i+1].startsWith('--'))throw new Error('参数无效：'+args[i]);out[args[i].slice(2)]=args[i+1];}
   const port=out.port===undefined?0:Number(out.port);if(!Number.isInteger(port)||port<0||port>65535)throw new Error('端口必须在 0–65535');
@@ -39,6 +40,7 @@ export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
   const opt=options(argv);
   if(opt.mode==='help'||opt.mode==='--help'){console.log('Music Room\n  serve [--workspace DIRECTORY] [--port PORT]\n  mcp [--workspace DIRECTORY]  # stdio MCP; connects to or starts local service\n  status [--workspace DIRECTORY]\n  call OPERATION --input request.json [--workspace DIRECTORY]\nDefault workspace: ~/Music/MusicRoom. No Electron or browser runtime. Optional YuE2 is installed into your chosen directory from the web page.');return;}
   if(opt.mode==='render-worker'){await runRenderWorker(assets.read);return;}
+  if(opt.mode==='tts-native-worker'){await runNativeSpeechWorker();return;}
   if(opt.mode==='tts-worker'){await runSpeechWorker();return;}
   if(opt.mode==='yue2-worker'){await runYuE2Worker();return;}
   mkdirSync(opt.workspace,{recursive:true,mode:0o700});

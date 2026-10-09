@@ -19,7 +19,7 @@ export const operations = {
   studio_import_score:{description:'将 Agent 交付的 JSON 乐谱导入指定声音，新版保留来源，不覆盖旧版。',schema:z.object({soundId:id,compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
   studio_render:{description:'把已有乐谱合成为试听文件。',schema:z.object({versionId:id}).strict()},
   tts_status:{description:'查看固定的 IndexTTS 2.0 环境、模型准备状态和日志。',schema:z.object({}).strict()},
-  tts_prepare:{description:'在专用目录安装 IndexTTS 2.0、Python 和固定模型；后台准备，通过 tts_status 查询。',schema:z.object({directory:z.string().min(1).max(4096).optional()}).strict()},
+  tts_prepare:{description:'在专用目录准备 IndexTTS 2.0 推理引擎和固定模型；Apple Silicon 默认使用 audio.cpp F16；后台准备，通过 tts_status 查询。',schema:z.object({directory:z.string().min(1).max(4096).optional()}).strict()},
   tts_cancel_preparation:{description:'取消语音环境准备，保留下载文件以便重试。',schema:z.object({}).strict()},
   tts_library:{description:'读取持久化的参考声音、项目语音及所有语音版本。',schema:z.object({}).strict()},
   tts_add_voice:{description:'保存 0.3–15 秒、16 位 PCM WAV 参考素材，默认在后台提取人声、降噪、去混响；轮询 tts_library 的 voices[].processing，succeeded 后才能生成。已干净素材可 cleanup=false。音色跨项目复用，原音保留。',schema:z.object({name:z.string().min(1).max(120),audioBase64:z.string().min(1).max(4*1024*1024),cleanup:z.boolean().default(true)}).strict()},
