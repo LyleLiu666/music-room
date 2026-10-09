@@ -24,10 +24,13 @@
     "test:service": "node --test src/service/**/*.test.ts src/server/*.test.ts",
     "serve": "node src/server/dev.ts serve",
     "mcp": "node src/server/dev.ts mcp",
-    "verify:service": "node scripts/verify-service.mjs && node --test scripts/verify-service-boundaries.test.mjs scripts/verify-yue2-ui.test.mjs",
+    "verify:service": "node scripts/verify-service.mjs && node --test scripts/verify-service-boundaries.test.mjs scripts/verify-yue2-ui.test.mjs scripts/verify-speech-ui.test.mjs",
     "build:binary": "npm run build && node scripts/build-binary.mjs",
     "verify:binary": "node scripts/verify-binary.mjs",
-    "verify:yue2:real": "node scripts/verify-yue2-real.mjs"
+    "verify:yue2:real": "node scripts/verify-yue2-real.mjs",
+    "verify:speech": "node --test scripts/verify-speech-ui.test.mjs",
+    "verify:tts:real": "node scripts/verify-tts-real.mjs && node scripts/verify-tts-default-real.mjs",
+    "verify:studio": "node --test scripts/verify-studio-ui.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",

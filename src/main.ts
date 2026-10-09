@@ -1,2 +1,1 @@
-import './style.css';
-import './workbench/app.ts';
+import './workbench/studio/app.ts';

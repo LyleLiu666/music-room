@@ -34,7 +34,7 @@ async function select(page,id) {
 
 for(const action of ['continue-editing','switch-version','edit-back-to-same-text'])test(`saving feedback preserves a later draft: ${action}`,async t=>{
   const page=await pageFor(t);
-  await page.goto(http.runtime.url+'/#window-study-v1');
+  await page.goto(http.runtime.url+'/score.html#window-study-v1');
   let release,entered;
   const held=new Promise(r=>{release=r;}),sent=new Promise(r=>{entered=r;});
   await page.route('**/api/add_feedback',async route=>{entered();await held;await route.continue();});
@@ -58,7 +58,7 @@ for(const action of ['continue-editing','switch-version','edit-back-to-same-text
 });
 
 test('failed feedback remains editable; successful unchanged feedback is cleared',async t=>{
-  const page=await pageFor(t);await page.goto(http.runtime.url+'/#window-study-v1');
+  const page=await pageFor(t);await page.goto(http.runtime.url+'/score.html#window-study-v1');
   await page.route('**/api/add_feedback',route=>route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'feedback write failure'})}));
   await page.fill('#service-feedback','失败后保留');await page.click('#service-save-feedback');
   await page.locator('#status').filter({hasText:'feedback write failure'}).waitFor();
@@ -70,7 +70,7 @@ test('failed feedback remains editable; successful unchanged feedback is cleared
 });
 
 test('successful unchanged feedback clears its hidden draft only',async t=>{
-  const page=await pageFor(t);await page.goto(http.runtime.url+'/#window-study-v1');
+  const page=await pageFor(t);await page.goto(http.runtime.url+'/score.html#window-study-v1');
   let release,entered;const held=new Promise(r=>{release=r;}),sent=new Promise(r=>{entered=r;});
   await page.route('**/api/add_feedback',async route=>{entered();await held;await route.continue();});t.after(()=>release());
   await page.fill('#service-feedback','切换前提交');await page.click('#service-save-feedback');await sent;
@@ -84,7 +84,7 @@ for(const intent of ['original-link','new-navigation','confirmed-missing'])test(
   const page=await pageFor(t);let available=false;
   await page.route('**/api/library',route=>available?route.continue():route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'temporary disconnect'})}));
   const requested=intent==='confirmed-missing'?'missing-version':'window-study-v1';
-  await page.goto(http.runtime.url+'/#'+requested);
+  await page.goto(http.runtime.url+'/score.html#'+requested);
   assert.equal(await page.evaluate(()=>location.hash),'#'+requested,'unverified links must survive connection failure');
   if(intent==='new-navigation')await select(page,'rain-letter-v1');
   available=true;

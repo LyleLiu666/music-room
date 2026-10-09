@@ -6,7 +6,7 @@ await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: true, args: ['--autoplay-policy=no-user-gesture-required'] });
 try {
  const page = await browser.newPage();
- await page.goto(process.env.MUSIC_ROOM_URL || 'http://127.0.0.1:5173');
+ await page.goto(`${process.env.MUSIC_ROOM_URL || 'http://127.0.0.1:5173'}/score.html`);
  await page.waitForFunction(() => !!window.musicRoom);
  const result = await page.evaluate(async () => {
   const engine = window.musicRoom.engine;

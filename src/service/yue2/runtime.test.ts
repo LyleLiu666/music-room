@@ -23,8 +23,8 @@ test('loss of parent stdin stops the owned process tree, including a child proce
     const child=spawn(process.execPath,[fileURLToPath(new URL('./worker-entry.ts',import.meta.url))],{stdio:['pipe','pipe','pipe']});
     worker=child;let diagnostics='';child.stderr.on('data',chunk=>diagnostics+=chunk);
     const closed=new Promise<number|null>(resolve=>child.once('close',resolve));child.stdin.write(JSON.stringify({directory:root,owner:'lease',step:'venv'})+'\n');
-    for(let n=0;!existsSync(join(root,'child.pid'))&&n<500;n++)await new Promise(r=>setTimeout(r,20));
-    assert.ok(existsSync(join(root,'child.pid')),diagnostics);const pid=Number(readFileSync(join(root,'child.pid'),'utf8'));
+    for(let n=0;(!existsSync(join(root,'child.pid'))||!Number(readFileSync(join(root,'child.pid'),'utf8')))&&n<500;n++)await new Promise(r=>setTimeout(r,20));
+    assert.ok(existsSync(join(root,'child.pid')),diagnostics);const pid=Number(readFileSync(join(root,'child.pid'),'utf8'));assert.ok(pid>1,'child PID must be written before checking termination');
     child.stdin.end();await closed;
     for(let n=0;n<50;n++){try{process.kill(pid,0);}catch{return;}await new Promise(r=>setTimeout(r,20));}
     assert.fail('owned child survived parent stdin closing');

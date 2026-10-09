@@ -23,6 +23,15 @@ try {
   const status=await tool('status');assert.equal(status.workspace,await realpath(workspace));assert.equal(status.engines.find(e=>e.id==='yue2').available,false);
   assert.equal((await tool('yue2_status')).phase,'uninstalled');assert.ok((await client.listTools()).tools.some(t=>t.name==='yue2_generate'));
   const runtime=JSON.parse(await readFile(join(workspace,'.music-room.runtime.json'),'utf8'));assert.equal(runtime.command,await realpath(binary));
+  const speech=await tool('tts_library');
+  assert.equal(speech.voices.filter(v=>v.builtinId).length,4);
+  for(const voice of speech.voices.filter(v=>v.builtinId)){
+    const reference=await fetch(runtime.url+`/speech/voice-audio/${voice.id}`,{headers:{authorization:`Bearer ${runtime.token}`}});
+    assert.equal(reference.status,200);assert.equal(createHash('sha256').update(new Uint8Array(await reference.arrayBuffer())).digest('hex'),voice.sha256);
+  }
+  assert.equal((await fetch(runtime.url+'/tts-presets/official.npz')).status,401);
+  const encoded=await fetch(runtime.url+'/tts-presets/official.npz',{headers:{authorization:`Bearer ${runtime.token}`}});assert.equal(encoded.status,200);assert.ok((await encoded.arrayBuffer()).byteLength>1000);
+  results.push('four dry built-in voices and protected conditioning archives are embedded without loose files');
   const requirements=await fetch(runtime.url+'/yue2-runtime/requirements.txt');assert.equal(requirements.status,200);assert.ok((await requirements.text()).includes('MUSIC_ROOM_MLX_YUE_ARCHIVE'));results.push('YuE2 contracts and hash-locked installer requirements are embedded');
   const managed=join(root,'模型 程序 测试');await mkdir(join(managed,'bin'),{recursive:true});await writeFile(join(managed,'.music-room-yue2.lock'),JSON.stringify({pid:process.pid,owner:'binary-lease'}));await writeFile(join(managed,'bin','uv'),'#!/bin/sh\nsleep 60 &\nprintf "%s" "$!" > child.pid\nwait\n');await chmod(join(managed,'bin','uv'),0o755);
   const supervisor=spawn(binary,['yue2-worker'],{cwd:root,env,stdio:['pipe','pipe','pipe']});let diagnostics='';supervisor.stderr.on('data',chunk=>diagnostics+=chunk);const supervised=new Promise(r=>supervisor.once('close',r));
@@ -44,7 +53,7 @@ try {
   assert.equal((await fetch(runtime.url+'/api/status',{method:'POST'})).status,401);
   assert.equal((await fetch(runtime.url+'/api/status',{method:'POST',headers:{origin:'https://other.invalid',authorization:`Bearer ${runtime.token}`}})).status,403);
   browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required']});const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
-  page.on('pageerror',e=>errors.push(e.message));await page.goto(`${runtime.url}/#${long.revision.id}`);await page.locator('#service-state').filter({hasText:'已连接'}).waitFor();
+  page.on('pageerror',e=>errors.push(e.message));await page.goto(`${runtime.url}/score.html#${long.revision.id}`);await page.locator('#service-state').filter({hasText:'已连接'}).waitFor();
   assert.equal(await page.locator('#song-title').textContent(),example.work.title);assert.equal(await page.locator('#service-feedback-list').textContent(),'主题保留，下一版加一点变化。');
   await page.click('#play');await page.waitForFunction(()=>window.musicRoom.engine.context?.currentTime>.05 && window.musicRoom.engine.ready);
   // Browser preview must also fetch its actual sound bank from the embedded executable.

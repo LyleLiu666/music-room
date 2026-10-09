@@ -6,6 +6,8 @@ import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js';
 import {MusicService} from '../service/service.ts';
 import {processRenderer} from '../service/render/process.ts';
 import {runRenderWorker} from '../service/render/worker.ts';
+import {runSpeechWorker} from '../service/tts/supervisor.ts';
+import {createSpeechDriver} from '../service/tts/runtime.ts';
 import {runYuE2Worker} from '../service/yue2/worker.ts';
 import {createYuE2Driver} from '../service/yue2/runtime.ts';
 import {musicMcp} from '../interfaces/mcp.ts';
@@ -27,7 +29,7 @@ export function readRuntime(directory:string):Runtime|undefined {
 }
 function options(argv:string[]) {
   const mode=argv[0]??'serve',args=argv.slice(1),out:Record<string,string>={};
-  if(!['serve','mcp','status','call','--help','help','render-worker','yue2-worker'].includes(mode))throw new Error('未知命令，请运行 --help');
+  if(!['serve','mcp','status','call','--help','help','render-worker','yue2-worker','tts-worker'].includes(mode))throw new Error('未知命令，请运行 --help');
   if(mode==='call'){out.operation=args.shift()??'';}
   for(let i=0;i<args.length;i+=2){if(!['--workspace','--port','--input'].includes(args[i]) || !args[i+1] || args[i+1].startsWith('--'))throw new Error('参数无效：'+args[i]);out[args[i].slice(2)]=args[i+1];}
   const port=out.port===undefined?0:Number(out.port);if(!Number.isInteger(port)||port<0||port>65535)throw new Error('端口必须在 0–65535');
@@ -37,6 +39,7 @@ export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
   const opt=options(argv);
   if(opt.mode==='help'||opt.mode==='--help'){console.log('Music Room\n  serve [--workspace DIRECTORY] [--port PORT]\n  mcp [--workspace DIRECTORY]  # stdio MCP; connects to or starts local service\n  status [--workspace DIRECTORY]\n  call OPERATION --input request.json [--workspace DIRECTORY]\nDefault workspace: ~/Music/MusicRoom. No Electron or browser runtime. Optional YuE2 is installed into your chosen directory from the web page.');return;}
   if(opt.mode==='render-worker'){await runRenderWorker(assets.read);return;}
+  if(opt.mode==='tts-worker'){await runSpeechWorker();return;}
   if(opt.mode==='yue2-worker'){await runYuE2Worker();return;}
   mkdirSync(opt.workspace,{recursive:true,mode:0o700});
   let runtime=readRuntime(opt.workspace);
@@ -47,14 +50,14 @@ export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
     if(owned){
       const file=owned.service.store.path('.music-room.runtime.json');
       if(existsSync(file)&&JSON.parse(readFileSync(file,'utf8')).token===owned.http.runtime.token)unlinkSync(file);
-      await owned.service.yue2.close();await owned.service.jobs.close();await owned.http.close();await owned.service.store.close();
+      await owned.service.speech.close();await owned.service.yue2.close();await owned.service.jobs.close();await owned.http.close();await owned.service.store.close();
     }
   };
   if(!runtime && (opt.mode==='serve'||opt.mode==='mcp')) {
     const renderer=processRenderer(process.execPath,[...selfArgs,'render-worker']);
     for(let attempt=0;attempt<30 && !runtime;attempt++) {
       let service: MusicService;
-      try {service=await MusicService.open(opt.workspace,renderer,assets.read,true,createYuE2Driver(assets.read,process.execPath,[...selfArgs,'yue2-worker']));}
+      try {service=await MusicService.open(opt.workspace,renderer,assets.read,true,createYuE2Driver(assets.read,process.execPath,[...selfArgs,'yue2-worker']),createSpeechDriver(process.execPath,[...selfArgs,'tts-worker'],assets.read));}
       catch(error:any) {
         if(error.code!=='WORKSPACE_LOCKED')throw error;
         // Another agent can own the lock before it has published the HTTP descriptor.

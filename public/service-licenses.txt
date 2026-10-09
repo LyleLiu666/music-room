@@ -40,3 +40,30 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 Additional bundled npm components retain their installed package notices.
+
+Optional IndexTTS 2.0 is downloaded into the user's dedicated engine directory,
+not embedded in this binary. Source pinned to official v2.0.0 commit
+830f6f8f94a51fea23ab1d639027a86200075a4e; model IndexTeam/IndexTTS-2 pinned to
+740dcaff396282ffb241903d150ac011cd4b1ede.
+Source, weights and official example voice retain the bilibili Model Use License
+Agreement and notices in source/LICENSE, source/LICENSE_ZH.txt and
+source/checkpoints/LICENSE*. Companion models retain their upstream licenses.
+Source: https://github.com/index-tts/index-tts/tree/v2.0.0
+Weights: https://huggingface.co/IndexTeam/IndexTTS-2
+Managed Python and dependencies use the pinned official uv.lock; uv is a separate
+MIT/Apache-2.0 installer. No subscription API or hosted inference is used.
+
+Optional reference voice cleanup runs locally inside the same Music Room backend.
+audio-separator 0.30.2: MIT, Andrew Beveridge and contributors.
+Source: https://github.com/nomadkaraoke/python-audio-separator
+UVR public model weights: UVR-MDX-NET-Voc_FT.onnx, UVR-DeNoise-Lite.pth,
+UVR-DeEcho-DeReverb.pth. Models retain their original upstream terms and notices.
+Weights and model metadata: https://github.com/TRvlvr/model_repo
+https://github.com/TRvlvr/application_data
+The dedicated Python environment retains installed package license notices.
+imageio-ffmpeg 0.6.0 supplies a separate FFmpeg executable; its package and the
+FFmpeg build retain their respective upstream licenses and notices:
+https://github.com/imageio/imageio-ffmpeg
+https://ffmpeg.org/legal.html
+These optional dependencies and weights are downloaded to the user's engine
+directory, not embedded in the Music Room binary. Reference audio stays local.

@@ -23,7 +23,7 @@ const client=new Client({name:'browser-agent',version:'1'});
 await client.connect(new StreamableHTTPClientTransport(new URL(http.runtime.url+'/mcp'),{requestInit:{headers:{authorization:`Bearer ${http.runtime.token}`}}}));
 const tool=async(name,args={})=>{const r=await client.callTool({name,arguments:args});assert.ok(!r.isError,JSON.stringify(r));return JSON.parse(r.content[0].text);};
 try {
-  await page.goto(http.runtime.url+'/#rain-letter-v1');await page.locator('#service-state').filter({hasText:'已连接'}).waitFor();
+  await page.goto(http.runtime.url+'/score.html#rain-letter-v1');await page.locator('#service-state').filter({hasText:'已连接'}).waitFor();
   assert.deepEqual(await page.evaluate(()=>window.musicRoom.score),legacy.score,'stored original must drive the preview after an upgrade');
   const originalDownload=page.waitForEvent('download');await page.click('#score-download');
   const exported=await originalDownload;assert.deepEqual(JSON.parse(await readFile(await exported.path(),'utf8')),legacy,'JSON download must be the persisted original');

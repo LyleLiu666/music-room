@@ -1,0 +1,11 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#f6f5f1"><title>Music Room · 声音创作</title><link rel="stylesheet" href="./style.css"></head>
+<body>
+  <div class="prototype-banner"><span>交互原型</span> 生成与加工为流程演示；标有「可试听」的版本使用现有音乐文件。<a href="/">打开现有工作台 ↗</a></div>
+  <div class="shell"><aside class="sidebar" aria-label="项目导航"><a class="brand" href="./index.html"><span class="brand-mark">m<span>r</span></span><strong>Music Room<small>把想法，变成声音。</small></strong></a><button class="primary new-project" data-action="new-project">＋ 新建项目</button><div class="nav-label">我的项目</div><nav id="projects"></nav><div class="sidebar-foot"><span class="local-dot"></span> 原型数据保存在此浏览器<button class="quiet" data-action="about">关于这个原型 ↗</button></div></aside>
+  <main id="main"></main></div>
+  <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+  <dialog id="dialog"></dialog><audio id="audio" preload="metadata"></audio>
+  <script type="module" src="./app.js"></script>
+</body></html>

@@ -1,8 +1,12 @@
-# Music Room · 代码音乐工作台
+# Music Room · 声音创作空间
 
-本机音乐工作台，提供后台项目服务、浏览器听评页面和内置 MCP，打包成一个普通命令行可执行文件。支持歌曲与版本分组、先做短乐句再扩写、整小节循环试听和 A/B 版本比较。Agent 无需取得整个项目源码，即可通过 MCP 导入乐谱、后台渲染 WAV、读取听评。
+按「项目 → 声音 → 版本」组织音乐和语音。一个项目可以包含 riff、完整作品和旁白；所有结果统一试听、保留灵感、选择成品或删除恢复。创作表单按需打开，MIDI 与音轨编辑从版本菜单进入。
 
-服务使用本机项目目录保存版本和产物，不依赖浏览器保持打开。无需 Electron / `.app`、在线模型或付费 API；同时保留独立静态网页模式。服务运行说明见 [本地服务](docs/local-service.md)，页面交互规则见 [音乐工作台设计](docs/design/music-workbench.md)。
+服务使用本机项目目录保存版本和产物，不依赖浏览器保持打开。无需 Electron / `.app`、在线模型或付费 API；同时保留独立静态网页模式。服务运行说明见 [本地服务](docs/local-service.md)，正式页面交互规则见 [声音创作空间](docs/design/studio.md)。
+
+## 新 UX 提案
+
+正式首页已采用统一创作空间，启动本地服务即可使用。`/speech.html` 为兼容入口；`/score.html` 为按需打开的 MIDI 编辑器。早期 [UX 提案](docs/design/sound-first-ux.md)及 `public/prototypes/sound-first/` 仅保留为设计历史，不是正式入口。
 
 ## 本地服务与单二进制
 
@@ -16,7 +20,7 @@ npm run build:binary
 
 按终端 URL 在已有浏览器听评。构建产物是 `release/music-room` 和启动脚本 `release/start.sh`，运行它们无需安装 Node/Python；构建工具仅用于开发。Agent 通过 stdio / HTTP MCP 调用相同的项目、版本、后台渲染和反馈能力。二进制对应构建机器的操作系统与架构。
 
-[启动、MCP 连接与构建说明](docs/local-service.md) · [YuE2 自动安装与生成](docs/yue2.md) · [技术设计与四轮边界](docs/design/local-service.md)。MIDI/JSON 创作闭环已经实现；YuE2 由后台管理专用目录、自动安装、下载模型及启动，通过网页或内置 MCP 生成音频。音视频识谱尚未接入。下面保留独立静态网页模式的说明。
+[启动、MCP 连接与构建说明](docs/local-service.md) · [YuE2 自动安装与生成](docs/yue2.md) · [IndexTTS 2.0 语音创作](docs/tts.md) · [技术设计与四轮边界](docs/design/local-service.md)。MIDI/JSON 创作闭环已经实现；YuE2 通过网页或内置 MCP 生成音乐。统一页面通过 IndexTTS 2.0 生成真实语音，支持参考声音复用、情绪描述、多版本试听、成品选择、删除恢复和 WAV 下载。两种模型均由后台管理专用运行环境。音视频识谱尚未接入。下面保留独立静态网页模式的说明。
 
 ## 独立静态网页模式
 

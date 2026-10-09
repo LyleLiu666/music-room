@@ -7,7 +7,7 @@ const browser = await chromium.launch({ executablePath: '/Applications/Google Ch
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, acceptDownloads: true });
   const errors=[]; page.on('pageerror', error=>errors.push(error.message));
-  await page.goto(`${process.env.MUSIC_ROOM_URL || 'http://127.0.0.1:5173'}/#rain-letter-v2`);
+  await page.goto(`${process.env.MUSIC_ROOM_URL || 'http://127.0.0.1:5173'}/score.html#rain-letter-v2`);
   await page.waitForFunction(()=>!!window.musicRoom);
   await page.locator('#view-start').fill('9'); await page.locator('#view-start').press('Tab');
   await page.locator('#select-view').click(); await page.locator('#loop').click();

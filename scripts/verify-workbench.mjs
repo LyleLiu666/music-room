@@ -9,7 +9,7 @@ const url = process.env.MUSIC_ROOM_URL || 'http://127.0.0.1:5173';
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1100 }, acceptDownloads: true });
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto(`${url}/#rain-letter-v2`);
+  await page.goto(`${url}/score.html#rain-letter-v2`);
   await page.waitForFunction(() => !!window.musicRoom);
   assert.equal(await page.locator('.work-group').count(), 1);
   assert.equal(await page.locator('[data-song]').count(), 2);
@@ -51,7 +51,7 @@ try {
   await page.waitForFunction(() => !!window.musicRoom);
   assert.equal(await page.evaluate(() => window.musicRoom.engine.playing), false);
   checks.push('default mix restoration', 'master volume retained', 'real playback', 'switch stops old audio', 'back/forward', 'reload paused');
-  await page.goto(`${url}/#unknown-version`);
+  await page.goto(`${url}/score.html#unknown-version`);
   await page.waitForFunction(() => !!window.musicRoom);
   assert.equal(await page.evaluate(() => window.musicRoom.songId), 'rain-letter-v1');
   assert.match(await page.locator('#status').textContent(), /未找到该版本/);

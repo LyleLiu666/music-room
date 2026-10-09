@@ -8,7 +8,7 @@ const url=process.env.MUSIC_ROOM_URL||'http://127.0.0.1:5173';
 try {
  const page=await browser.newPage(); page.on('pageerror',e=>errors.push(e.message));
  await page.route('**/samples/piano-C2.mp3',async route=>{await new Promise(resolve=>setTimeout(resolve,50));await route.fulfill({status:503,body:'fixture failure'});});
- await page.goto(`${url}/#rain-letter-v2`); await page.waitForFunction(()=>!!window.musicRoom);
+ await page.goto(`${url}/score.html#rain-letter-v2`); await page.waitForFunction(()=>!!window.musicRoom);
  await page.locator('#play').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent.startsWith('播放失败'));
  await page.waitForTimeout(400);
@@ -19,7 +19,7 @@ try {
  checks.push('sample failure remains visible', 'retry after failure');
  const loading=await browser.newPage(); loading.on('pageerror',e=>errors.push(e.message));
  await loading.route('**/samples/**',async route=>{await new Promise(resolve=>setTimeout(resolve,300));await route.continue();});
- await loading.goto(`${url}/#rain-letter-v2`); await loading.waitForFunction(()=>!!window.musicRoom);
+ await loading.goto(`${url}/score.html#rain-letter-v2`); await loading.waitForFunction(()=>!!window.musicRoom);
  await loading.locator('#play').click();
  await loading.getByRole('button',{name:'选择雨巷来信 第一版',exact:true}).click();
  await loading.waitForFunction(()=>window.musicRoom.engine.ready);

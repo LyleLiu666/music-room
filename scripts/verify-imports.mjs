@@ -24,7 +24,7 @@ try {
   await context.grantPermissions(['clipboard-read','clipboard-write']);
   const page=await context.newPage(); page.on('pageerror',e=>errors.push(e.message));
   const url=process.env.MUSIC_ROOM_URL || 'http://127.0.0.1:5173';
-  await page.goto(`${url}/#rain-letter-v2`); await page.waitForFunction(()=>!!window.musicRoom);
+  await page.goto(`${url}/score.html#rain-letter-v2`); await page.waitForFunction(()=>!!window.musicRoom);
   const upload=async doc=>page.locator('#import-file').setInputFiles({name:'song.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(doc))});
   const drop=async documents=>page.evaluate(documents=> {
     const data=new DataTransfer();for(const doc of documents)data.items.add(new File([JSON.stringify(doc)],'song.json',{type:'application/json'}));
