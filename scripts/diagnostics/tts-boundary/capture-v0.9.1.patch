@@ -1,0 +1,41 @@
+--- a/src/models/index_tts2/session.cpp
++++ b/src/models/index_tts2/session.cpp
+@@ -8,0 +9,3 @@
++#include <cstdlib>
++#include <filesystem>
++#include <fstream>
+@@ -725,0 +729,8 @@
++    const char * diagnostic_dir = std::getenv("MUSIC_ROOM_DIAGNOSTIC_DIR");
++    if (diagnostic_dir) {
++        std::filesystem::create_directories(diagnostic_dir);
++        const auto dir = std::filesystem::path(diagnostic_dir);
++        std::ofstream(dir / "mel.f32", std::ios::binary).write(reinterpret_cast<const char *>(mel.values.data()), mel.values.size() * sizeof(float));
++        std::ofstream(dir / "codes.i32", std::ios::binary).write(reinterpret_cast<const char *>(generated.codes.data()), generated.codes.size() * sizeof(int32_t));
++        std::ofstream(dir / "shape.txt") << mel.channels << " " << mel.frames << " " << segment_seed << "\n";
++    }
+@@ -727,0 +739,3 @@
++    if (diagnostic_dir) {
++        std::ofstream(std::filesystem::path(diagnostic_dir) / "wave.f32", std::ios::binary).write(reinterpret_cast<const char *>(audio.waveform.data()), audio.waveform.size() * sizeof(float));
++    }
+--- a/src/models/index_tts2/gpt.cpp
++++ b/src/models/index_tts2/gpt.cpp
+@@ -2624,0 +2625,2 @@
++    debug::trace_log_scalar("music_room.diagnostic.selected_eos", best->finished);
++    debug::trace_log_scalar("music_room.diagnostic.max_mel_tokens", static_cast<int64_t>(request.max_mel_tokens));
+--- a/src/models/index_tts2/s2mel.cpp
++++ b/src/models/index_tts2/s2mel.cpp
+@@ -0,0 +1,3 @@
++#include <cstdlib>
++#include <filesystem>
++#include <fstream>
+@@ -1238,0 +1242,10 @@
++    if (const auto * capture = std::getenv("MUSIC_ROOM_DIAGNOSTIC_DIR")) {
++        const auto dir = std::filesystem::path(capture);
++        std::filesystem::create_directories(dir);
++        auto save = [&](const char * name, const std::vector<float> & values) {
++            std::ofstream(dir / name, std::ios::binary).write(reinterpret_cast<const char *>(values.data()), values.size() * sizeof(float));
++        };
++        save("cfm-noise.f32", x); save("cfm-condition.f32", mu);
++        save("cfm-reference.f32", reference_mel); save("cfm-style.f32", style);
++        std::ofstream(dir / "cfm-shape.txt") << total_frames << " " << reference_frames << " " << diffusion_steps << " " << cfg_rate << "\n";
++    }

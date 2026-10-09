@@ -35,7 +35,7 @@ export function createNativeSpeechDriver(command:string,args:string[],read?:Asse
    const root=checkedDirectory(directory);if(!nativeInstalled(root,distribution))throw new Error('请先准备 audio.cpp F16 语音环境');const r=await ready(root,context);r.context=context;
    const abort=()=>{void stop(r);};context.signal.addEventListener('abort',abort,{once:true});
    try{context.signal.throwIfAborted();context.stage('正在合成语音');const emotion=request.emotion?.trim();
-    const response=await fetch(r.endpoint+'/v1/audio/speech',{method:'POST',headers:{'content-type':'application/json'},signal:context.signal,body:JSON.stringify({model:r.modelId,input:request.text,voice_ref:request.referencePath,response_format:'wav',options:{num_beams:1,use_emotion_text:Boolean(emotion),emotion_text:emotion??'',emotion_alpha:emotion?0.6:1,use_random_emotion:false}})});
+    const response=await fetch(r.endpoint+'/v1/audio/speech',{method:'POST',headers:{'content-type':'application/json'},signal:context.signal,body:JSON.stringify({model:r.modelId,input:request.text,voice_ref:request.referencePath,response_format:'wav',options:{num_beams:1,seed:request.seed,use_emotion_text:Boolean(emotion),emotion_text:emotion??'',emotion_alpha:emotion?0.6:1,use_random_emotion:false}})});
     if(!response.ok)throw new Error(`audio.cpp 生成失败：${(await response.text()).slice(-1800)}`);const bytes=new Uint8Array(await response.arrayBuffer());wavInfo(bytes);context.signal.throwIfAborted();context.stage('保存语音文件');writeFileSync(request.outputPath,bytes,{mode:0o600});
    }catch(error){if(context.signal.aborted||r.exited)await stop(r);throw error;}finally{r.context=undefined;context.signal.removeEventListener('abort',abort);}
   },

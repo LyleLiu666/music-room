@@ -10,6 +10,18 @@ const reference=new Uint8Array(encodeWav([Float32Array.from({length:22050},(_,i)
 const waitFor=async(check:()=>boolean)=>{for(let i=0;i<100&&!check();i++)await new Promise(r=>setTimeout(r,10));assert.ok(check());};
 async function fixture(driver:SpeechDriver){const root=await mkdtemp(join(tmpdir(),'music-speech-')),store=await ProjectStore.open(root);await store.createProject('film','短片');const speech=await SpeechService.open(store,driver);return {root,store,speech,close:async()=>{await speech.close();await store.close();await rm(root,{recursive:true,force:true});}};}
 const driver:SpeechDriver={installed:()=>true,prepare:async()=>{},generate:async(_dir,request)=>{await writeFile(request.outputPath,reference);}};
+test('a generated seed is persisted, forwarded, and can replay a version after reopening',async()=>{
+ const received:Array<number|undefined>=[];
+ const traced:SpeechDriver={...driver,generate:async(_,request)=>{received.push(request.seed);await writeFile(request.outputPath,reference);}};
+ const f=await fixture(traced);let reopened:SpeechService|undefined;
+ try{const voice=f.speech.addVoice('参考',reference),sound=await f.speech.createSound('film','复现');
+  const first=f.speech.generate({soundId:sound.id,voiceId:voice.id,text:'你好'});await waitFor(()=>f.speech.job(first.id).state==='succeeded');
+  const seed=f.speech.job(first.id).seed;assert.ok(Number.isInteger(seed));assert.ok(seed!>=0&&seed!<=0xffffffff);assert.equal(received[0],seed);
+  await f.speech.close();reopened=await SpeechService.open(f.store,traced);assert.equal(reopened.job(first.id).seed,seed);
+  const replay=reopened.generate({soundId:sound.id,voiceId:voice.id,text:'你好',seed});await waitFor(()=>reopened!.job(replay.id).state==='succeeded');assert.equal(received[1],seed);
+  for(const seed of [-1,0x100000000,1.5])assert.throws(()=>reopened!.generate({soundId:sound.id,voiceId:voice.id,text:'非法种子',seed}));
+ }finally{await reopened?.close();await f.close();}
+});
 test('built-in voices seed an existing library, reuse identical audio, and survive restart without duplicates or lost names',async()=>{
  const f=await fixture(driver);
  try{

@@ -26,7 +26,7 @@ export const operations = {
   tts_clean_voice:{description:'清理已有音色，旧音色另存清理版以免改变历史版本；失败或中断的清理可重试。轮询 tts_library 查看处理状态。',schema:z.object({voiceId:id}).strict()},
   tts_update_voice:{description:'给已保存音色改名或标记为常用，所有项目共用同一个音色库。',schema:z.object({voiceId:id,name:z.string().trim().min(1).max(120).optional(),favorite:z.boolean().optional()}).strict()},
   tts_create_sound:{description:'在已有项目中创建一个语音，如片头旁白；后续生成均属于此声音。',schema:z.object({projectId:id,title:z.string().min(1).max(120)}).strict()},
-  tts_generate:{description:'使用 IndexTTS 2.0 根据参考人声、正文和可选情绪生成新版本；立即返回版本 id，后台继续执行。',schema:z.object({soundId:id,voiceId:id,text:z.string().trim().min(1).max(8000),emotion:z.string().max(2000).optional(),parentId:id.optional()}).strict()},
+  tts_generate:{description:'使用 IndexTTS 2.0 根据参考人声、正文和可选情绪生成新版本；立即返回版本 id，后台继续执行。',schema:z.object({soundId:id,voiceId:id,text:z.string().trim().min(1).max(8000),emotion:z.string().max(2000).optional(),parentId:id.optional(),seed:z.number().int().min(0).max(0xffffffff).optional()}).strict()},
   tts_get_version:{description:'查询语音版本的真实状态、创作输入和音频校验信息。',schema:z.object({versionId:id}).strict()},
   tts_cancel:{description:'取消排队或生成中的语音版本，停止所属推理进程。',schema:z.object({versionId:id}).strict()},
   tts_update_version:{description:'语音版本保留灵感、选作成品或移入/恢复回收站；删除不会删除后续版本。',schema:z.object({versionId:id,kept:z.boolean().optional(),final:z.boolean().optional(),deleted:z.boolean().optional()}).strict()},

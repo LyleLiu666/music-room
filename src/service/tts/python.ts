@@ -88,6 +88,9 @@ try:
   segment_tokens=60 if len(tts.tokenizer.tokenize(request['text']))<=60 else 40
  # Upstream's inner no_grad scope does not cover reference conditioning.
  # Its cached style/prompt tensors otherwise keep training activations alive.
+ if request.get('seed') is not None:
+  import random,numpy as np
+  random.seed(request['seed']);np.random.seed(request['seed']);torch.manual_seed(request['seed'])
  with torch.no_grad():
   tts.infer(spk_audio_prompt=request['referencePath'],text=request['text'],output_path=request['outputPath'],use_emo_text=bool(emotion),emo_text=emotion or None,emo_alpha=0.6 if emotion else 1.0,use_random=False,verbose=False,num_beams=1,max_text_tokens_per_segment=segment_tokens)
  # Publish a portable 16-bit PCM WAV even if upstream selects another subtype.

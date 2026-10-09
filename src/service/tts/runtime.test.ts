@@ -138,6 +138,11 @@ def install_conditioning(*args):pass`);
   const harness=`import sys,types,json
 from contextlib import nullcontext
 case=json.loads(${JSON.stringify(JSON.stringify(item))})
+seeded=[]
+import random
+numpy=types.ModuleType('numpy')
+numpy.random=types.SimpleNamespace(seed=lambda value:seeded.append(('numpy',value)))
+sys.modules['numpy']=numpy
 torch=types.ModuleType('torch')
 torch.cuda=types.SimpleNamespace(is_available=lambda:False)
 torch.backends=types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda:False))
@@ -146,6 +151,7 @@ torch.zeros=lambda _:None
 torch.ones=lambda _:None
 torch.set_num_threads=lambda _:None
 torch.no_grad=nullcontext
+torch.manual_seed=lambda value:seeded.append(('torch',value))
 sys.modules['torch']=torch
 package=types.ModuleType('indextts')
 package.__path__=[]
@@ -155,6 +161,8 @@ class IndexTTS2:
  def __init__(self,**kwargs):
   self.tokenizer=types.SimpleNamespace(tokenize=lambda text:list(range(case['tokens'])))
  def infer(self,**kwargs):
+  assert seeded==[('numpy',1234),('torch',1234)]
+  assert random.getstate()==random.Random(1234).getstate()
   budget=kwargs['max_text_tokens_per_segment']
   if case['continuous']:
    assert budget>=case['tokens'],'a short utterance is split into independent generations'
@@ -170,7 +178,7 @@ soundfile.write=lambda *args,**kwargs:None
 sys.modules['soundfile']=soundfile
 exec(${JSON.stringify(entry)})
 `;
-  const result=spawnSync('python3',['-c',harness],{encoding:'utf8',env:{...process.env,MUSIC_ROOM_TTS_DIRECTORY:'/tmp/managed-speech'},input:JSON.stringify({text:item.text,referencePath:'/tmp/reference.wav',outputPath:'/tmp/output.wav',conditioningPath:'/tmp/features.npz'})+'\n'});
+  const result=spawnSync('python3',['-c',harness],{encoding:'utf8',env:{...process.env,MUSIC_ROOM_TTS_DIRECTORY:'/tmp/managed-speech'},input:JSON.stringify({seed:1234,text:item.text,referencePath:'/tmp/reference.wav',outputPath:'/tmp/output.wav',conditioningPath:'/tmp/features.npz'})+'\n'});
   assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/SEGMENTATION_VERIFIED/);
  }
 });
