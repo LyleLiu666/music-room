@@ -24,21 +24,21 @@ test('emotion tiers persist as drafts and versions after reload/restart; editing
   const legacyEmpty=await service.call('studio_generate',{soundId:sound.id,voiceId:voice.id,text:'旧版空情绪'});await waitVersion(legacyEmpty.id);
   const legacyText=await service.call('studio_generate',{soundId:sound.id,voiceId:voice.id,text:'旧版有情绪',emotion:'开心'});await waitVersion(legacyText.id);
   await page.goto(http.runtime.url);await page.click('[data-action="compose"]');
-  assert.equal(await page.inputValue('#emotion-strength'),'normal');
-  assert.deepEqual(await page.locator('#emotion-strength option').allTextContents(),['情绪平淡','情绪一般','情绪强烈']);
-  await page.selectOption('#emotion-strength','flat');await page.fill('#creation-text','新建平淡正文');await page.locator('details.advanced summary').click();await page.fill('#emotion','温柔而开心');await page.click('[data-action="close"]');
-  await page.reload();await page.click('[data-action="compose"]');assert.equal(await page.inputValue('#emotion-strength'),'flat');assert.equal(await page.inputValue('#emotion'),'温柔而开心');assert.equal(await page.inputValue('#creation-text'),'新建平淡正文');
+  assert.equal(await page.inputValue('#emotion-strength'),'flat');
+  assert.deepEqual(await page.locator('#emotion-strength option').allTextContents(),['情绪非常平淡','情绪平淡','情绪一般','情绪强烈','情绪非常强烈']);
+  await page.selectOption('#emotion-strength','minimal');await page.fill('#creation-text','新建平淡正文');await page.locator('details.advanced summary').click();await page.fill('#emotion','温柔而开心');await page.click('[data-action="close"]');
+  await page.reload();await page.click('[data-action="compose"]');assert.equal(await page.inputValue('#emotion-strength'),'minimal');assert.equal(await page.inputValue('#emotion'),'温柔而开心');assert.equal(await page.inputValue('#creation-text'),'新建平淡正文');
   await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor();
-  assert.equal(received.at(-1).emotionStrength,'flat');await page.locator('.version-row.selected .version-metadata').filter({hasText:'情绪平淡'}).waitFor();
-  const generated=service.speech.snapshot().versions.at(-1);assert.equal(generated.emotionStrength,'flat');
+  assert.equal(received.at(-1).emotionStrength,'minimal');await page.locator('.version-row.selected .version-metadata').filter({hasText:'情绪非常平淡'}).waitFor();
+  const generated=service.speech.snapshot().versions.at(-1);assert.equal(generated.emotionStrength,'minimal');
   const port=Number(new URL(http.runtime.url).port);await http.close();await service.close();service=await open();http=await serveHttp(service,assets,port);
-  await page.reload();await page.click('[data-action="iterate"]');assert.equal(await page.inputValue('#emotion-strength'),'flat');assert.equal(await page.inputValue('#emotion'),'温柔而开心');
-  await page.selectOption('#emotion-strength','strong');await page.fill('#emotion','');await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor();assert.equal(received.at(-1).emotionStrength,'strong');assert.equal(received.at(-1).emotion,undefined);assert.equal(service.speech.job(generated.id).emotionStrength,'flat');
+  await page.reload();await page.click('[data-action="iterate"]');assert.equal(await page.inputValue('#emotion-strength'),'minimal');assert.equal(await page.inputValue('#emotion'),'温柔而开心');
+  await page.selectOption('#emotion-strength','strong');await page.fill('#emotion','');await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor();assert.equal(received.at(-1).emotionStrength,'strong');assert.equal(received.at(-1).emotion,undefined);assert.equal(service.speech.job(generated.id).emotionStrength,'minimal');
   for(const [legacy,tier] of [[legacyEmpty,'strong'],[legacyText,'normal']]){
    await page.locator(`[data-action="version"][data-id="${legacy.id}"]`).click();await page.click('[data-action="iterate"]');assert.equal(await page.inputValue('#emotion-strength'),tier);
    await page.fill('#creation-text','只修改正文');await page.click('[data-action="close"]');await page.reload();await page.click('[data-action="compose"]');assert.equal(await page.inputValue('#emotion-strength'),tier);
    await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor();assert.equal(received.at(-1).emotionStrength,undefined);assert.equal(received.at(-1).emotion,legacy.input.emotion);
   }
-  const stored=JSON.parse(await readFile(join(root,'speech','library.json'),'utf8'));assert.equal(stored.versions.filter(v=>v.emotionStrength==='flat').length,1);assert.equal(Object.hasOwn(stored.versions.at(-1),'emotionStrength'),false);assert.deepEqual(errors,[]);
+  const stored=JSON.parse(await readFile(join(root,'speech','library.json'),'utf8'));assert.equal(stored.versions.filter(v=>v.emotionStrength==='minimal').length,1);assert.equal(Object.hasOwn(stored.versions.at(-1),'emotionStrength'),false);assert.deepEqual(errors,[]);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });

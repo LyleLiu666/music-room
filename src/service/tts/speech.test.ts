@@ -128,12 +128,12 @@ test('queued emotion strengths are immutable and persist across a full store res
  const received:unknown[]=[],traced:SpeechDriver={...driver,generate:async(_,r)=>{received.push({emotion:r.emotion,emotionStrength:r.emotionStrength});await writeFile(r.outputPath,reference);}};
  const f=await fixture(traced);let reopened:SpeechService|undefined,newStore:ProjectStore|undefined;
  try{const voice=f.speech.addVoice('参考',reference),sound=await f.speech.createSound('film','强度');
-  const jobs:ReturnType<SpeechService['generate']>[]=[];for(const emotion of ['开心',undefined])for(const emotionStrength of ['flat','normal','strong'] as const){const input={soundId:sound.id,voiceId:voice.id,text:'相同正文',emotion,emotionStrength};const v=f.speech.generate(input);input.emotion='后来编辑';jobs.push(v);}
+  const jobs:ReturnType<SpeechService['generate']>[]=[];for(const emotion of ['开心',undefined])for(const emotionStrength of ['minimal','subtle','flat','normal','strong'] as const){const input={soundId:sound.id,voiceId:voice.id,text:'相同正文',emotion,emotionStrength};const v=f.speech.generate(input);input.emotion='后来编辑';jobs.push(v);}
   jobs.push(f.speech.generate({soundId:sound.id,voiceId:voice.id,text:'历史路径'}));
   await waitFor(()=>jobs.every(v=>f.speech.job(v.id).state==='succeeded'));
-  assert.deepEqual(received,[...['开心',undefined].flatMap(emotion=>['flat','normal','strong'].map(emotionStrength=>({emotion,emotionStrength}))),{emotion:undefined,emotionStrength:undefined}]);
+  assert.deepEqual(received,[...['开心',undefined].flatMap(emotion=>['minimal','subtle','flat','normal','strong'].map(emotionStrength=>({emotion,emotionStrength}))),{emotion:undefined,emotionStrength:undefined}]);
   await f.speech.close();await f.store.close();newStore=await ProjectStore.open(f.root);reopened=await SpeechService.open(newStore,traced);
-  assert.deepEqual(jobs.map(v=>reopened!.job(v.id).emotionStrength),['flat','normal','strong','flat','normal','strong',undefined]);
+  assert.deepEqual(jobs.map(v=>reopened!.job(v.id).emotionStrength),['minimal','subtle','flat','normal','strong','minimal','subtle','flat','normal','strong',undefined]);
   assert.equal(Object.hasOwn(JSON.parse(await readFile(join(f.root,'speech','library.json'),'utf8')).versions.at(-1),'emotionStrength'),false);
  }finally{await reopened?.close();await newStore?.close();await f.close();}
 });

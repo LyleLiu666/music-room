@@ -4,22 +4,26 @@ import {spawnSync} from 'node:child_process';
 import {mkdtempSync,writeFileSync,rmSync,readFileSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {emotionAlpha} from './emotion.ts';
+import {emotionAlpha,emotionStrengths,emotionStrengthLabels} from './emotion.ts';
 import {parseOperation} from '../operations.ts';
 import {referenceEmotionStrengthScript} from './emotion-python.ts';
 import {inferScript} from './python.ts';
 import {conditioningScript} from './conditioning-python.ts';
 test('stable tiers map to independent alpha values and legacy missing fields preserve old defaults',()=>{
- for(const emotion of ['开心',undefined,'   '])assert.deepEqual(['flat','normal','strong'].map(tier=>emotionAlpha(emotion,tier as 'flat'|'normal'|'strong')),[.3,.6,1]);
+ for(const emotion of ['开心',undefined,'   '])assert.deepEqual(emotionStrengths.map(tier=>emotionAlpha(emotion,tier)),[.03,.1,.3,.6,1]);
  assert.equal(emotionAlpha('开心'),.6);assert.equal(emotionAlpha(),1);assert.equal(emotionAlpha('   '),1);
  assert.throws(()=>emotionAlpha('', 'unknown' as 'flat'));
+});
+test('recalibrated labels keep existing saved strength values stable',()=>{
+ assert.equal(emotionStrengthLabels.minimal,'情绪非常平淡');assert.equal(emotionStrengthLabels.subtle,'情绪平淡');assert.equal(emotionStrengthLabels.flat,'情绪一般');assert.equal(emotionStrengthLabels.normal,'情绪强烈');assert.equal(emotionStrengthLabels.strong,'情绪非常强烈');
+ assert.deepEqual(['flat','normal','strong'].map(t=>emotionAlpha(undefined,t as 'flat'|'normal'|'strong')),[.3,.6,1]);
 });
 test('reference mixing uses a learned calm condition, leaves source vectors intact, and strength one bypasses override',()=>{
  const harness=`import types
 ${referenceEmotionStrengthScript}
 class Vector(float):
  def unsqueeze(self,axis):return self
-for strength in [.3,.6,1.0]:
+for strength in [.03,.1,.3,.6,1.0]:
  calls=[]
  def original(*args,**kwargs):
   calls.append((args,kwargs))
@@ -40,7 +44,7 @@ test('Python production entry passes every tier and keeps blank/text/legacy bran
  const entry=inferScript.replace(conditioningScript,`def load_conditioning(*args):return None
 def prepare_emotion(*args):return None
 def install_conditioning(*args):pass`);
- const cases=[...['开心',undefined].flatMap(emotion=>['flat','normal','strong'].map(emotionStrength=>({emotion,emotionStrength}))),{emotion:'开心'},{emotion:undefined}];
+ const cases=[...['开心',undefined].flatMap(emotion=>['minimal','subtle','flat','normal','strong'].map(emotionStrength=>({emotion,emotionStrength}))),{emotion:'开心'},{emotion:undefined}];
  for(const input of cases){const harness=`import sys,types,json
 from contextlib import nullcontext
 case=json.loads(${JSON.stringify(JSON.stringify(input))})
@@ -53,11 +57,11 @@ class IndexTTS2:
   self.original=lambda *args,**kwargs:10.0
   self.gpt=types.SimpleNamespace(merge_emovec=self.original)
  def infer(self,**kwargs):
-  expected={'flat':.3,'normal':.6,'strong':1.0}.get(case.get('emotionStrength'),.6 if case.get('emotion') else 1.0)
+  expected={'minimal':.03,'subtle':.1,'flat':.3,'normal':.6,'strong':1.0}.get(case.get('emotionStrength'),.6 if case.get('emotion') else 1.0)
   assert kwargs['emo_alpha']==expected
   assert kwargs['use_emo_text']==bool(case.get('emotion'))
   assert kwargs['emo_text']==(case.get('emotion') or None)
-  overridden=not case.get('emotion') and case.get('emotionStrength') in ['flat','normal']
+  overridden=not case.get('emotion') and case.get('emotionStrength') in ['minimal','subtle','flat','normal']
   assert (self.gpt.merge_emovec is not self.original)==overridden
   print('TIER_FORWARDED')
 inference.IndexTTS2=IndexTTS2;inference.find_most_similar_cosine=lambda *_:0;sys.modules['indextts.infer_v2']=inference
@@ -82,7 +86,7 @@ test('public generation schemas accept tiers without adding defaults to historic
  for(const operation of ['tts_generate','studio_generate'] as const){
   const input={soundId:'sound',voiceId:'voice',text:'正文'};
   const legacy=parseOperation(operation,input);assert.equal(Object.hasOwn(legacy,'emotionStrength'),false);
-  for(const emotionStrength of ['flat','normal','strong'])assert.equal((parseOperation(operation,{...input,emotionStrength}) as {emotionStrength:string}).emotionStrength,emotionStrength);
+  for(const emotionStrength of ['minimal','subtle','flat','normal','strong'])assert.equal((parseOperation(operation,{...input,emotionStrength}) as {emotionStrength:string}).emotionStrength,emotionStrength);
   for(const emotionStrength of [.3,'soft',null])assert.throws(()=>parseOperation(operation,{...input,emotionStrength}));
  }
 });
