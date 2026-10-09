@@ -171,7 +171,7 @@ test('day/night themes and the global voice library work without a project and p
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
 
-test('four built-in dry voices are visible and playable in day and night themes without replacing library identities',async()=>{
+test('five built-in dry voices are visible and playable in day and night themes without replacing library identities',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-presets-'));
  const read=p=>readFile(resolve('dist',p));
  const driver={installed:()=>true,prepare:async()=>{},generate:async()=>{},builtinVoices:()=>readBuiltinVoices(read)};
@@ -180,9 +180,9 @@ test('four built-in dry voices are visible and playable in day and night themes 
  const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1000}});
  try{
   await page.goto(http.runtime.url);await page.click('[data-action="voice-library"]');
-  await page.waitForFunction(()=>document.querySelectorAll('.voice-card').length===4);
-  assert.match(await page.locator('#voice-count').textContent(),/4 个内置/);
-  for(const name of ['迪丽热巴','天津团团记','女网红','示例声音 · 官方样音']){
+  await page.waitForFunction(()=>document.querySelectorAll('.voice-card').length===5);
+  assert.match(await page.locator('#voice-count').textContent(),/5 个内置/);
+  for(const name of ['迪丽热巴','天津团团记','女网红','示例声音 · 官方样音','沈腾']){
    await page.getByRole('button',{name:new RegExp(name)}).click();
    await page.waitForFunction(()=>!!document.querySelector('#voice-preview audio')?.src);
    assert.equal(await page.locator('#library-voice-heading .eyebrow').textContent(),'内置音色');
@@ -190,10 +190,37 @@ test('four built-in dry voices are visible and playable in day and night themes 
    assert.equal(await page.locator('#voice-preview audio').evaluate(a=>a.paused),false);
   }
   await page.click('[data-theme-choice="dark"]');
-  assert.equal(await page.locator('.voice-card').count(),4);
+  assert.equal(await page.locator('.voice-card').count(),5);
   await page.reload();await page.locator('.voice-card').first().waitFor();
-  assert.equal(await page.locator('.voice-card').count(),4);
-  assert.equal(service.speech.snapshot().voices.filter(v=>v.builtinId).length,4);
+  assert.equal(await page.locator('.voice-card').count(),5);
+  assert.equal(service.speech.snapshot().voices.filter(v=>v.builtinId).length,5);
   const response=await page.request.get(http.runtime.url+'/tts-presets/dilireba.wav');assert.equal(response.status(),401);
  }finally{await browser.close();await service.speech.close();await service.yue2.close();await service.jobs.close();await http.close();await service.store.close();await rm(root,{recursive:true,force:true});}
+});
+
+test('hierarchy trash, permanent deletion and historical voice labels work through the production UI',async()=>{
+ const dir=await mkdtemp(join(tmpdir(),'studio-hierarchy-ui-')),read=p=>readFile(resolve('dist',p));
+ const driver={installed:()=>true,prepare:async()=>{},generate:async(_,r)=>writeFile(r.outputPath,wav)};
+ const service=await MusicService.open(dir,()=>{throw Error('unused');},read,false,unused,driver),http=await serveHttp(service,{read,has:p=>existsSync(resolve('dist',p)),embedded:false});
+ const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await service.call('create_project',{projectId:'film',title:'删除功能验收'});const sound=await service.call('studio_create_sound',{projectId:'film',title:'测试片段',kind:'speech'});await service.call('studio_create_sound',{projectId:'film',title:'保留片段',kind:'clip'});
+  const a=await service.call('tts_add_voice',{cleanup:false,name:'最初音色',audioBase64:wav.toString('base64')}),b=await service.call('tts_add_voice',{cleanup:false,name:'第二音色',audioBase64:wav.toString('base64')});
+  const versions=[];for(const voiceId of [a.id,b.id,a.id]){const v=await service.call('studio_generate',{soundId:sound.id,text:'同样的正文',voiceId,emotion:voiceId===a.id?'开心':'平静'});for(let i=0;i<100&&service.speech.job(v.id).state!=='succeeded';i++)await new Promise(r=>setTimeout(r,10));versions.push(v);}
+  await service.call('studio_update_version',{versionId:versions[2].id,deleted:true});await service.call('studio_update_version',{versionId:versions[1].id,final:true});await service.call('tts_update_voice',{voiceId:a.id,name:'改名后的音色'});
+  await page.goto(http.runtime.url);await page.locator('.version-row').first().waitFor();assert.match(await page.locator('.version-list').innerText(),/最初音色/);assert.match(await page.locator('.version-list').innerText(),/第二音色/);assert.match(await page.locator('.version-list').innerText(),/情绪：开心/);assert.doesNotMatch(await page.locator('.version-list').innerText(),/改名后的音色/);
+  await page.locator('[aria-label="项目更多操作"]').click();await page.click('[data-action="rename-entity"][data-kind="project"]');await page.fill('#entity-name','重命名项目');await page.locator('#rename-form button').click();await page.waitForFunction(()=>document.querySelector('.project-header h1')?.textContent==='重命名项目');
+  await page.locator('[aria-label="片段更多操作"]').click();await page.click('[data-action="rename-entity"][data-kind="sound"]');await page.fill('#entity-name','改名片段');await page.locator('#rename-form button').click();await page.waitForFunction(()=>document.querySelector('.sound-heading h2')?.textContent==='改名片段');
+  await page.locator('[aria-label="片段更多操作"]').click();await page.click('[data-action="delete-entity"][data-kind="sound"]');assert.match(await page.locator('dialog').innerText(),/3 个版本/);await page.click('[data-action="close"]');assert.equal(await page.locator('.sound-tab').count(),2);
+  await page.locator('[aria-label="片段更多操作"]').click();await page.click('[data-action="delete-entity"][data-kind="sound"]');await page.click('[data-action="confirm-delete"]');await page.waitForFunction(()=>document.querySelectorAll('.sound-tab').length===1);
+  await page.click('[data-action="trash"]');await page.locator(`[data-action="restore-entity"][data-id="${sound.id}"]`).click();await page.click('[data-action="close"]');await page.click(`[data-action="sound"][data-id="${sound.id}"]`);assert.equal(await page.locator('.version-row').count(),2);assert.match(await page.locator('[data-action="final"]').innerText(),/已选为成品/);
+  await page.locator('[aria-label="项目更多操作"]').click();await page.click('[data-action="delete-entity"][data-kind="project"]');assert.match(await page.locator('dialog').innerText(),/2 个片段/);await page.click('[data-action="confirm-delete"]');await page.waitForFunction(()=>document.querySelectorAll('.project-link').length===0);
+  await page.click('[data-action="trash"]');await page.locator('[data-action="restore-entity"][data-kind="project"]').click();await page.click('[data-action="close"]');await page.click(`[data-action="sound"][data-id="${sound.id}"]`);assert.equal(await page.locator('.version-row').count(),2);
+  await page.click('[data-action="voice-library"]');await page.click(`[data-action="select-voice"][data-id="${a.id}"]`);await page.locator('[aria-label="音色更多操作"]').click();await page.click('[data-action="delete-entity"][data-kind="voice"]');await page.click('[data-action="confirm-delete"]');await page.waitForFunction(()=>document.querySelectorAll('.voice-card').length===1);
+  await page.click('[data-action="trash"]');await page.locator(`[data-action="purge-entity"][data-id="${a.id}"]`).click();assert.match(await page.locator('dialog').innerText(),/不可恢复/);await page.click('[data-action="close"]');await page.click('[data-action="trash"]');await page.locator(`[data-action="restore-entity"][data-id="${a.id}"]`).click();await page.click('[data-action="close"]');assert.equal(await page.locator('.voice-card').count(),2);
+  await page.click(`[data-action="select-voice"][data-id="${a.id}"]`);await page.locator('[aria-label="音色更多操作"]').click();await page.click('[data-action="delete-entity"][data-kind="voice"]');await page.click('[data-action="confirm-delete"]');await page.click('[data-action="trash"]');await page.locator(`[data-action="purge-entity"][data-id="${a.id}"]`).click();await page.click('[data-action="confirm-purge"]');await page.click('[data-action="close"]');await page.reload();await page.locator('.voice-card').waitFor();assert.equal(await page.locator('.voice-card').count(),1);
+  await page.click('[data-action="project"][data-id="film"]');await page.click(`[data-action="sound"][data-id="${sound.id}"]`);assert.match(await page.locator('.version-list').innerText(),/最初音色/);assert.deepEqual(service.speech.audio(versions[0].id),new Uint8Array(wav));
+  await mkdir('test-results/studio',{recursive:true});for(const theme of ['light','dark']){await page.click(`[data-theme-choice="${theme}"]`);await page.screenshot({path:`test-results/studio/hierarchy-${theme}-desktop.png`,fullPage:true});await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:`test-results/studio/hierarchy-${theme}-mobile.png`,fullPage:true});await page.setViewportSize({width:1440,height:1000});}
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();await http.close();await service.close();await rm(dir,{recursive:true,force:true});}
 });

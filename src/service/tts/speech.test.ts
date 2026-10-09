@@ -122,3 +122,28 @@ test('audio publication is not reported successful when the version manifest can
  try{const voice=f.speech.addVoice('参考',reference),sound=await f.speech.createSound('film','旁白'),v=f.speech.generate({soundId:sound.id,voiceId:voice.id,text:'要保留这段话'});await waitFor(()=>f.speech.job(v.id).state==='running');f.store.atomicJSON=()=>{throw Error('disk full');};release();await waitFor(()=>f.speech.job(v.id).state==='failed');assert.match(f.speech.job(v.id).error??'',/disk full/);assert.throws(()=>f.speech.audio(v.id));f.store.atomicJSON=original;await f.speech.close();const reopened=await SpeechService.open(f.store,driver);assert.equal(reopened.job(v.id).state,'failed');await reopened.close();
  }finally{release();f.store.atomicJSON=original;await f.close();}
 });
+
+
+test('queued emotion strengths are immutable and persist across a full store restart, with legacy absence intact',async()=>{
+ const received:unknown[]=[],traced:SpeechDriver={...driver,generate:async(_,r)=>{received.push({emotion:r.emotion,emotionStrength:r.emotionStrength});await writeFile(r.outputPath,reference);}};
+ const f=await fixture(traced);let reopened:SpeechService|undefined,newStore:ProjectStore|undefined;
+ try{const voice=f.speech.addVoice('参考',reference),sound=await f.speech.createSound('film','强度');
+  const jobs:ReturnType<SpeechService['generate']>[]=[];for(const emotion of ['开心',undefined])for(const emotionStrength of ['flat','normal','strong'] as const){const input={soundId:sound.id,voiceId:voice.id,text:'相同正文',emotion,emotionStrength};const v=f.speech.generate(input);input.emotion='后来编辑';jobs.push(v);}
+  jobs.push(f.speech.generate({soundId:sound.id,voiceId:voice.id,text:'历史路径'}));
+  await waitFor(()=>jobs.every(v=>f.speech.job(v.id).state==='succeeded'));
+  assert.deepEqual(received,[...['开心',undefined].flatMap(emotion=>['flat','normal','strong'].map(emotionStrength=>({emotion,emotionStrength}))),{emotion:undefined,emotionStrength:undefined}]);
+  await f.speech.close();await f.store.close();newStore=await ProjectStore.open(f.root);reopened=await SpeechService.open(newStore,traced);
+  assert.deepEqual(jobs.map(v=>reopened!.job(v.id).emotionStrength),['flat','normal','strong','flat','normal','strong',undefined]);
+  assert.equal(Object.hasOwn(JSON.parse(await readFile(join(f.root,'speech','library.json'),'utf8')).versions.at(-1),'emotionStrength'),false);
+ }finally{await reopened?.close();await newStore?.close();await f.close();}
+});
+
+
+test('old voice-name records snapshot the available name once; later renames and missing voices cannot rewrite history',async()=>{
+ const f=await fixture(driver);let reopened:SpeechService|undefined,newStore:ProjectStore|undefined;
+ try{const voice=f.speech.addVoice('现存音色名称',reference),sound=await f.speech.createSound('film','旧版本');const jobs=[f.speech.generate({soundId:sound.id,voiceId:voice.id,text:'有音色'}),f.speech.generate({soundId:sound.id,voiceId:voice.id,text:'音色已不存在'})];await waitFor(()=>jobs.every(v=>f.speech.job(v.id).state==='succeeded'));
+  await f.speech.close();await f.store.close();const path=join(f.root,'speech','library.json'),data=JSON.parse(await readFile(path,'utf8'));for(const v of data.versions)delete v.voiceName;data.versions[1].voiceId='voice-missing';await writeFile(path,JSON.stringify(data));
+  newStore=await ProjectStore.open(f.root);reopened=await SpeechService.open(newStore,driver);assert.equal(reopened.job(jobs[0].id).voiceName,'现存音色名称');assert.equal(reopened.job(jobs[1].id).voiceName,'历史音色');reopened.updateVoice(voice.id,{name:'后来的名称'});assert.equal(reopened.job(jobs[0].id).voiceName,'现存音色名称');
+  const saved=JSON.parse(await readFile(path,'utf8'));assert.deepEqual(saved.versions.map((v:{voiceName:string})=>v.voiceName),['现存音色名称','历史音色']);
+ }finally{await reopened?.close();await newStore?.close();await f.close();}
+});

@@ -22,7 +22,7 @@ root=args.project.resolve(); model=args.runtime.resolve()/'source/checkpoints'
 torch.set_num_threads(8)
 with torch.no_grad():
  tts=upstream.IndexTTS2(cfg_path=str(model/'config.yaml'),model_dir=str(model),device='cpu',use_fp16=False)
- for name in ['official','tianjin','influencer','dilireba']:
+ for name in ['official','tianjin','influencer','dilireba','shenteng']:
   path=root/'public/tts-presets'/(name+'.wav')
   audio,sr=tts._load_and_cut_audio(str(path),15)
   audio22=torchaudio.transforms.Resample(sr,22050)(audio)

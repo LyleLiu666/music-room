@@ -1,4 +1,5 @@
 import {z} from 'zod';
+import {existsSync,lstatSync,rmSync,readFileSync,realpathSync} from 'node:fs';
 import {join} from 'node:path';
 import type {YuE2Engine} from './engine.ts';
 import {ServiceError} from '../projects/store.ts';
@@ -17,5 +18,10 @@ export class YuE2Client {
   async job(jobId:string){return this.result(await this.request('jobs/'+yue2JobId.parse(jobId)));}
   async cancel(jobId:string){return this.result(await this.request('jobs/'+yue2JobId.parse(jobId)+'/cancel',{}));}
   async list(){const value=z.object({jobs:z.array(jobSchema)}).parse(await this.request('jobs?limit=30'));return value;}
+  async purgeAudio(jobId:string){yue2JobId.parse(jobId);const status=await this.engine.status();if(!status.directory)throw new ServiceError('YUE2_UNAVAILABLE','请先指定原音乐引擎目录，以便删除保存的音频');const root=status.directory;if(realpathSync(root)!==root)throw new ServiceError('UNSAFE_PATH','音乐目录不能包含符号链接');
+    for(const path of [root,join(root,'data'),join(root,'data','songs'),join(root,'data','songs',jobId)])if(existsSync(path)&&lstatSync(path).isSymbolicLink())throw new ServiceError('UNSAFE_PATH','音频目录不能是符号链接');
+    const marker=join(root,'.music-room-yue2.json');if(!existsSync(marker)||lstatSync(marker).isSymbolicLink())throw new ServiceError('UNSAFE_PATH','音乐目录不属于当前引擎');const owner=JSON.parse(readFileSync(marker,'utf8'));if(owner.format!=='music-room-yue2'||owner.version!==1)throw new ServiceError('UNSAFE_PATH','音乐目录不属于当前引擎');
+    rmSync(join(root,'data','songs',jobId),{recursive:true,force:true});
+  }
   async audio(jobId:string){const result=await this.job(jobId);if(result.job.status!=='done')throw new ServiceError('YUE2_NOT_READY','音乐还没有生成完成');const url=await this.engine.endpoint(),response=await fetch(`${url}/api/songs/${yue2JobId.parse(jobId)}/audio.flac`,{signal:AbortSignal.timeout(30000)});if(!response.ok)throw new ServiceError('NOT_FOUND','YuE2 音频不存在');return new Uint8Array(await response.arrayBuffer());}
 }

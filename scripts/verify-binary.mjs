@@ -9,6 +9,7 @@ import {join,resolve} from 'node:path';
 import {tmpdir} from 'node:os';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
+import {presetVoices} from '../src/service/tts/preset-manifest.ts';
 import {nativeProgramManifest} from '../src/service/tts/native-program-manifest.ts';
 const root=await mkdtemp(join(tmpdir(),'music-binary-')),binary=join(root,'music-room'),workspace=join(root,'workspace');
 const out=resolve('test-results/binary');await mkdir(out,{recursive:true});await copyFile('release/music-room',binary);await chmod(binary,0o755);await copyFile('release/start.sh',join(root,'start.sh'));await chmod(join(root,'start.sh'),0o755);
@@ -25,14 +26,16 @@ try {
   assert.equal((await tool('yue2_status')).phase,'uninstalled');assert.ok((await client.listTools()).tools.some(t=>t.name==='yue2_generate'));
   const runtime=JSON.parse(await readFile(join(workspace,'.music-room.runtime.json'),'utf8'));assert.equal(runtime.command,await realpath(binary));
   const speech=await tool('tts_library');
-  assert.equal(speech.voices.filter(v=>v.builtinId).length,4);
+  assert.equal(speech.voices.filter(v=>v.builtinId).length,5);
   for(const voice of speech.voices.filter(v=>v.builtinId)){
     const reference=await fetch(runtime.url+`/speech/voice-audio/${voice.id}`,{headers:{authorization:`Bearer ${runtime.token}`}});
     assert.equal(reference.status,200);assert.equal(createHash('sha256').update(new Uint8Array(await reference.arrayBuffer())).digest('hex'),voice.sha256);
+    const preset=presetVoices.find(p=>p.id===voice.builtinId);assert.ok(preset);assert.equal(voice.sha256,preset.audioSha256);
+    const features=await fetch(runtime.url+`/tts-presets/${voice.builtinId}.npz`,{headers:{authorization:`Bearer ${runtime.token}`}});assert.equal(features.status,200);assert.equal(createHash('sha256').update(new Uint8Array(await features.arrayBuffer())).digest('hex'),preset.featuresSha256);
   }
   assert.equal((await fetch(runtime.url+'/tts-presets/official.npz')).status,401);
   const encoded=await fetch(runtime.url+'/tts-presets/official.npz',{headers:{authorization:`Bearer ${runtime.token}`}});assert.equal(encoded.status,200);assert.ok((await encoded.arrayBuffer()).byteLength>1000);
-  results.push('four dry built-in voices and protected conditioning archives are embedded without loose files');
+  results.push('five dry built-in voices and protected conditioning archives are embedded without loose files');
   const nativePackage=await fetch(runtime.url+'/'+nativeProgramManifest.asset,{headers:{authorization:`Bearer ${runtime.token}`}});
   assert.equal(nativePackage.status,200);
   const nativeBytes=new Uint8Array(await nativePackage.arrayBuffer());
@@ -70,7 +73,7 @@ try {
   await browser.close();browser=undefined;await httpClient.close();httpClient=undefined;
   await client.close();client=undefined;
   // stdio-owned service exits; reopen the same workspace from the copied binary.
-  client=await connect();const recovered=await tool('get_project',{projectId:example.work.id});assert.equal(recovered.project.revisions.length,2);assert.equal(recovered.feedback.length,1);results.push('restart restores project, versions, artifact and feedback');
+  client=await connect();const restoredVoices=(await tool('tts_library')).voices.filter(v=>v.builtinId);assert.deepEqual(restoredVoices.map(v=>({id:v.id,builtinId:v.builtinId})),speech.voices.filter(v=>v.builtinId).map(v=>({id:v.id,builtinId:v.builtinId})));const recovered=await tool('get_project',{projectId:example.work.id});assert.equal(recovered.project.revisions.length,2);assert.equal(recovered.feedback.length,1);results.push('restart restores project, versions, artifact and feedback');
   const report={checks:results,binaryBytes:(await stat(binary)).size,wav:{seconds:40,bytes:wav.length,peak:done.result.peak,rms:done.result.rms},errors};
   await writeFile(join(out,'verification.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 } finally {

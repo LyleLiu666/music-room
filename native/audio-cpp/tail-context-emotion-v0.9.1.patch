@@ -1,0 +1,226 @@
+--- a/src/models/index_tts2/session.cpp
++++ b/src/models/index_tts2/session.cpp
+@@ -1,4 +1,5 @@
+ #include "engine/models/index_tts2/session.h"
++#include "engine/models/index_tts2/emotion_strength.h"
+ 
+ #include "engine/framework/debug/profiler.h"
+ #include "engine/framework/io/text.h"
+@@ -243,6 +244,9 @@
+         conv_weight_storage_type_ = engine::assets::TensorStorageType::F16;
+     }
+     mem_saver_ = mem_saver_from_options(options);
++    const auto tail_frames = runtime::parse_i64_option(options.options, {"index_tts2.tail_context_frames"}).value_or(0);
++    if (tail_frames < 0 || tail_frames > 64 || (is_v2_5_variant(*assets_) && tail_frames))
++        throw std::runtime_error("IndexTTS2 tail context requires v2 and 0-64 frames");
+     for (const auto & [key, _] : options.options) {
+         if (key.rfind("index_tts2.", 0) == 0 &&
+             key != "index_tts2.gpt_graph_arena_mb" &&
+@@ -256,6 +260,7 @@
+             key != "index_tts2.weight_type" &&
+             key != "index_tts2.conv_weight_type" &&
+             key != "index_tts2.mem_saver" &&
++            key != "index_tts2.tail_context_frames" &&
+             key != "index_tts2.speaker_cache_slots" &&
+             key != "index_tts2.emotion_cache_slots" &&
+             key != "index_tts2.emotion_text_cache_slots" &&
+@@ -595,12 +600,21 @@
+     }
+ 
+     if (explicit_weights.empty()) {
+-        return gpt_->merge_emotion_vector(
++        const bool reference_strength = request.use_reference_emotion_strength && !request.use_emotion_text && !request.emotion_vector.has_value();
++        auto reference_vector = gpt_->merge_emotion_vector(
+             speaker.semantic.values,
+             speaker.semantic.frames,
+             emotion.semantic.values,
+             emotion.semantic.frames,
+-            request.emotion_alpha);
++            reference_strength ? 1.0F : request.emotion_alpha);
++        if (!reference_strength || request.emotion_alpha == 1.0F) return reference_vector;
++        // The eighth trained group is calm/natural, selected by the existing
++        // nearest-speaker-style method. No zero embedding or hidden text prompt.
++        std::vector<float> calm_weights(static_cast<size_t>(kEmotionCount), 0.0F);
++        calm_weights.back() = 1.0F;
++        const auto calm = explicit_emotion_matrix_vector(calm_weights, speaker.style, false, request.generation.seed);
++        debug::trace_log_scalar("index_tts2.reference_emotion_strength.alpha", request.emotion_alpha);
++        return mix_reference_emotion_strength(reference_vector, calm, request.emotion_alpha);
+     }
+ 
+     auto scaled_weights = scaled_emotion_weights(explicit_weights, request.emotion_alpha);
+@@ -700,35 +714,64 @@
+     const int64_t target_frames =
+         static_cast<int64_t>(static_cast<float>(content_frames) * 1.72F * options.duration_factor);
+     const int64_t total_frames = speaker.prompt_condition.frames + target_frames;
++    // Blank acoustic condition gives the final phoneme right-hand context.
++    // It is not an extra text token and does not change GPT-generated content.
++    const int64_t cfm_tail_frames = runtime::parse_i64_option(
++        this->options().options, {"index_tts2.tail_context_frames"}).value_or(0);
++    if (cfm_tail_frames < 0 || cfm_tail_frames > 64 || (v2_5 && cfm_tail_frames))
++        throw std::runtime_error("IndexTTS2 tail context requires v2 and 0-64 frames");
+     s2mel_->prepare_length_regulator(content_frames, target_frames);
+     auto generated_condition = s2mel_->regulate_length(content, content_frames, target_frames);
+     auto condition = concat_conditions(speaker.prompt_condition, generated_condition);
++    condition.resize(static_cast<size_t>((total_frames + cfm_tail_frames) * 512), 0.0F);
+     if (mem_saver_) {
+         gpt_->release_generation_graphs();
+         s2mel_->release_pre_cfm_graphs();
+     }
+-    s2mel_->prepare_cfm(total_frames, kInferenceCfgRate > 0.0F);
++    s2mel_->prepare_cfm(total_frames + cfm_tail_frames, kInferenceCfgRate > 0.0F);
+     auto mel = s2mel_->infer_mel(
+         condition,
+-        total_frames,
++        total_frames + cfm_tail_frames,
+         speaker.reference_mel.values,
+         speaker.reference_mel.frames,
+         speaker.style.values,
+         kDiffusionSteps,
+         kInferenceCfgRate,
+         segment_seed,
+-        generated.rng_offset_blocks);
++        generated.rng_offset_blocks,
++        cfm_tail_frames ? total_frames : 0);
+     debug::timing_log_scalar("index_tts2.s2mel.total_ms", engine::debug::elapsed_ms(s2mel_start));
+     if (mem_saver_) {
+         s2mel_->release_cfm_graph();
+     }
+ 
+     const auto vocoder_start = Clock::now();
+-    auto audio = vocoder_->synthesize(mel.values, mel.frames);
++    std::vector<float> vocoder_mel = mel.values;
++    int64_t vocoder_frames = mel.frames;
++    if (cfm_tail_frames) {
++        vocoder_frames += 20;
++        vocoder_mel.assign(static_cast<size_t>(mel.channels * vocoder_frames), -11.512925F);
++        for (int64_t channel = 0; channel < mel.channels; ++channel)
++            std::copy_n(mel.values.data() + channel * mel.frames, mel.frames, vocoder_mel.data() + channel * vocoder_frames);
++    }
++    auto audio = vocoder_->synthesize(vocoder_mel, vocoder_frames);
+     debug::timing_log_scalar("index_tts2.vocoder_ms", engine::debug::elapsed_ms(vocoder_start));
+     if (mem_saver_) {
+         vocoder_->release_runtime_graph();
+     }
++    if (cfm_tail_frames) {
++        const auto keep_frames = target_frames + std::min<int64_t>(12, cfm_tail_frames);
++        const auto keep_samples = static_cast<size_t>(keep_frames * 256);
++        if (audio.waveform.size() < keep_samples)
++            throw std::runtime_error("IndexTTS2 vocoder returned insufficient tail samples");
++        audio.waveform.resize(keep_samples);
++        const auto fade_samples = std::min<size_t>(static_cast<size_t>(audio.sample_rate / 50), audio.waveform.size());
++        for (size_t i = 0; i < fade_samples; ++i) {
++            const auto gain = 0.5F * (1.0F + std::cos(3.14159265358979323846F * static_cast<float>(i) / static_cast<float>(fade_samples - 1)));
++            audio.waveform[audio.waveform.size() - fade_samples + i] *= gain;
++        }
++        audio.waveform.insert(audio.waveform.end(), static_cast<size_t>(audio.sample_rate / 10), 0.0F);
++    }
+     runtime::AudioBuffer out;
+     out.sample_rate = audio.sample_rate;
+     out.channels = 1;
+@@ -754,6 +797,7 @@
+     const bool emotion_same_as_speaker = same_identity(audio_identity(*emotion_audio), speaker.identity);
+     debug::trace_log_scalar("index_tts2.emotion_audio.same_as_speaker", emotion_same_as_speaker);
+     const auto & emotion = resolve_emotion_state(*emotion_audio);
++    debug::trace_log_scalar("index_tts2.reference_emotion_strength.enabled", parsed.use_reference_emotion_strength);
+     const auto emotion_vector = resolve_emotion_vector(parsed, speaker, emotion);
+     if (mem_saver_) {
+         gpt_->release_conditioning_graphs();
+--- a/src/models/index_tts2/s2mel.cpp
++++ b/src/models/index_tts2/s2mel.cpp
+@@ -1204,7 +1204,8 @@
+     int64_t diffusion_steps,
+     float cfg_rate,
+     uint32_t seed,
+-    uint64_t rng_offset_blocks) {
++    uint64_t rng_offset_blocks,
++    int64_t rng_prefix_frames) {
+     if (condition.empty() || reference_mel.empty() || style.empty()) {
+         throw std::runtime_error("IndexTTS2 S2Mel CFM requires non-empty condition, reference mel, and style");
+     }
+@@ -1233,6 +1234,15 @@
+         rng_offset_blocks,
+         rng_policy,
+         engine::sampling::TorchRandnPrecision::Float32);
++    if (rng_prefix_frames < 0 || rng_prefix_frames > total_frames)
++        throw std::runtime_error("IndexTTS2 CFM noise prefix exceeds frame count");
++    if (rng_prefix_frames > 0 && rng_prefix_frames < total_frames) {
++        const auto prefix_noise = engine::sampling::generate_torch_cuda_tensor_iterator_randn(
++            static_cast<size_t>(kMelChannels * rng_prefix_frames), seed, rng_offset_blocks,
++            rng_policy, engine::sampling::TorchRandnPrecision::Float32);
++        for (int64_t channel = 0; channel < kMelChannels; ++channel)
++            std::copy_n(prefix_noise.data() + channel * rng_prefix_frames, rng_prefix_frames, x.data() + channel * total_frames);
++    }
+     auto prompt_x = make_prompt_x(reference_mel, kMelChannels, total_frames, reference_frames);
+     zero_prompt_region(x, kMelChannels, total_frames, reference_frames);
+     auto mu = make_condition_with_prompt(condition, total_frames);
+--- a/src/models/index_tts2/loader.cpp
++++ b/src/models/index_tts2/loader.cpp
+@@ -39,6 +39,7 @@
+     runtime::ModelCliInterface out;
+     out.request_options = {
+         {"emotion_alpha", "float", "Blend strength for explicit emotion conditioning."},
++        {"use_reference_emotion_strength", "bool", "Music Room: blend the calm learned condition with reference emotion when no text/vector is supplied."},
+         {"emotion_vector", "float[,float...]", "Eight-value explicit emotion vector."},
+         {"use_emotion_text", "bool", "Infer emotion from text instead of reference audio."},
+         {"emotion_text", "text", "Text used when emotion-text conditioning is enabled."},
+@@ -63,6 +64,7 @@
+         {"index_tts2.emotion_text_decode_graph_arena_mb", "n", "Emotion-text cached-step graph arena size."},
+         {"index_tts2.emotion_text_max_tokens", "n", "Maximum generated tokens for emotion-text classification; default 256."},
+         {"index_tts2.weight_context_mb", "n", "Shared weight context size."},
++        {"index_tts2.tail_context_frames", "n", "Right-hand acoustic context for v2 speech endings, 0-64 frames; default 0."},
+         {"index_tts2.mem_saver", "true|false", "Release staged reference and conditioning graphs after request phases; default false."},
+         {"index_tts2.speaker_cache_slots", "n", "Prepared speaker-reference cache slots; default 1."},
+         {"index_tts2.emotion_cache_slots", "n", "Prepared emotion-reference cache slots; default 1."},
+--- a/src/models/index_tts2/request.cpp
++++ b/src/models/index_tts2/request.cpp
+@@ -97,6 +97,9 @@
+         }
+         out.emotion_alpha = *value;
+     }
++    if (const auto value = runtime::find_option(request.options, {"use_reference_emotion_strength"})) {
++        out.use_reference_emotion_strength = runtime::parse_bool_option(*value, "use_reference_emotion_strength");
++    }
+     if (const auto value = runtime::find_option(request.options, {"emotion_vector"})) {
+         out.emotion_vector = parse_emotion_vector(*value);
+     }
+--- a/include/engine/models/index_tts2/s2mel.h
++++ b/include/engine/models/index_tts2/s2mel.h
+@@ -132,7 +132,8 @@
+         int64_t diffusion_steps,
+         float cfg_rate,
+         uint32_t seed,
+-        uint64_t rng_offset_blocks);
++        uint64_t rng_offset_blocks,
++        int64_t rng_prefix_frames = 0);
+ 
+ private:
+     class GptLayerGraph;
+--- a/include/engine/models/index_tts2/types.h
++++ b/include/engine/models/index_tts2/types.h
+@@ -157,6 +157,7 @@
+     // contains Han characters, otherwise en).
+     std::string language;
+     float emotion_alpha = 1.0F;
++    bool use_reference_emotion_strength = false;
+     std::optional<std::vector<float>> emotion_vector = std::nullopt;
+     bool use_emotion_text = false;
+     std::optional<std::string> emotion_text = std::nullopt;
+--- /dev/null
++++ b/include/engine/models/index_tts2/emotion_strength.h
+@@ -0,0 +1,16 @@
++#pragma once
++#include <stdexcept>
++#include <vector>
++namespace engine::models::index_tts2 {
++// Blend two learned conditions; do not attenuate a condition toward a zero vector.
++inline std::vector<float> mix_reference_emotion_strength(
++    const std::vector<float>& reference, const std::vector<float>& calm, float alpha) {
++    if (!(alpha >= 0.0F && alpha <= 1.0F) || reference.size() != calm.size())
++        throw std::runtime_error("IndexTTS2 reference emotion strength shape or range invalid");
++    if (alpha == 1.0F) return reference;
++    std::vector<float> result(reference.size());
++    for (size_t i = 0; i < result.size(); ++i)
++        result[i] = calm[i] + alpha * (reference[i] - calm[i]);
++    return result;
++}
++} // namespace engine::models::index_tts2

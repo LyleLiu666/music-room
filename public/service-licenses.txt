@@ -70,8 +70,9 @@ directory, not embedded in the Music Room binary. Reference audio stays local.
 
 Native TTS: audio.cpp v0.9.1, Copyright 2026 ShugoAI LLC, Apache-2.0.
 Source: https://github.com/0xShug0/audio.cpp/tree/v0.9.1
-Music Room's acoustic tail-context changes and pinned build instructions:
-native/audio-cpp/tail-context-v0.9.1.patch and scripts/build-native-tts.mjs.
+Music Room's acoustic tail-context and opt-in reference emotion-strength changes:
+native/audio-cpp/tail-context-emotion-v0.9.1.patch and scripts/build-native-tts.mjs.
+The earlier tail-context-v0.9.1.patch and tail1 package remain available for rollback.
 The bundled archive includes upstream LICENSE, NOTICE, third-party license texts,
 source/patch hashes and a copy of the modifications. GGML and cpp-httplib: MIT;
 SentencePiece and bundled protobuf/absl: Apache-2.0; see included license texts.

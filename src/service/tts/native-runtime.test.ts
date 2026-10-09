@@ -73,3 +73,17 @@ test('every resident request explicitly resets emotion controls when the next de
   ]);assert.equal(readFileSync(join(f.folder,'starts'),'utf8').trim().split('\n').length,1);
  }finally{await f.close();}
 });
+
+
+test('explicit strengths are independent of description and reset across a resident sequence',async()=>{
+ const f=await fixture();try{await f.driver.prepare(f.root,context());const request={text:'同样的正文',referencePath:join(f.folder,'reference.wav'),outputPath:join(f.folder,'output.wav')};
+  for(const emotion of ['开心',undefined])for(const emotionStrength of ['flat','normal','strong'] as const)await f.driver.generate(f.root,{...request,emotion,emotionStrength},context());
+  for(const emotion of ['开心',undefined])await f.driver.generate(f.root,{...request,emotion},context());
+  const requests=readFileSync(join(f.folder,'requests'),'utf8').trim().split('\n').map(l=>JSON.parse(l));
+  assert.deepEqual(requests.map(r=>r.options.emotion_alpha),[.3,.6,1,.3,.6,1,.6,1]);
+  assert.deepEqual(requests.map(r=>r.options.use_emotion_text),[true,true,true,false,false,false,true,false]);
+  assert.deepEqual(requests.map(r=>r.options.use_reference_emotion_strength),[false,false,false,true,true,true,false,false]);
+  assert.deepEqual(requests.map(r=>r.options.emotion_text),['开心','开心','开心','','','','开心','']);
+  assert.equal(readFileSync(join(f.folder,'starts'),'utf8').trim().split('\n').length,1);
+ }finally{await f.close();}
+});

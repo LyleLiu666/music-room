@@ -193,3 +193,16 @@ test('Apple Silicon defaults to native inference and explicit Python selection r
   process.env.MUSIC_ROOM_TTS_BACKEND='unknown';assert.throws(()=>createSpeechDriver(),/MUSIC_ROOM_TTS_BACKEND/);
  }finally{if(old===undefined)delete process.env.MUSIC_ROOM_TTS_BACKEND;else process.env.MUSIC_ROOM_TTS_BACKEND=old;}
 });
+
+
+test('Python supervisor forwards saved tiers unchanged and does not invent a legacy tier',async()=>{
+ const root=mkdtempSync(join(tmpdir(),'speech strength supervisor '));
+ try{mkdirSync(join(root,'.venv','bin'),{recursive:true});mkdirSync(join(root,'source'));writeFileSync(join(root,'.music-room-indextts.json'),JSON.stringify({format:'music-room-indextts'}));writeFileSync(join(root,'.music-room-indextts.lock'),JSON.stringify({pid:process.pid,owner:'lease'}));
+  writeFileSync(join(root,'.venv','bin','python'),`#!${process.execPath}
+let body='';process.stdin.on('data',part=>body+=part);process.stdin.on('end',()=>console.log('FORWARDED '+body.trim()));`,{mode:0o755});
+  for(const emotionStrength of ['flat','normal','strong',undefined]){const request={text:'正文',emotion:'',emotionStrength,referencePath:join(root,'ref.wav'),outputPath:join(root,'out.wav')};
+   const worker=spawn(process.execPath,[fileURLToPath(new URL('../../server/dev.ts',import.meta.url)),'tts-worker'],{stdio:['pipe','pipe','pipe']});let output='',diagnostics='';worker.stdout.on('data',part=>output+=part);worker.stderr.on('data',part=>diagnostics+=part);const closed=new Promise<number|null>(resolve=>worker.once('close',resolve));worker.stdin.write(JSON.stringify({directory:root,owner:'lease',step:'infer',request})+'\n');
+   const code=await closed;worker.stdin.end();assert.equal(code,0,diagnostics);const forwarded=JSON.parse(output.split('FORWARDED ')[1].trim());assert.deepEqual(forwarded,JSON.parse(JSON.stringify(request)));if(emotionStrength===undefined)assert.equal(Object.hasOwn(forwarded,'emotionStrength'),false);
+  }
+ }finally{rmSync(root,{recursive:true,force:true});}
+});

@@ -6,7 +6,7 @@
 
 1. 创建项目，添加一个语音，例如「片头旁白」。一个项目可以收纳多个语音。
 2. 首次点「准备语音模型」。Apple Silicon 后台自动准备固定版本的 audio.cpp 程序和 IndexTTS 2.0 F16 模型；完成后显示「已就绪」。后续启动复用已安装环境。
-3. 选择参考声音，填写要说的文字。可填写情绪描述，例如「平静、温暖」；留空时沿用参考音频的情绪。
+3. 选择参考声音，填写要说的文字。可填写情绪描述，例如「平静、温暖」，并选择「情绪平淡 / 情绪一般 / 情绪强烈」，新创作默认一般。描述指定情绪类型，强度调节表现程度；描述留空时也能调节参考人声的情绪影响。
 4. 点「生成新版本」，完成后直接试听、下载 WAV，或选作项目成品。
 
 ## 参考人声与音色库
@@ -17,9 +17,9 @@
 
 上传后可以关闭创作窗口，后台继续清理；处理中或失败的音色不能用于生成，失败和中断可以重试。页面保留原音与处理后人声的对照试听。分离可能改变音色或留下残余配乐，是否满意以实际试听为准。
 
-音色保存到当前工作目录的共享音色库，所有项目都能复用，重启服务后仍保留。内置四个干人声音色：迪丽热巴、天津团团记、女网红和官方样音。内置音色先排列，可「设为常用」，新声音优先选择常用音色。audio.cpp 会在常驻推理会话中缓存最近使用的参考特征；连续使用相同音色可以复用。原音文件仍可试听。安装包中的原版 NPZ 特征保留供旧 Python 路径使用，audio.cpp 不读取这些 NPZ。已有音色点击「清理这个音色」会另存清理版，不改变历史版本使用的参考文件。
+音色保存到当前工作目录的共享音色库，所有项目都能复用，重启服务后仍保留。内置五个干人声音色：迪丽热巴、天津团团记、女网红、官方样音和沈腾。内置音色先排列，可「设为常用」，新声音优先选择常用音色。audio.cpp 会在常驻推理会话中缓存最近使用的参考特征；连续使用相同音色可以复用。原音文件仍可试听。安装包中的原版 NPZ 特征保留供旧 Python 路径使用，audio.cpp 不读取这些 NPZ。已有音色点击「清理这个音色」会另存清理版，不改变历史版本使用的参考文件。
 
-每次生成保留独立版本。提交后继续输入的是下一版草稿，不改变正在生成的要求。「修改这版」恢复原文字、音色与情绪并记录来源；「保留灵感」与「选作成品」分别管理。勾选可批量删除，两版音频可比较试听，一次只播放一个。删除进入回收站，可以撤销和恢复。
+每次生成保留独立版本。提交后继续输入的是下一版草稿，不改变正在生成的要求。「修改这版」恢复原文字、音色、情绪描述与强度并记录来源；「保留灵感」与「选作成品」分别管理。勾选可批量删除，两版音频可比较试听，一次只播放一个。项目、片段、版本和音色均可删除到统一回收站，支持恢复与确认后彻底删除；运行中的内容需要先取消或等待完成。版本列表保留生成时的音色名称，音色改名或删除不改变已有音频。
 
 关闭页面不停止后台任务。停止本地服务会中断任务；重新启动保留已完成音频和要求，可以再次生成。
 
@@ -52,7 +52,7 @@
 
 ## Agent 工具与验证
 
-内置 MCP 提供与页面相同的能力：`tts_status`、`tts_prepare`、`tts_cancel_preparation`、`tts_library`、`tts_add_voice`、`tts_clean_voice`、`tts_update_voice`、`tts_create_sound`、`tts_generate`、`tts_get_version`、`tts_cancel`、`tts_update_version`。先创建项目和声音，再选择参考音频生成；参考 WAV 可用 `tts_add_voice` 的 Base64 输入，默认后台清理，已干净素材可指定 `cleanup=false`。轮询 `tts_library.voices[].processing`，只有 `succeeded` 的清理结果可以用于生成。`tts_update_voice` 可改名、设置 `favorite`。音频位于工作目录，HTTP 下载需要本地服务令牌；原音使用 `/speech/voice-audio/<声音 ID>?original=true`。
+内置 MCP 提供与页面相同的能力：`tts_status`、`tts_prepare`、`tts_cancel_preparation`、`tts_library`、`tts_add_voice`、`tts_clean_voice`、`tts_update_voice`、`tts_create_sound`、`tts_generate`、`tts_get_version`、`tts_cancel`、`tts_update_version`。先创建项目和声音，再选择参考音频生成；参考 WAV 可用 `tts_add_voice` 的 Base64 输入，默认后台清理，已干净素材可指定 `cleanup=false`。轮询 `tts_library.voices[].processing`，只有 `succeeded` 的清理结果可以用于生成。`tts_update_voice` 可改名、设置 `favorite` 或 `deleted`；统一层级删除与永久删除使用 `studio_update_project`、`studio_update_sound`、`studio_update_version` 与 `studio_purge`。`tts_generate` / `studio_generate` 可传 `emotionStrength=flat|normal|strong`；历史缺字段仍采用有描述 0.6、无描述 1 的原规则，不补造旧设置。音频位于工作目录，HTTP 下载需要本地服务令牌；原音使用 `/speech/voice-audio/<声音 ID>?original=true`。
 
 `npm run test:service` 验证存储、取消、文件校验及后台进程管理。`npm run verify:speech` 通过正式网页和服务验证交互，使用测试驱动，不验证模型效果。准备真实模型后运行以下命令，通过正式浏览器提交中文文字和情绪、验证实际 WAV、播放、下载和刷新恢复：
 

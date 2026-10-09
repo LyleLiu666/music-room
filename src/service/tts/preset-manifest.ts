@@ -22,5 +22,11 @@ export const presetVoices=[
   "name": "示例声音 · 官方样音",
   "audioSha256": "fd23ddac68f2db3710481c7cbfc1a50a117d9c38bc5c3ee51c33444f0a9b019a",
   "featuresSha256": "7758752121bb57abb585b3465ac6a9548a4444566917945b0a66411ad29690d5"
+ },
+ {
+   "id": "shenteng",
+   "name": "沈腾",
+   "audioSha256": "85ac96cc74f9138b13db862301cca06efea29477931d22e9598cfddf917c2501",
+   "featuresSha256": "c6018c294a73e8073e7f4bcf15d36eb5c7c7007c3a7abda0bc3502bb1a32ca1f"
  }
 ] as const;

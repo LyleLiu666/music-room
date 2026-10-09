@@ -1,5 +1,5 @@
 import {randomUUID} from 'node:crypto';
-import {readFileSync,readdirSync} from 'node:fs';
+import {readFileSync,readdirSync,rmSync} from 'node:fs';
 import {ProjectStore,ServiceError,identity,hash,type Artifact} from '../projects/store.ts';
 import {validateMix,type RenderMix} from '../render/renderer.ts';
 import type {Renderer,RenderResult,RenderSnapshot} from '../render/process.ts';
@@ -49,6 +49,7 @@ export class JobManager {
   private public(job:StoredJob):Job {const {snapshot,...value}=job;return structuredClone(value);}
   get(id:string) { const j=this.jobs.get(identity(id));if(!j)throw new ServiceError('NOT_FOUND','任务不存在');return this.public(j); }
   list() {return [...this.jobs.values()].map(j=>this.public(j));}
+  purge(projectId:string,revisionId?:string){const jobs=[...this.jobs.values()].filter(j=>j.request.projectId===projectId&&(!revisionId||j.request.revisionId===revisionId));if(jobs.some(j=>!terminal(j.state)))throw new ServiceError('JOB_BUSY','请先取消或等待生成完成');for(const j of jobs){rmSync(this.store.path('jobs',j.id+'.json'),{force:true});this.jobs.delete(j.id);}}
   async submit(input:JobRequest) {
     const next=this.pending.then(async()=> {
       if(this.closing)throw new ServiceError('CLOSED','服务正在退出');
@@ -59,7 +60,7 @@ export class JobManager {
       const fingerprint=hash(JSON.stringify({...request,mix:{...mix,levels:Object.fromEntries(Object.entries(mix.levels).sort()),muted:[...mix.muted].sort(),solo:[...mix.solo].sort()}}));
       const prior=[...this.jobs.values()].find(j=>j.request.idempotencyKey===request.idempotencyKey);
       if(prior) {if(prior.fingerprint!==fingerprint)throw new ServiceError('IDEMPOTENCY_CONFLICT','幂等键已用于不同请求');return this.public(prior);}
-      const {metadata,composition}=await this.store.revision(request.projectId,request.revisionId);
+      this.store.assertActive(request.projectId);const {metadata,composition}=await this.store.revision(request.projectId,request.revisionId);
       const j:StoredJob={id:`job-${randomUUID()}`,request,fingerprint,state:'queued',stage:'等待渲染',createdAt:new Date().toISOString(),updatedAt:new Date().toISOString(),inputHash:metadata.sha256,snapshot:{composition,mix}};
       this.save(j);this.jobs.set(j.id,j);queueMicrotask(()=>this.pump());return this.public(j);
     });

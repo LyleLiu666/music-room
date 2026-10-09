@@ -14,7 +14,7 @@ export function identity(value: string) {
 export const hash = (data: string | Uint8Array) => createHash('sha256').update(data).digest('hex');
 export type Artifact = { id: string; path: string; mime: string; bytes: number; sha256: string; jobId: string };
 export type Revision = { id: string; label: string; parentId?: string; scorePath: string; sha256: string; createdAt: string; artifacts: Artifact[] };
-export type Project = { format: 'music-room-project'; version: 1; id: string; title: string; requirements: string; defaultRevisionId?: string; revisions: Revision[] };
+export type Project = { format: 'music-room-project'; version: 1; id: string; title: string; requirements: string; deleted?:boolean; purged?:boolean; removedRevisionIds?:string[]; defaultRevisionId?: string; revisions: Revision[] };
 export type Feedback = { id: string; revisionId: string; text: string; range?: {start:number;end:number}; createdAt: string };
 function fail(code: string, message: string): never { throw new ServiceError(code,message); }
 const alive = (pid: number) => { try { process.kill(pid,0); return true; } catch (e: any) { return e.code !== 'ESRCH'; } };
@@ -93,8 +93,17 @@ export class ProjectStore {
     if (p.defaultRevisionId && !ids.has(p.defaultRevisionId)) fail('CORRUPT_PROJECT','默认版本不存在');
     return p;
   }
-  async projects() { return readdirSync(this.path('projects')).filter(x=> !x.startsWith('.')).map(id=>this.readProject(id)); }
-  async project(id: string) { return this.readProject(id); }
+  async projects(includePurged=false) { return readdirSync(this.path('projects')).filter(x=> !x.startsWith('.')).map(id=>this.readProject(id)).filter(p=>includePurged||!p.purged); }
+  async project(id: string) { const p=this.readProject(id);if(p.purged)fail('NOT_FOUND','项目已彻底删除');return p; }
+  assertActive(id:string){const p=this.readProject(id);if(p.deleted||p.purged)fail('IN_TRASH','项目在回收站中，请先恢复项目');return p;}
+  async updateProject(id:string,patch:{title?:string;deleted?:boolean},guard:()=>void=()=>{}){
+    return this.mutate(()=>{const p=this.readProject(id);if(p.purged)fail('NOT_FOUND','项目已彻底删除');guard();if(patch.title!==undefined){if(!patch.title.trim()||patch.title.length>120)fail('INVALID_PROJECT','项目名称无效');p.title=patch.title.trim();}if(patch.deleted!==undefined)p.deleted=patch.deleted;this.atomicJSON(this.path('projects',id,'project.json'),p);return p;});
+  }
+  async purgeRevision(projectId:string,revisionId:string){return this.mutate(()=>{
+    identity(revisionId);const p=this.readProject(projectId);p.revisions=p.revisions.filter(r=>r.id!==revisionId).map(r=>r.parentId===revisionId?{...r,parentId:undefined}:r);p.removedRevisionIds=[...new Set([...(p.removedRevisionIds??[]),revisionId])];if(p.defaultRevisionId===revisionId)p.defaultRevisionId=undefined;
+    this.atomicJSON(this.path('projects',projectId,'project.json'),p);rmSync(this.path('projects',projectId,'revisions',revisionId),{recursive:true,force:true});
+  });}
+  async purgeProject(id:string){return this.mutate(()=>{const p=this.readProject(id);if(!p.deleted)fail('IN_TRASH','请先将项目移入回收站');this.atomicJSON(this.path('projects',id,'project.json'),{...p,title:'已删除项目',requirements:'',revisions:[],defaultRevisionId:undefined,purged:true});rmSync(this.path('projects',id,'revisions'),{recursive:true,force:true});rmSync(this.path('projects',id,'feedback.json'),{force:true});});}
   async createProject(id: string, title: string, requirements = '') {
     return this.mutate(()=>this.create(id,title,requirements));
   }
@@ -116,6 +125,7 @@ export class ProjectStore {
       const all = await this.projects();
       if (all.some(p=>p.revisions.some(r=>r.id===doc.revision.id))) fail('CONFLICT','版本 ID 已存在；旧版不会覆盖');
       let p = all.find(p=>p.id===doc.work.id);
+      if(p&&(p.deleted||p.purged))fail('IN_TRASH','项目在回收站中，请先恢复项目');if(p?.removedRevisionIds?.includes(doc.revision.id))fail('CONFLICT','版本已彻底删除，不能复用原 ID');
       if (p && p.title!==doc.work.title) fail('CONFLICT','相同项目 ID 的标题必须一致');
       if (parentId && !p?.revisions.some(r=>r.id===parentId)) fail('INVALID_PARENT','父版本必须属于当前项目');
       p ??= this.create(doc.work.id,doc.work.title,'');

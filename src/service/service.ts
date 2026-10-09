@@ -23,8 +23,8 @@ export class MusicService {
       jobs=await JobManager.open(store,renderer);yue2=await YuE2Engine.open(store,driver);
       speech=await SpeechService.open(store,speechDriver);const service=new MusicService(store,jobs,read,yue2,speech);
       if(seed) {
-        const existing=await store.documents();
-        for(const song of SONGS) if(!existing.some(d=>d.revision.id===song.id)) {
+        const existing=await store.documents(),records=await store.projects(true);
+        for(const song of SONGS) if(!existing.some(d=>d.revision.id===song.id)&&!records.some(p=>p.id===song.workId&&(p.deleted||p.purged||p.removedRevisionIds?.includes(song.id)))) {
           await store.importRevision({format:'music-room-score',version:1,work:{id:song.workId,title:song.title},revision:{id:song.id,label:song.edition,englishTitle:song.englishTitle,summary:song.summary,description:song.description,key:song.key},comparisonSections:song.comparisonSections,score:song.compose()});
         }
       }
@@ -32,6 +32,7 @@ export class MusicService {
     } catch(error){await speech?.close();await yue2?.close();await jobs?.close();await store.close();throw error;}
   }
   private handlers:OperationHandlers = {
+    studio_update_project:async args=>this.studio.updateProject(args),studio_update_sound:async args=>this.studio.updateSound(args),studio_purge:async args=>this.studio.purge(args),
     studio_import_score:async args=>this.studio.importScore(args),
     studio_library:async()=>this.studio.snapshot(),studio_create_sound:async args=>this.studio.createSound(args),studio_generate:async args=>this.studio.generate(args),studio_update_version:async args=>this.studio.update(args),studio_cancel:async args=>this.studio.cancel(args.versionId),studio_render:async args=>this.studio.render(args.versionId),
     tts_status:async()=>this.speech.status(),tts_prepare:async args=>this.speech.prepare(args.directory),tts_cancel_preparation:async()=>this.speech.cancelPreparation(),
@@ -49,7 +50,7 @@ export class MusicService {
     validate_score:async args=>({valid:true,composition:validateComposition(args.compositionJson)}),
     import_revision:async args=>this.store.importRevision(args.compositionJson,args.parentId),
     get_revision:async args=>this.store.revision(args.projectId,args.revisionId),
-    render_revision:async args=>this.jobs.submit({kind:'render-score',...args}),
+    render_revision:async args=>this.studio.renderRevision({kind:'render-score',...args}),
     list_jobs:async()=>({jobs:this.jobs.list()}),
     get_job:async args=>this.jobs.get(args.jobId),
     cancel_job:async args=>this.jobs.cancel(args.jobId),

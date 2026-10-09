@@ -7,8 +7,8 @@ import {execFileSync} from 'node:child_process';
 import {resolve,join,basename} from 'node:path';
 const root=resolve('.'),work=resolve(process.argv[2]??'build/native-tts');
 if(process.platform!=='darwin'||process.arch!=='arm64')throw Error('This package targets macOS arm64');
-const version='0.9.1-music-room-tail1',sourceUrl='https://github.com/0xShug0/audio.cpp/archive/refs/tags/v0.9.1.tar.gz',sourceSha256='20f589b7f891eee1e9d35d1fcea5382c925cf3413f4db5ba71d70cd9a991c938';
-const archive=join(work,'audio-source-v0.9.1.tar.gz'),source=join(work,'native-tail-src'),build=join(work,'native-tail-build'),pack=join(work,'native-tail-package'),patch=join(root,'native/audio-cpp/tail-context-v0.9.1.patch');
+const version='0.9.1-music-room-tail2',sourceUrl='https://github.com/0xShug0/audio.cpp/archive/refs/tags/v0.9.1.tar.gz',sourceSha256='20f589b7f891eee1e9d35d1fcea5382c925cf3413f4db5ba71d70cd9a991c938';
+const archive=join(work,'audio-source-v0.9.1.tar.gz'),source=join(work,'native-tail-src'),build=join(work,'native-tail-build'),pack=join(work,'native-tail-package'),patch=join(root,'native/audio-cpp/tail-context-emotion-v0.9.1.patch');
 async function sha(file){const h=createHash('sha256');for await(const b of createReadStream(file))h.update(b);return h.digest('hex');}
 await mkdir(work,{recursive:true});
 let cached=false;try{cached=await sha(archive)===sourceSha256;}catch{}
@@ -23,9 +23,9 @@ await copyFile(join(source,'LICENSE'),join(pack,'LICENSE'));
 async function licenses(folder,prefix=''){for(const entry of await readdir(folder,{withFileTypes:true})){const rel=join(prefix,entry.name),path=join(folder,entry.name);if(entry.isDirectory())await licenses(path,rel);else if(entry.isFile()&&/^(LICENSE|COPYING|NOTICE)([.\-_].*)?$/.test(entry.name)){const out=join(pack,'licenses',rel);await mkdir(resolve(out,'..'),{recursive:true});await copyFile(path,out);}}}
 await licenses(join(source,'external'),'external');
 await copyFile(patch,join(pack,'music-room-tail-context.patch'));
-const manifest={version,asset:'tts-native/audio-cpp-v0.9.1-tail1-macos-arm64.tar.gz',sourceUrl,sourceSha256,patchSha256:await sha(patch),programSha256:await sha(join(pack,'audiocpp_server')),tailContextFrames:32,retainedTailFrames:12,vocoderContextFrames:20,fadeMs:20,finalSilenceMs:100};
+const manifest={version,asset:'tts-native/audio-cpp-v0.9.1-tail2-macos-arm64.tar.gz',sourceUrl,sourceSha256,patchSha256:await sha(patch),programSha256:await sha(join(pack,'audiocpp_server')),referenceEmotionStrength:'calm-reference-blend-opt-in',tailContextFrames:32,retainedTailFrames:12,vocoderContextFrames:20,fadeMs:20,finalSilenceMs:100};
 await writeFile(join(pack,'music-room-build.json'),JSON.stringify(manifest,null,2));
-await writeFile(join(pack,'NOTICE'),'audio.cpp v0.9.1, Copyright 2026 ShugoAI LLC, Apache-2.0.\nMusic Room adds optional acoustic tail context and stable noise-prefix handling.\nSee music-room-tail-context.patch and music-room-build.json for changes and provenance.\nThird-party license texts are included under licenses/.\n');
+await writeFile(join(pack,'NOTICE'),'audio.cpp v0.9.1, Copyright 2026 ShugoAI LLC, Apache-2.0.\nMusic Room adds optional acoustic tail context, stable noise-prefix handling, and opt-in calm/reference emotion blending.\nSee music-room-tail-context.patch and music-room-build.json for changes and provenance.\nThird-party license texts are included under licenses/.\n');
 async function fixedTimes(folder){for(const e of await readdir(folder,{withFileTypes:true})){const p=join(folder,e.name);if(e.isDirectory())await fixedTimes(p);await utimes(p,1791504000,1791504000);}}
 await fixedTimes(pack);
 await mkdir(join(root,'public/tts-native'),{recursive:true});const output=join(root,'public',manifest.asset);

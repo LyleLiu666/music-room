@@ -1,5 +1,6 @@
 import type {StudioService,StudioSound,StudioVersion} from './studio/studio.ts';
 import {z} from 'zod';
+import {emotionStrengths} from './tts/emotion.ts';
 import type {SpeechService,SpeechStatus,SpeechSound,SpeechVersion,SpeechVoice} from './tts/speech.ts';
 import {SCORE_ID_PATTERN,TRACK_IDS,type Composition} from '../music/authoring/validate.mjs';
 import type {Project,Revision,Feedback,ProjectStore} from './projects/store.ts';
@@ -13,7 +14,10 @@ const text=z.string().min(1).max(8000);
 export const operations = {
   studio_library:{description:'统一读取项目、声音和版本。',schema:z.object({}).strict()},
   studio_create_sound:{description:'在项目内创建音乐片段、完整音乐或语音。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120),kind:z.enum(['clip','music','speech'])}).strict()},
-  studio_generate:{description:'在指定声音内生成新版本，来源和结果均保存在当前声音。',schema:z.object({soundId:id,text:z.string().trim().min(1).max(8000),voiceId:id.optional(),emotion:z.string().max(2000).optional(),lyrics:z.string().max(16000).optional(),instrumental:z.boolean().optional(),preset:z.enum(['fast','quality']).optional(),parentId:id.optional()}).strict()},
+  studio_update_project:{description:'项目重命名或移入/恢复回收站；整个层级保持原状态，生成中拒绝删除。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
+  studio_update_sound:{description:'片段重命名或移入/恢复回收站，保留其版本和成品选择。',schema:z.object({soundId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
+  studio_purge:{description:'彻底删除回收站中的项目、片段、版本或音色及其保存文件；不可恢复。',schema:z.object({kind:z.enum(['project','sound','version','voice']),id}).strict()},
+  studio_generate:{description:'在指定声音内生成新版本，来源和结果均保存在当前声音。',schema:z.object({soundId:id,text:z.string().trim().min(1).max(8000),voiceId:id.optional(),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),lyrics:z.string().max(16000).optional(),instrumental:z.boolean().optional(),preset:z.enum(['fast','quality']).optional(),parentId:id.optional()}).strict()},
   studio_update_version:{description:'保留灵感、选成品、可恢复删除版本。',schema:z.object({versionId:id,kept:z.boolean().optional(),deleted:z.boolean().optional(),final:z.boolean().optional()}).strict()},
   studio_cancel:{description:'取消指定声音版本的生成任务。',schema:z.object({versionId:id}).strict()},
   studio_import_score:{description:'将 Agent 交付的 JSON 乐谱导入指定声音，新版保留来源，不覆盖旧版。',schema:z.object({soundId:id,compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
@@ -24,9 +28,9 @@ export const operations = {
   tts_library:{description:'读取持久化的参考声音、项目语音及所有语音版本。',schema:z.object({}).strict()},
   tts_add_voice:{description:'保存 0.3–15 秒、16 位 PCM WAV 参考素材，默认在后台提取人声、降噪、去混响；轮询 tts_library 的 voices[].processing，succeeded 后才能生成。已干净素材可 cleanup=false。音色跨项目复用，原音保留。',schema:z.object({name:z.string().min(1).max(120),audioBase64:z.string().min(1).max(4*1024*1024),cleanup:z.boolean().default(true)}).strict()},
   tts_clean_voice:{description:'清理已有音色，旧音色另存清理版以免改变历史版本；失败或中断的清理可重试。轮询 tts_library 查看处理状态。',schema:z.object({voiceId:id}).strict()},
-  tts_update_voice:{description:'给已保存音色改名或标记为常用，所有项目共用同一个音色库。',schema:z.object({voiceId:id,name:z.string().trim().min(1).max(120).optional(),favorite:z.boolean().optional()}).strict()},
+  tts_update_voice:{description:'给已保存音色改名、标记常用或移入/恢复回收站，所有项目共用同一个音色库。',schema:z.object({voiceId:id,name:z.string().trim().min(1).max(120).optional(),favorite:z.boolean().optional(),deleted:z.boolean().optional()}).strict()},
   tts_create_sound:{description:'在已有项目中创建一个语音，如片头旁白；后续生成均属于此声音。',schema:z.object({projectId:id,title:z.string().min(1).max(120)}).strict()},
-  tts_generate:{description:'使用 IndexTTS 2.0 根据参考人声、正文和可选情绪生成新版本；立即返回版本 id，后台继续执行。',schema:z.object({soundId:id,voiceId:id,text:z.string().trim().min(1).max(8000),emotion:z.string().max(2000).optional(),parentId:id.optional(),seed:z.number().int().min(0).max(0xffffffff).optional()}).strict()},
+  tts_generate:{description:'使用 IndexTTS 2.0 根据参考人声、正文和可选情绪生成新版本；立即返回版本 id，后台继续执行。',schema:z.object({soundId:id,voiceId:id,text:z.string().trim().min(1).max(8000),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),parentId:id.optional(),seed:z.number().int().min(0).max(0xffffffff).optional()}).strict()},
   tts_get_version:{description:'查询语音版本的真实状态、创作输入和音频校验信息。',schema:z.object({versionId:id}).strict()},
   tts_cancel:{description:'取消排队或生成中的语音版本，停止所属推理进程。',schema:z.object({versionId:id}).strict()},
   tts_update_version:{description:'语音版本保留灵感、选作成品或移入/恢复回收站；删除不会删除后续版本。',schema:z.object({versionId:id,kept:z.boolean().optional(),final:z.boolean().optional(),deleted:z.boolean().optional()}).strict()},
@@ -61,6 +65,7 @@ export type RevisionDocument = Awaited<ReturnType<ProjectStore['revision']>>;
 export type LibrarySnapshot = {projects:Project[];documents:Composition[];jobs:Job[]};
 export type AuthoringContext = {project?:Project;revision?:RevisionDocument;feedback:Feedback[];guide:string;example:Composition;prompt:string;rules:string;workflow:Operation[];tracks:string};
 export type OperationResults = {
+  studio_update_project:Project;studio_update_sound:StudioSound;studio_purge:{purged:true};
   studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_generate:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_import_score:StudioVersion;
   tts_status:SpeechStatus;tts_prepare:SpeechStatus;tts_cancel_preparation:SpeechStatus;
   tts_library:ReturnType<SpeechService['snapshot']>;tts_add_voice:SpeechVoice;tts_clean_voice:SpeechVoice;tts_update_voice:SpeechVoice;tts_create_sound:SpeechSound;
