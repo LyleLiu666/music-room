@@ -1,0 +1,78 @@
+--- a/src/models/index_tts2/session.cpp
++++ b/src/models/index_tts2/session.cpp
+@@ -245,0 +246,3 @@
++    const auto tail_frames = runtime::parse_i64_option(options.options, {"index_tts2.tail_context_frames"}).value_or(0);
++    if (tail_frames < 0 || tail_frames > 64 || (is_v2_5_variant(*assets_) && tail_frames))
++        throw std::runtime_error("IndexTTS2 tail context requires v2 and 0-64 frames");
+@@ -258,0 +262 @@
++            key != "index_tts2.tail_context_frames" &&
+@@ -702,0 +707,6 @@
++    // Blank acoustic condition gives the final phoneme right-hand context.
++    // It is not an extra text token and does not change GPT-generated content.
++    const int64_t cfm_tail_frames = runtime::parse_i64_option(
++        this->options().options, {"index_tts2.tail_context_frames"}).value_or(0);
++    if (cfm_tail_frames < 0 || cfm_tail_frames > 64 || (v2_5 && cfm_tail_frames))
++        throw std::runtime_error("IndexTTS2 tail context requires v2 and 0-64 frames");
+@@ -705,0 +716 @@
++    condition.resize(static_cast<size_t>((total_frames + cfm_tail_frames) * 512), 0.0F);
+@@ -710 +721 @@
+-    s2mel_->prepare_cfm(total_frames, kInferenceCfgRate > 0.0F);
++    s2mel_->prepare_cfm(total_frames + cfm_tail_frames, kInferenceCfgRate > 0.0F);
+@@ -713 +724 @@
+-        total_frames,
++        total_frames + cfm_tail_frames,
+@@ -720 +731,2 @@
+-        generated.rng_offset_blocks);
++        generated.rng_offset_blocks,
++        cfm_tail_frames ? total_frames : 0);
+@@ -727 +739,9 @@
+-    auto audio = vocoder_->synthesize(mel.values, mel.frames);
++    std::vector<float> vocoder_mel = mel.values;
++    int64_t vocoder_frames = mel.frames;
++    if (cfm_tail_frames) {
++        vocoder_frames += 20;
++        vocoder_mel.assign(static_cast<size_t>(mel.channels * vocoder_frames), -11.512925F);
++        for (int64_t channel = 0; channel < mel.channels; ++channel)
++            std::copy_n(mel.values.data() + channel * mel.frames, mel.frames, vocoder_mel.data() + channel * vocoder_frames);
++    }
++    auto audio = vocoder_->synthesize(vocoder_mel, vocoder_frames);
+@@ -730,0 +751,13 @@
++    }
++    if (cfm_tail_frames) {
++        const auto keep_frames = target_frames + std::min<int64_t>(12, cfm_tail_frames);
++        const auto keep_samples = static_cast<size_t>(keep_frames * 256);
++        if (audio.waveform.size() < keep_samples)
++            throw std::runtime_error("IndexTTS2 vocoder returned insufficient tail samples");
++        audio.waveform.resize(keep_samples);
++        const auto fade_samples = std::min<size_t>(static_cast<size_t>(audio.sample_rate / 50), audio.waveform.size());
++        for (size_t i = 0; i < fade_samples; ++i) {
++            const auto gain = 0.5F * (1.0F + std::cos(3.14159265358979323846F * static_cast<float>(i) / static_cast<float>(fade_samples - 1)));
++            audio.waveform[audio.waveform.size() - fade_samples + i] *= gain;
++        }
++        audio.waveform.insert(audio.waveform.end(), static_cast<size_t>(audio.sample_rate / 10), 0.0F);
+--- a/src/models/index_tts2/s2mel.cpp
++++ b/src/models/index_tts2/s2mel.cpp
+@@ -1207 +1207,2 @@
+-    uint64_t rng_offset_blocks) {
++    uint64_t rng_offset_blocks,
++    int64_t rng_prefix_frames) {
+@@ -1235,0 +1237,9 @@
++    if (rng_prefix_frames < 0 || rng_prefix_frames > total_frames)
++        throw std::runtime_error("IndexTTS2 CFM noise prefix exceeds frame count");
++    if (rng_prefix_frames > 0 && rng_prefix_frames < total_frames) {
++        const auto prefix_noise = engine::sampling::generate_torch_cuda_tensor_iterator_randn(
++            static_cast<size_t>(kMelChannels * rng_prefix_frames), seed, rng_offset_blocks,
++            rng_policy, engine::sampling::TorchRandnPrecision::Float32);
++        for (int64_t channel = 0; channel < kMelChannels; ++channel)
++            std::copy_n(prefix_noise.data() + channel * rng_prefix_frames, rng_prefix_frames, x.data() + channel * total_frames);
++    }
+--- a/include/engine/models/index_tts2/s2mel.h
++++ b/include/engine/models/index_tts2/s2mel.h
+@@ -135 +135,2 @@
+-        uint64_t rng_offset_blocks);
++        uint64_t rng_offset_blocks,
++        int64_t rng_prefix_frames = 0);
+--- a/src/models/index_tts2/loader.cpp
++++ b/src/models/index_tts2/loader.cpp
+@@ -65,0 +66 @@
++        {"index_tts2.tail_context_frames", "n", "Right-hand acoustic context for v2 speech endings, 0-64 frames; default 0."},

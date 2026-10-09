@@ -29,7 +29,7 @@ export function createNativeSpeechDriver(command:string,args:string[],read?:Asse
   }catch(error){if(r)await stop(r);else lease.release();throw error;}
  }
  return {engineLabel:'audio.cpp F16',installed:root=>nativeInstalled(root,distribution),builtinVoices:read?()=>readBuiltinVoices(read):undefined,close:()=>stop(),
-  prepare:async(directory,context)=>{const root=checkedDirectory(directory);if(nativeInstalled(root,distribution)){if(resident&&resident.root!==root)await stop();return;}await stop();const lease=lock(root);try{await installNative(root,context,distribution);}finally{lease.release();}},
+  prepare:async(directory,context)=>{const root=checkedDirectory(directory);if(nativeInstalled(root,distribution)){if(resident&&resident.root!==root)await stop();return;}await stop();const lease=lock(root);try{await installNative(root,context,distribution,read);}finally{lease.release();}},
   cleanReference:options.cleanReference?async(directory,request,context)=>{await stop();await options.cleanReference!(directory,request,context);}:undefined,
   generate:async(directory,request,context)=>{
    const root=checkedDirectory(directory);if(!nativeInstalled(root,distribution))throw new Error('请先准备 audio.cpp F16 语音环境');const r=await ready(root,context);r.context=context;

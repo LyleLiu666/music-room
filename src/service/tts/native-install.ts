@@ -4,9 +4,12 @@ import {join} from 'node:path';
 import {Readable,Transform} from 'node:stream';
 import {pipeline} from 'node:stream/promises';
 import type {SpeechContext} from './speech.ts';
+import type {AssetReader} from '../render/renderer.ts';
+import {nativeProgramManifest} from './native-program-manifest.ts';
 import {runCommand} from './python-runtime.ts';
-export const nativeDistribution={version:'0.9.1',programUrl:'https://github.com/0xShug0/audio.cpp/releases/download/v0.9.1/audio-v0.9.1-bin-macos-arm64-metal.tar.gz',programSha256:'960436787b84bf137a70ea1713ac460207ef2ac7b2617380fb7a1f4650d1100d',modelUrl:'https://huggingface.co/audio-cpp/audio.cpp-gguf/resolve/a199f1a00ae893af0067caeab51f810de4c728a5/IndexTTS2-GGUF/index-tts2-f16.gguf',modelSha256:'0f7b95d3d32e18bf9352912a7b21a0bd4a8406853a0aaa2c9180f77389c21523',modelBytes:4646898304};
-export type NativeDistribution=typeof nativeDistribution;
+export const nativeProgramAsset=nativeProgramManifest.asset;
+export type NativeDistribution={version:string;programUrl:string;programSha256:string;modelUrl:string;modelSha256:string;modelBytes:number};
+export const nativeDistribution:NativeDistribution={version:nativeProgramManifest.version,programUrl:'https://raw.githubusercontent.com/LyleLiu666/music-room/main/public/'+nativeProgramAsset,programSha256:nativeProgramManifest.archiveSha256,modelUrl:'https://huggingface.co/audio-cpp/audio.cpp-gguf/resolve/a199f1a00ae893af0067caeab51f810de4c728a5/IndexTTS2-GGUF/index-tts2-f16.gguf',modelSha256:'0f7b95d3d32e18bf9352912a7b21a0bd4a8406853a0aaa2c9180f77389c21523',modelBytes:4646898304};
 export const nativePaths=(root:string)=>({base:join(root,'audio-cpp'),program:join(root,'audio-cpp','release','audiocpp_server'),model:join(root,'audio-cpp','models','index-tts2-f16.gguf'),metadata:join(root,'audio-cpp','installed.json')});
 const stamp=(path:string)=>{const s=lstatSync(path);if(!s.isFile()||s.isSymbolicLink())throw new Error('推理文件不能是符号链接');return {bytes:s.size,mtimeMs:s.mtimeMs};};
 export function nativeInstalled(root:string,d=nativeDistribution){
@@ -27,9 +30,11 @@ async function download(url:string,path:string,sha:string,context:SpeechContext)
  await pipeline(Readable.fromWeb(response.body as any),meter,createWriteStream(partial,{flags:start?'a':'w',mode:0o600}),{signal:context.signal});
  if(await hashFile(partial,context.signal)!==sha){rmSync(partial,{force:true});throw new Error('下载文件校验失败');}context.signal.throwIfAborted();renameSync(partial,path);
 }
-export async function installNative(root:string,context:SpeechContext,d=nativeDistribution){
+export async function installNative(root:string,context:SpeechContext,d=nativeDistribution,read?:AssetReader){
  const p=nativePaths(root);if(existsSync(p.base)&&lstatSync(p.base).isSymbolicLink())throw new Error('推理安装目录不能是符号链接');mkdirSync(p.base,{recursive:true,mode:0o700});for(const path of [join(p.base,'models'),join(p.base,'release'),p.metadata])if(existsSync(path)&&lstatSync(path).isSymbolicLink())throw new Error('推理环境内部路径不能是符号链接');mkdirSync(join(p.base,'models'),{recursive:true,mode:0o700});
- context.stage('准备 audio.cpp F16 推理程序');const archive=join(p.base,'program.tar.gz');await download(d.programUrl,archive,d.programSha256,context);
+ context.stage('准备 audio.cpp F16 推理程序');const archive=join(p.base,'program.tar.gz');
+ if(read){const program=await read(nativeProgramAsset);context.signal.throwIfAborted();if(createHash('sha256').update(program).digest('hex')!==d.programSha256)throw new Error('内置推理程序校验失败');const partial=archive+'.partial';for(const path of [archive,partial])if(existsSync(path)&&lstatSync(path).isSymbolicLink())throw new Error('推理程序暂存文件不能是符号链接');writeFileSync(partial,program,{mode:0o600});renameSync(partial,archive);}
+ else await download(d.programUrl,archive,d.programSha256,context);
  const staging=join(p.base,'unpack');rmSync(staging,{recursive:true,force:true});mkdirSync(staging,{mode:0o700});
  await runCommand('/usr/bin/tar',['-xzf',archive,'-C',staging],context,p.base);stamp(join(staging,'audiocpp_server'));chmodSync(join(staging,'audiocpp_server'),0o700);
  const release=join(p.base,'release');rmSync(release,{recursive:true,force:true});renameSync(staging,release);

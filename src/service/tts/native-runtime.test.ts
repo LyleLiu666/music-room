@@ -7,6 +7,7 @@ import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import {createServer} from 'node:http';
 import {createNativeSpeechDriver,nativeDistribution} from './native-runtime.ts';
+import {installNative} from './native-install.ts';
 const digest=(b:Buffer)=>createHash('sha256').update(b).digest('hex');
 const context=()=>({signal:new AbortController().signal,stage:()=>{},report:()=>{}});
 async function fixture(){
@@ -25,13 +26,24 @@ http.createServer(async(req,res)=>{if(req.url==='/health'){res.end('{}');return;
  const http=createServer((req,res)=>{downloads++;res.end(req.url==='/program'?archiveBytes:wrong?Buffer.from('bad model'):model);});await new Promise<void>(r=>http.listen(0,'127.0.0.1',r));const port=(http.address() as {port:number}).port;
  const distribution={...nativeDistribution,programUrl:`http://127.0.0.1:${port}/program`,programSha256:digest(archiveBytes),modelUrl:`http://127.0.0.1:${port}/model`,modelSha256:digest(model),modelBytes:model.length};
  const driver=createNativeSpeechDriver(process.execPath,[resolve('src/server/dev.ts'),'tts-native-worker'],undefined,{distribution});
- return {root,folder,driver,setWrong:(v:boolean)=>{wrong=v;},downloads:()=>downloads,close:async()=>{await driver.close!();await new Promise<void>(r=>http.close(()=>r()));rmSync(folder,{recursive:true,force:true});}};
+ return {root,folder,driver,distribution,archiveBytes,setWrong:(v:boolean)=>{wrong=v;},downloads:()=>downloads,close:async()=>{await driver.close!();await new Promise<void>(r=>http.close(()=>r()));rmSync(folder,{recursive:true,force:true});}};
 }
+test('bundled native program installs without a program download and rejects corrupted embedded bytes',async()=>{
+ const good=await fixture();try{
+  await installNative(good.root,context(),good.distribution,async()=>good.archiveBytes);
+  assert.equal(good.driver.installed(good.root),true);assert.equal(good.downloads(),1,'only model weights need downloading');
+ }finally{await good.close();}
+ const bad=await fixture();try{
+  const corrupt=Buffer.from(bad.archiveBytes);corrupt[0]^=1;
+  await assert.rejects(installNative(bad.root,context(),bad.distribution,async()=>corrupt),/校验/);
+  assert.equal(bad.driver.installed(bad.root),false);assert.equal(bad.downloads(),0);
+ }finally{await bad.close();}
+});
 test('native install verifies downloads and never publishes readiness for corrupt weights',async()=>{
  const f=await fixture();try{f.setWrong(true);await assert.rejects(f.driver.prepare(f.root,context()),/校验/);assert.equal(f.driver.installed(f.root),false);f.setWrong(false);await f.driver.prepare(f.root,context());assert.equal(f.driver.installed(f.root),true);const before=f.downloads();await f.driver.prepare(f.root,context());assert.equal(f.downloads(),before);writeFileSync(join(f.root,'audio-cpp','models','index-tts2-f16.gguf'),'tampered');assert.equal(f.driver.installed(f.root),false);}finally{await f.close();}
 });
 test('sequential native requests reuse one resident process and forward complete text and emotion',async()=>{
- const f=await fixture();try{await f.driver.prepare(f.root,context());const request={seed:42,text:'大家好我是迪丽热巴。在这个群里我最喜欢彪哥，爱你呦！',emotion:'并不悲伤，请用开心的语气',referencePath:join(f.folder,'reference.wav'),outputPath:join(f.folder,'output.wav')};for(let i=0;i<3;i++)await f.driver.generate(f.root,request,context());const starts=readFileSync(join(f.folder,'starts'),'utf8').trim().split('\n');assert.equal(starts.length,1);const requests=readFileSync(join(f.folder,'requests'),'utf8').trim().split('\n').map(l=>JSON.parse(l));assert.equal(requests.length,3);for(const r of requests){assert.equal(r.options.seed,request.seed);assert.equal(r.input,request.text);assert.equal(r.voice_ref,request.referencePath);assert.equal(r.options.emotion_text,request.emotion);assert.equal(r.options.emotion_alpha,0.6);assert.equal(r.options.num_beams,1);assert.equal(r.options.text_chunk_size,undefined);}assert.ok(statSync(request.outputPath).size>44);await assert.rejects(f.driver.generate(f.root,{...request,text:'fail'},context()),/deliberate failure/);await f.driver.generate(f.root,request,context());assert.equal(readFileSync(join(f.folder,'starts'),'utf8').trim().split('\n').length,1);}finally{await f.close();}
+ const f=await fixture();try{await f.driver.prepare(f.root,context());const request={seed:42,text:'大家好我是迪丽热巴。在这个群里我最喜欢彪哥，爱你呦！',emotion:'并不悲伤，请用开心的语气',referencePath:join(f.folder,'reference.wav'),outputPath:join(f.folder,'output.wav')};for(let i=0;i<3;i++)await f.driver.generate(f.root,request,context());const starts=readFileSync(join(f.folder,'starts'),'utf8').trim().split('\n');assert.equal(starts.length,1);const requests=readFileSync(join(f.folder,'requests'),'utf8').trim().split('\n').map(l=>JSON.parse(l));assert.equal(requests.length,3);for(const r of requests){assert.equal(r.options.seed,request.seed);assert.equal(r.input,request.text);assert.equal(r.voice_ref,request.referencePath);assert.equal(r.options.emotion_text,request.emotion);assert.equal(r.options.emotion_alpha,0.6);assert.equal(r.options.num_beams,1);assert.equal(r.options.text_chunk_size,undefined);}assert.equal(JSON.parse(readFileSync(join(f.root,'audio-cpp','server.json'),'utf8')).models[0].session_options['index_tts2.tail_context_frames'],32);assert.ok(statSync(request.outputPath).size>44);await assert.rejects(f.driver.generate(f.root,{...request,text:'fail'},context()),/deliberate failure/);await f.driver.generate(f.root,request,context());assert.equal(readFileSync(join(f.folder,'starts'),'utf8').trim().split('\n').length,1);}finally{await f.close();}
 });
 test('cancelling native computation stops its resident engine before the next task can reload',async()=>{
  const f=await fixture();try{await f.driver.prepare(f.root,context());const request={text:'hold',referencePath:join(f.folder,'reference.wav'),outputPath:join(f.folder,'output.wav')},controller=new AbortController();const running=f.driver.generate(f.root,request,{...context(),signal:controller.signal});const rejection=assert.rejects(running);for(let i=0;i<200&&!existsSync(join(f.folder,'requests'));i++)await new Promise(r=>setTimeout(r,25));setTimeout(()=>controller.abort(),100);await rejection;const first=Number(readFileSync(join(f.folder,'starts'),'utf8').trim());assert.throws(()=>process.kill(first,0));await f.driver.generate(f.root,{...request,text:'after cancellation'},context());assert.equal(readFileSync(join(f.folder,'starts'),'utf8').trim().split('\n').length,2);}finally{await f.close();}
