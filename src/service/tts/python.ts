@@ -80,10 +80,16 @@ try:
  tts.gr_progress=progress
  stage('正在合成语音')
  emotion=request.get('emotion') or ''
+ # Keep short utterances continuous: a 40-token cap split ordinary greetings
+ # into independent generations with an abrupt fixed-silence join. Long texts
+ # retain the measured 40-token memory budget. Count with upstream's real BPE.
+ segment_tokens=120
+ if features is not None:
+  segment_tokens=60 if len(tts.tokenizer.tokenize(request['text']))<=60 else 40
  # Upstream's inner no_grad scope does not cover reference conditioning.
  # Its cached style/prompt tensors otherwise keep training activations alive.
  with torch.no_grad():
-  tts.infer(spk_audio_prompt=request['referencePath'],text=request['text'],output_path=request['outputPath'],use_emo_text=bool(emotion),emo_text=emotion or None,emo_alpha=0.6 if emotion else 1.0,use_random=False,verbose=False,num_beams=1,max_text_tokens_per_segment=40 if features is not None else 120)
+  tts.infer(spk_audio_prompt=request['referencePath'],text=request['text'],output_path=request['outputPath'],use_emo_text=bool(emotion),emo_text=emotion or None,emo_alpha=0.6 if emotion else 1.0,use_random=False,verbose=False,num_beams=1,max_text_tokens_per_segment=segment_tokens)
  # Publish a portable 16-bit PCM WAV even if upstream selects another subtype.
  import soundfile as sf
  audio,sr=sf.read(request['outputPath'])

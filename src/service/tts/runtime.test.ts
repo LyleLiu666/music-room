@@ -120,3 +120,57 @@ print('EMOTION_VERIFIED')
  const result=spawnSync('python3',['-c',harness],{encoding:'utf8'});
  assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/EMOTION_VERIFIED/);
 });
+
+
+test('builtin short utterances remain continuous without enlarging long-text segments',()=>{
+ // Counts captured with the pinned upstream BPE tokenizer for the two reported inputs.
+ const cases=[
+  {text:'大家好，我是迪丽热巴，在这个群里我最喜欢彪哥，爱你呦',tokens:49,continuous:true},
+  {text:'大家好我是迪丽热巴。在这个群里我最喜欢彪哥，爱你呦！',tokens:50,continuous:true},
+  {text:'short utterance at budget boundary',tokens:60,continuous:true},
+  {text:'paragraph above budget boundary',tokens:61,continuous:false},
+  {text:'long paragraph fixture',tokens:160,continuous:false},
+ ];
+ const entry=inferScript.replace(conditioningScript,`def load_conditioning(*args):return {}
+def prepare_emotion(*args):return None
+def install_conditioning(*args):pass`);
+ for(const item of cases){
+  const harness=`import sys,types,json
+from contextlib import nullcontext
+case=json.loads(${JSON.stringify(JSON.stringify(item))})
+torch=types.ModuleType('torch')
+torch.cuda=types.SimpleNamespace(is_available=lambda:False)
+torch.backends=types.SimpleNamespace(mps=types.SimpleNamespace(is_available=lambda:False))
+torch.nn=types.SimpleNamespace(Module=lambda:None)
+torch.zeros=lambda _:None
+torch.ones=lambda _:None
+torch.set_num_threads=lambda _:None
+torch.no_grad=nullcontext
+sys.modules['torch']=torch
+package=types.ModuleType('indextts')
+package.__path__=[]
+sys.modules['indextts']=package
+inference=types.ModuleType('indextts.infer_v2')
+class IndexTTS2:
+ def __init__(self,**kwargs):
+  self.tokenizer=types.SimpleNamespace(tokenize=lambda text:list(range(case['tokens'])))
+ def infer(self,**kwargs):
+  budget=kwargs['max_text_tokens_per_segment']
+  if case['continuous']:
+   assert budget>=case['tokens'],'a short utterance is split into independent generations'
+   assert budget<=60,'short-utterance budget must remain bounded'
+  else:
+   assert budget==40,'long-text generation increased its tested memory budget'
+  print('SEGMENTATION_VERIFIED',flush=True)
+inference.IndexTTS2=IndexTTS2
+sys.modules['indextts.infer_v2']=inference
+soundfile=types.ModuleType('soundfile')
+soundfile.read=lambda _:([0.2],22050)
+soundfile.write=lambda *args,**kwargs:None
+sys.modules['soundfile']=soundfile
+exec(${JSON.stringify(entry)})
+`;
+  const result=spawnSync('python3',['-c',harness],{encoding:'utf8',env:{...process.env,MUSIC_ROOM_TTS_DIRECTORY:'/tmp/managed-speech'},input:JSON.stringify({text:item.text,referencePath:'/tmp/reference.wav',outputPath:'/tmp/output.wav',conditioningPath:'/tmp/features.npz'})+'\n'});
+  assert.equal(result.status,0,result.stderr);assert.match(result.stdout,/SEGMENTATION_VERIFIED/);
+ }
+});
