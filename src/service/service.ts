@@ -21,13 +21,13 @@ export class MusicService {
   resources!:ResourceCoordinator;
   private closing?:Promise<void>;
   store:ProjectStore; jobs:JobManager; read:AssetReader;yue2:YuE2Engine;yue2Client:YuE2Client;speech:SpeechService;studio:StudioService;conversion:ConversionService;
-  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService) {this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2);this.studio=new StudioService(this);}
+  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator) {this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources);this.studio=new StudioService(this);}
   static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver,resources:ResourceCoordinator=createResources()) {
     const store=await ProjectStore.open(root);
     let jobs:JobManager|undefined,yue2:YuE2Engine|undefined,speech:SpeechService|undefined,conversion:ConversionService|undefined;
     try {
-      jobs=await JobManager.open(store,renderer);yue2=await YuE2Engine.open(store,driver);
-      speech=await SpeechService.open(store,speechDriver,()=>false,resources);conversion=ConversionService.open(store,conversionDriver??createNativeConversionDriver(store.path('engines','voice-conversion')),()=>false,resources);const service=new MusicService(store,jobs,read,yue2,speech,conversion);service.resources=resources;
+      jobs=await JobManager.open(store,renderer);yue2=await YuE2Engine.open(store,driver,resources);
+      speech=await SpeechService.open(store,speechDriver,()=>false,resources);conversion=ConversionService.open(store,conversionDriver??createNativeConversionDriver(store.path('engines','voice-conversion')),()=>false,resources);const service=new MusicService(store,jobs,read,yue2,speech,conversion,resources);service.resources=resources;
       if(seed) {
         const existing=await store.documents(),records=await store.projects(true);
         for(const song of SONGS) if(!existing.some(d=>d.revision.id===song.id)&&!records.some(p=>p.id===song.workId&&(p.deleted||p.purged||p.removedRevisionIds?.includes(song.id)))) {
@@ -49,7 +49,7 @@ export class MusicService {
     tts_create_sound:async args=>this.speech.createSound(args.projectId,args.title),tts_generate:async args=>this.speech.generate(args),
     tts_get_version:async args=>this.speech.job(args.versionId),tts_cancel:async args=>this.speech.cancel(args.versionId),tts_update_version:async args=>this.speech.updateVersion(args.versionId,args),
     yue2_status:async()=>this.yue2.status(),yue2_choose_directory:async()=>this.yue2.chooseDirectory(),
-    prepare_yue2:async args=>this.yue2.prepare(args.directory,args.downloadModels),start_yue2:async()=>this.yue2.start(),stop_yue2:async()=>this.yue2.stop(),
+    prepare_yue2:async args=>this.yue2.prepare(args.directory,args.downloadModels),start_yue2:async()=>this.yue2.start(),stop_yue2:async()=>{await this.yue2Client.stop();return this.yue2.stop();},
     yue2_generate:async args=>this.yue2Client.generate(args),yue2_get_job:async args=>this.yue2Client.job(args.jobId),yue2_cancel_job:async args=>this.yue2Client.cancel(args.jobId),yue2_list_jobs:async()=>this.yue2Client.list(),
     status:async()=>({name:'Music Room',version:'1.0.0',workspace:this.store.root,engines:[{id:'sample-pcm-v1',available:true},{id:'indextts-2.0',available:this.speech.status().canGenerate},{id:'transcription',available:false},{id:'yue2',available:(await this.yue2.status()).canGenerate}]}),
     list_projects:async()=>({projects:await this.store.projects()}),
@@ -84,6 +84,6 @@ export class MusicService {
   };
   close():Promise<void> {
     if(this.closing)return this.closing;
-    this.closing=(async()=>{const results=await Promise.allSettled([this.resources.close(),this.conversion.close(),this.studio.close(),this.speech.close(),this.yue2.close(),this.jobs.close()]);await this.store.close();const errors=results.filter(r=>r.status==='rejected').map(r=>r.reason);if(errors.length)throw new AggregateError(errors,'关闭服务时部分资源未释放');})();return this.closing;
+    this.closing=(async()=>{const results=await Promise.allSettled([this.resources.close(),this.yue2Client.close(),this.conversion.close(),this.studio.close(),this.speech.close(),this.yue2.close(),this.jobs.close()]);await this.store.close();const errors=results.filter(r=>r.status==='rejected').map(r=>r.reason);if(errors.length)throw new AggregateError(errors,'关闭服务时部分资源未释放');})();return this.closing;
   }
 }

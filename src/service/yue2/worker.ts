@@ -1,10 +1,12 @@
+import {ResourceLease} from '../resources/lease.ts';
+import {signalWorkload} from '../resources/processes.ts';
 import {spawn} from 'node:child_process';
 import {readFileSync,existsSync,mkdirSync,unlinkSync} from 'node:fs';
 import {join,isAbsolute} from 'node:path';
 import {createInterface} from 'node:readline';
 import {z} from 'zod';
 
-const taskSchema=z.object({directory:z.string().refine(isAbsolute),owner:z.string().min(1),step:z.enum(['venv','dependencies','studio','check','models','instrumental','serve']),port:z.number().int().min(1).max(65535).optional(),nonce:z.string().regex(/^[a-f0-9]{64}$/).optional()}).strict();
+const taskSchema=z.object({directory:z.string().refine(isAbsolute),owner:z.string().min(1),step:z.enum(['venv','dependencies','studio','check','models','instrumental','serve']),port:z.number().int().min(1).max(65535).optional(),nonce:z.string().regex(/^[a-f0-9]{64}$/).optional(),credential:z.string().regex(/^[a-f0-9]{64}$/).optional(),budget:z.number().positive().optional(),resourceLease:z.object({directory:z.string(),owner:z.string()}).optional()}).strict();
 export type YuE2Task=z.infer<typeof taskSchema>;
 export function runtimeEnvironment(root:string,parent:NodeJS.ProcessEnv=process.env):NodeJS.ProcessEnv {
   const env:NodeJS.ProcessEnv={};
@@ -43,6 +45,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 import uvicorn
 app=create_app(home=os.environ['YUE2_STUDIO_HOME'],fake=False)
+# Never let startup recover unfinished jobs outside the workbench queue.
+for old_id in app.state.store.queued_ids():
+ app.state.store.update_status(old_id,'failed',error='Music Room: interrupted; retry explicitly')
 profile=Path(os.environ['YUE2_STUDIO_HOME'])/'config'/'music-room-profile.json'
 if not profile.exists():
  defaults={'low_memory':'on','memory_budget_gib':min(12.0,config.max_memory_budget_gib())}
@@ -51,11 +56,15 @@ if not profile.exists():
  temporary=profile.with_suffix('.tmp')
  temporary.write_text(json.dumps({'version':1,'defaults':defaults}))
  temporary.replace(profile)
+if os.environ.get('MUSIC_ROOM_RESOURCE_BUDGET'):
+ app.state.store.update_settings({'low_memory':'on','memory_budget_gib':float(os.environ['MUSIC_ROOM_RESOURCE_BUDGET'])/(1024**3)})
 origin='http://127.0.0.1:'+os.environ['MUSIC_ROOM_YUE2_PORT']
 class LocalOnly(BaseHTTPMiddleware):
  async def dispatch(self,request,call_next):
   if request.headers.get('host')!='127.0.0.1:'+os.environ['MUSIC_ROOM_YUE2_PORT'] or request.headers.get('origin') not in (None,origin):
    return JSONResponse({'error':'Local requests only'},status_code=403)
+  if request.method not in ('GET','HEAD') and os.environ.get('MUSIC_ROOM_EXECUTION') and request.headers.get('x-music-room-execution')!=os.environ['MUSIC_ROOM_EXECUTION']:
+   return JSONResponse({'error':'Execution right required'},status_code=403)
   response=await call_next(request)
   response.headers['X-Music-Room-Engine']=os.environ['MUSIC_ROOM_YUE2_NONCE']
   return response
@@ -85,16 +94,17 @@ export async function runYuE2Worker() {
       try{
         if(line.length>16384)throw new Error('YuE2 任务参数过大');
         const task=taskSchema.parse(JSON.parse(line)),spec=workerCommand(task);started=true;
-        const env=runtimeEnvironment(task.directory);if(task.port)env.MUSIC_ROOM_YUE2_PORT=String(task.port);if(task.nonce)env.MUSIC_ROOM_YUE2_NONCE=task.nonce;
+        const env=runtimeEnvironment(task.directory);if(task.port)env.MUSIC_ROOM_YUE2_PORT=String(task.port);if(task.nonce)env.MUSIC_ROOM_YUE2_NONCE=task.nonce;if(task.credential)env.MUSIC_ROOM_EXECUTION=task.credential;if(task.budget)env.MUSIC_ROOM_RESOURCE_BUDGET=String(task.budget);
         mkdirSync(env.TMPDIR!,{recursive:true});
-        const child=spawn(spec.command,spec.args,{cwd:task.directory,env,detached:true,stdio:['ignore','inherit','inherit']});
+        const child=spawn(spec.command,spec.args,{cwd:task.directory,env,detached:!task.resourceLease,stdio:['ignore','inherit','inherit']});
+        if(child.pid&&task.resourceLease)ResourceLease.trackWorker(task.resourceLease,child.pid);
         const lockPath=join(task.directory,'.music-room-yue2.lock');
         let ending=false,timer:ReturnType<typeof setTimeout>|undefined;
-        const stop=()=>{if(ending)return;ending=true;try{if(child.pid)process.kill(-child.pid,'SIGTERM');}catch{}timer=setTimeout(()=>{try{if(child.pid)process.kill(-child.pid,'SIGKILL');}catch{}},5000);timer.unref();};
+        const stop=()=>{if(ending)return;ending=true;if(child.pid)signalWorkload(child.pid,!!task.resourceLease,'SIGTERM');timer=setTimeout(()=>{if(child.pid)signalWorkload(child.pid,!!task.resourceLease,'SIGKILL');},5000);timer.unref();};
         lines.once('close',stop);process.once('SIGTERM',stop);process.once('SIGINT',stop);
         child.once('error',reject);
         child.once('close',code=>{
-          if(timer)clearTimeout(timer);process.removeListener('SIGTERM',stop);process.removeListener('SIGINT',stop);lines.removeListener('close',stop);lines.close();process.stdin.destroy();
+          if(child.pid)signalWorkload(child.pid,!!task.resourceLease,'SIGKILL');if(timer)clearTimeout(timer);process.removeListener('SIGTERM',stop);process.removeListener('SIGINT',stop);lines.removeListener('close',stop);lines.close();process.stdin.destroy();
           // Only a lost parent lease releases the root; successful installation stages retain it.
           if(ending&&existsSync(lockPath)){const current=JSON.parse(readFileSync(lockPath,'utf8'));if(current.owner===task.owner){try{process.kill(current.pid,0);}catch{unlinkSync(lockPath);}}}
           process.exitCode=code??1;resolve();

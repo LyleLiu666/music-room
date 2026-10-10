@@ -1,3 +1,5 @@
+import {groupMembers} from '../resources/processes.ts';
+import {yue2JobSchema} from './contracts.ts';
 import {createHash,randomBytes} from 'node:crypto';
 import {mkdirSync,existsSync,readFileSync,writeFileSync,renameSync,lstatSync,readdirSync,statSync,unlinkSync} from 'node:fs';
 import {open} from 'node:fs/promises';
@@ -16,7 +18,7 @@ const archives={
 };
 function installationReady(root:string){try{const value=JSON.parse(readFileSync(join(root,'installed.json'),'utf8'));return value.revision===revision&&value.directory===root&&existsSync(join(root,'.venv','bin','python'))&&existsSync(join(root,'source','yue2_studio','main.py'));}catch{return false;}}
 export function startWorker(command:string,args:string[],task:YuE2Task,context:YuE2Context) {
-  const child=spawn(command,args,{stdio:['pipe','pipe','pipe']});let ended=false;
+  const child=spawn(command,args,{stdio:['pipe','pipe','pipe'],detached:!!context.lease});let ended=false;
   let failure:Error|undefined;
   const exited=new Promise<number|null>(resolve=>{child.once('error',error=>{failure=error;resolve(1);});child.once('close',code=>{ended=true;resolve(code);});});
   child.stdin.on('error',()=>{});
@@ -25,10 +27,11 @@ export function startWorker(command:string,args:string[],task:YuE2Task,context:Y
     if(lock.owner!==task.owner)throw new Error('YuE2 安装目录的所属工作台已改变');
     // Publish the supervisor PID before granting its stdin lease; recovery cannot race an orphan.
     writeFileSync(lockPath+'.tmp',JSON.stringify({...lock,workerPid:child.pid}));renameSync(lockPath+'.tmp',lockPath);
-    child.stdin.write(JSON.stringify(task)+'\n');
+    if(child.pid)context.trackProcess?.(child.pid);
+    child.stdin.write(JSON.stringify({...task,resourceLease:context.lease,budget:context.budget})+'\n');
   }catch(error){child.stdin.end();throw error;}
   for(const output of [child.stdout,child.stderr]){let pending='';output.on('data',chunk=>{pending+=chunk.toString();const lines=pending.split(/[\r\n]/);pending=lines.pop()??'';for(const line of lines)context.report(line);if(pending.length>2000){context.report(pending);pending='';}});output.on('end',()=>{if(pending)context.report(pending);});}
-  const stop=async()=>{if(ended)return;child.stdin.end();await exited;};
+  const stop=async()=>{if(ended)return;child.stdin.end();const term=setTimeout(()=>child.kill('SIGTERM'),7000),kill=setTimeout(()=>{if(child.pid&&context.lease){for(const pid of groupMembers(child.pid))try{process.kill(pid,'SIGKILL');}catch{}}else child.kill('SIGKILL');},14000);try{await exited;}finally{clearTimeout(term);clearTimeout(kill);}};
   const abort=()=>{void stop();};context.signal.addEventListener('abort',abort,{once:true});
   void exited.then(()=>context.signal.removeEventListener('abort',abort));
   return {exited,stop,ended:()=>ended,error:()=>failure};
@@ -69,6 +72,14 @@ export function createYuE2Driver(read:AssetReader,command=process.execPath,args=
   return {
     unsupported:()=>process.platform!=='darwin'||process.arch!=='arm64'?'当前自动安装支持 Apple Silicon Mac；此电脑仍可使用乐谱创作与音频渲染。':undefined,
     installed:installationReady,
+    modelsReady:root=>['converted/conversion.json','converted/ar-8bit.safetensors','converted/nar-bf16.safetensors','vae/config.json','vae/model.safetensors'].every(name=>{try{const path=join(root,'models',name);return !lstatSync(path).isSymbolicLink()&&statSync(path).isFile()&&statSync(path).size>0;}catch{return false;}}),
+    history:async root=>{
+      const path=join(root,'data','app.db');if(!existsSync(path))return [];
+      if(lstatSync(path).isSymbolicLink()||lstatSync(join(root,'data')).isSymbolicLink())throw new Error('音乐任务数据库不能是符号链接');
+      const script="import sqlite3,json,sys\nc=sqlite3.connect('file:'+sys.argv[1]+'?mode=ro',uri=True)\nc.row_factory=sqlite3.Row\nprint(json.dumps([dict(r) for r in c.execute('SELECT id,kind,status,error,params_json,created_at FROM jobs ORDER BY created_at DESC LIMIT 10000')]))";
+      const text=await new Promise<string>((resolve,reject)=>execFile(join(root,'.venv/bin/python'),['-c',script,path],{timeout:10000,maxBuffer:16*1024*1024},(error,stdout)=>error?reject(error):resolve(stdout)));
+      return JSON.parse(text).map((row:any)=>yue2JobSchema.parse({...row,title:JSON.parse(row.params_json).title}));
+    },
     chooseDirectory:async()=>{
       if(choosing)throw new Error('文件夹选择窗口已经打开');choosing=true;
       try{return await new Promise<string|undefined>((resolve,reject)=>execFile('/usr/bin/osascript',['-e','POSIX path of (choose folder with prompt "选择 YuE2 专用空文件夹：程序、模型及缓存将全部保存在这里")'],{timeout:300000,maxBuffer:16384},(error,stdout,stderr)=>{if(error){if(stderr.includes('(-128)'))resolve(undefined);else reject(new Error('无法打开文件夹选择窗口，请直接填写安装目录'));}else resolve(stdout.trim());}));}finally{choosing=false;}
@@ -94,11 +105,11 @@ export function createYuE2Driver(read:AssetReader,command=process.execPath,args=
     },
     launch:async(root,context):Promise<YuE2Process>=>{
       const port=await freePort(),nonce=randomBytes(32).toString('hex'),url=`http://127.0.0.1:${port}`;
-      const worker=startWorker(command,args,{directory:root,owner:context.owner,step:'serve',port,nonce},context);
+      const credential=randomBytes(32).toString('hex'),worker=startWorker(command,args,{directory:root,owner:context.owner,step:'serve',port,nonce,credential},context);
       const status=async()=>{const response=await fetch(url+'/api/status',{signal:AbortSignal.timeout(2000)});if(!response.ok||response.headers.get('x-music-room-engine')!==nonce)throw new Error('YuE2 服务身份或状态无效');const body=await response.json() as {models?:{present?:boolean};fake?:boolean};if(typeof body.fake!=='boolean')throw new Error('YuE2 状态格式无效');return {modelsPresent:body.models?.present===true,fake:body.fake};};
       try{
         const deadline=Date.now()+120000;
-        while(Date.now()<deadline){context.signal.throwIfAborted();if(worker.ended())throw worker.error()??new Error('YuE2 启动时退出，请查看日志');try{await status();return {url,status,exited:worker.exited,stop:worker.stop};}catch{}await new Promise(r=>setTimeout(r,500));}
+        while(Date.now()<deadline){context.signal.throwIfAborted();if(worker.ended())throw worker.error()??new Error('YuE2 启动时退出，请查看日志');try{await status();return {url,headers:{'x-music-room-execution':credential},status,exited:worker.exited,stop:worker.stop};}catch{}await new Promise(r=>setTimeout(r,500));}
         throw new Error('YuE2 启动超时，请查看日志');
       }catch(error){await worker.stop();throw error;}
     },

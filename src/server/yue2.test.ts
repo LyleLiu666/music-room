@@ -11,7 +11,7 @@ import {serveHttp} from './http.ts';
 import type {YuE2Driver} from '../service/yue2/engine.ts';
 test('official MCP exposes managed install/start/stop and strict generation contracts',async t=>{
   const root=await mkdtemp(join(tmpdir(),'yue2-mcp-')),directory=join(root,'专用引擎 目录');let installed=false,models=false,started=0,stopped=0;
-  const driver:YuE2Driver={unsupported:()=>undefined,installed:()=>installed,chooseDirectory:async()=>directory,prepare:async(_root,download)=>{installed=true;models=download;},launch:async()=>{
+  const driver:YuE2Driver={unsupported:()=>undefined,installed:()=>installed,modelsReady:()=>models,chooseDirectory:async()=>directory,prepare:async(_root,download)=>{installed=true;models=download;},launch:async()=>{
     started++;let end!:(code:number)=>void;const exited=new Promise<number>(r=>{end=r;});return {url:'http://127.0.0.1:19876',exited,status:async()=>({modelsPresent:models,fake:false}),stop:async()=>{stopped++;end(0);}};
   }};
   const read=async()=>new Uint8Array(),service=await MusicService.open(join(root,'projects'),()=>{throw new Error('unused');},read,false,driver,undefined,undefined,testResources()),http=await serveHttp(service,{read,has:()=>false,embedded:false});
@@ -25,7 +25,7 @@ test('official MCP exposes managed install/start/stop and strict generation cont
   await call('prepare_yue2',{directory});
   for(let i=0;i<100&&!(await service.call('yue2_status',{})).canGenerate;i++)await new Promise(r=>setTimeout(r,5));
   assert.equal((await call('yue2_status')).canGenerate,true);assert.equal((await call('status')).engines.find((x:{id:string})=>x.id==='yue2').available,true);
-  await call('start_yue2');assert.equal(started,1);await call('stop_yue2');assert.equal(stopped,1);
+  await call('start_yue2');assert.equal(started,0);await call('stop_yue2');assert.equal(stopped,0);
   assert.ok((await client.callTool({name:'yue2_generate',arguments:{style:'music',directory:'unapproved'}})).isError);
   assert.ok((await client.callTool({name:'yue2_get_job',arguments:{jobId:'../../etc/passwd'}})).isError);
 });
