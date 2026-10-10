@@ -1,13 +1,14 @@
+import type {ResourceExecution} from '../resources/contracts.ts';
 import {spawn} from 'node:child_process';
 import {fileURLToPath} from 'node:url';
 import type {Composition} from '../../music/authoring/validate.mjs';
 import type {RenderMix} from './renderer.ts';
 export type RenderSnapshot = {composition:Composition;mix:RenderMix};
 export type RenderResult = {wav:Uint8Array;peak:number;rms:number;attenuation:number;engine:string};
-export type Renderer = (snapshot:RenderSnapshot,stage:(stage:string)=>void)=>{result:Promise<RenderResult>;cancel:()=>void};
+export type Renderer = (snapshot:RenderSnapshot,stage:(stage:string)=>void,execution?:ResourceExecution)=>{result:Promise<RenderResult>;cancel:()=>void};
 export function processRenderer(command=process.execPath,args=[fileURLToPath(new URL('./worker-entry.ts',import.meta.url))]): Renderer {
-  return (snapshot,stage)=> {
-    const child=spawn(command,args,{stdio:['pipe','pipe','pipe']}); let timer:ReturnType<typeof setTimeout>|undefined;
+  return (snapshot,stage,execution)=> {
+    const child=spawn(command,args,{stdio:['pipe','pipe','pipe'],detached:!!execution?.lease}); let timer:ReturnType<typeof setTimeout>|undefined;
     let failure:Error|undefined;let stderr='',count=0,stats: Omit<RenderResult,'wav'>|undefined; const chunks:Buffer[]=[];
     const cancel=()=> {if(child.exitCode===null){child.kill('SIGTERM');timer??=setTimeout(()=>child.kill('SIGKILL'),1500);timer.unref();}};
     const result=new Promise<RenderResult>((resolve,reject)=> {
@@ -29,7 +30,7 @@ export function processRenderer(command=process.execPath,args=[fileURLToPath(new
         if(failure || code!==0 || !stats || count>120_000_000) {reject(failure??new Error(`渲染进程失败 (${signal??code}) ${stderr.slice(0,1000)}`));return;}
         resolve({...stats,wav:new Uint8Array(Buffer.concat(chunks))});
       });
-      child.stdin.end(JSON.stringify(snapshot));
+      try{if(child.pid)execution?.trackProcess(child.pid);child.stdin.end(JSON.stringify(snapshot));}catch(error){failure=error instanceof Error?error:new Error(String(error));cancel();}
     });
     return {result,cancel};
   };

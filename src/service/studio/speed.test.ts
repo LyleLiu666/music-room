@@ -104,3 +104,13 @@ test('FLAC music speed versions own WAV files, protected downloads, metadata and
   assert.equal((await service.call('studio_library',{})).versions.length,before,'processing failure never publishes a partial version');
  }finally{await http?.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
+
+test('queued speed leaves library responsive, protects source, cancels without publishing and deduplicates concurrent retries',async t=>{
+ const root=await mkdtemp(join(tmpdir(),'speed-queue-')),service=await open(root);t.after(async()=>{await service.close();await rm(root,{recursive:true,force:true});});
+ await service.call('create_project',{projectId:'p',title:'p'});const sound=await service.call('studio_create_sound',{projectId:'p',title:'s',kind:'speech'}),voice=await service.call('tts_add_voice',{cleanup:false,name:'v',audioBase64:Buffer.from(wav).toString('base64')});
+ const v=await service.call('studio_generate',{soundId:sound.id,voiceId:voice.id,text:'text'});for(let i=0;i<100&&service.speech.job(v.id).state!=='succeeded';i++)await new Promise(r=>setTimeout(r,5));
+ service.resources.register('held',{resident:()=>undefined,unload:async()=>{}});const controller=new AbortController();const held=service.resources.run({id:'held',engine:'held',signal:controller.signal,demand:{verified:true,peak:{memory:1}},execute:ctx=>new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}))}).catch(()=>{});
+ const args={versionId:v.id,rate:.8,requestId:'queued'},a=service.call('studio_save_speed',args),b=service.call('studio_save_speed',args);const results=Promise.allSettled([a,b]);
+ await new Promise(r=>setTimeout(r,20));assert.equal((await service.call('studio_library',{})).versions.length,1);assert.equal(service.resources.snapshot().queued.filter(q=>q.engine==='speed').length,1);
+ await assert.rejects(service.call('studio_update_version',{versionId:v.id,deleted:true}),/取消/);await service.call('studio_cancel',{versionId:v.id});assert.ok((await results).every(r=>r.status==='rejected'));assert.equal((await service.call('studio_library',{})).versions.length,1);controller.abort();await held;
+});

@@ -1,3 +1,4 @@
+import {processSpeed,type SpeedProcessor} from './studio/speed-process.ts';
 import {ConversionService,type ConversionDriver} from './conversion/conversion.ts';
 import {createNativeConversionDriver} from './conversion/native.ts';
 import {StudioService} from './studio/studio.ts';
@@ -18,16 +19,16 @@ import {createResources} from './resources/runtime.ts';
 import type {ResourceCoordinator} from './resources/coordinator.ts';
 export type {ServiceCaller} from './operations.ts';
 export class MusicService {
-  resources!:ResourceCoordinator;
+  resources!:ResourceCoordinator;speedProcessor:SpeedProcessor=processSpeed();
   private closing?:Promise<void>;
   store:ProjectStore; jobs:JobManager; read:AssetReader;yue2:YuE2Engine;yue2Client:YuE2Client;speech:SpeechService;studio:StudioService;conversion:ConversionService;
-  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator) {this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources);this.studio=new StudioService(this);}
-  static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver,resources:ResourceCoordinator=createResources()) {
+  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator) {this.resources=resources;this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources);this.studio=new StudioService(this);}
+  static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver,resources:ResourceCoordinator=createResources(),speedProcessor:SpeedProcessor=processSpeed()) {
     const store=await ProjectStore.open(root);
     let jobs:JobManager|undefined,yue2:YuE2Engine|undefined,speech:SpeechService|undefined,conversion:ConversionService|undefined;
     try {
-      jobs=await JobManager.open(store,renderer);yue2=await YuE2Engine.open(store,driver,resources);
-      speech=await SpeechService.open(store,speechDriver,()=>false,resources);conversion=ConversionService.open(store,conversionDriver??createNativeConversionDriver(store.path('engines','voice-conversion')),()=>false,resources);const service=new MusicService(store,jobs,read,yue2,speech,conversion,resources);service.resources=resources;
+      jobs=await JobManager.open(store,renderer,resources);yue2=await YuE2Engine.open(store,driver,resources);
+      speech=await SpeechService.open(store,speechDriver,()=>false,resources);conversion=ConversionService.open(store,conversionDriver??createNativeConversionDriver(store.path('engines','voice-conversion')),()=>false,resources);const service=new MusicService(store,jobs,read,yue2,speech,conversion,resources);service.resources=resources;service.speedProcessor=speedProcessor;
       if(seed) {
         const existing=await store.documents(),records=await store.projects(true);
         for(const song of SONGS) if(!existing.some(d=>d.revision.id===song.id)&&!records.some(p=>p.id===song.workId&&(p.deleted||p.purged||p.removedRevisionIds?.includes(song.id)))) {

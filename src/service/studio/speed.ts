@@ -1,3 +1,4 @@
+import {speedPeak} from './audio-budget.ts';
 import {Stretch} from '@soundtouchjs/core';
 import wavDecoder from 'wav-decoder';
 import {FLACDecoder} from '@wasm-audio-decoders/flac';
@@ -11,13 +12,14 @@ export function validateSpeed(rate:number){
 }
 
 /** WSOLA changes duration without changing sample rate or musical pitch. */
-export async function changeAudioSpeed(bytes:Uint8Array,rate:number):Promise<Uint8Array>{
- validateSpeed(rate);
+export async function changeAudioSpeed(bytes:Uint8Array,rate:number,signal?:AbortSignal,budget=Number.MAX_SAFE_INTEGER):Promise<Uint8Array>{
+ validateSpeed(rate);signal?.throwIfAborted();if(speedPeak(bytes,rate)>budget)throw new ServiceError('INSUFFICIENT_CAPACITY','调速音频超过内存预算');
  let decoded:{sampleRate:number;channelData:Float32Array[]};
  if(Buffer.from(bytes.subarray(0,4)).toString()==='fLaC'){
   const decoder=new FLACDecoder();
   try{await decoder.ready;const result=await decoder.decodeFile(bytes);if(result.errors.length)throw new Error('FLAC 音频解码失败');decoded=result;}finally{decoder.free();}
  }else decoded=await wavDecoder.decode(new Uint8Array(bytes).buffer);
+ signal?.throwIfAborted();
  const {sampleRate,channelData}=decoded,frames=channelData[0]?.length??0;
  if(!frames||![1,2].includes(channelData.length)||sampleRate<8000||sampleRate>96000||channelData.some(c=>c.length!==frames))throw new ServiceError('INVALID_AUDIO','暂不支持此音频的声道或采样率');
  const outputFrames=Math.round(frames/rate),channels=channelData.map(()=>new Float32Array(outputFrames));
@@ -29,7 +31,7 @@ export async function changeAudioSpeed(bytes:Uint8Array,rate:number):Promise<Uin
  // Crop only the padded tail to the requested duration, preserving final words.
  for(let offset=0;written<outputFrames;offset+=chunkFrames){
   if(offset>frames+sampleRate*2)throw new Error('调速处理未能完成');
-  chunk.fill(0);
+  signal?.throwIfAborted();chunk.fill(0);
   for(let i=0;i<chunkFrames&&offset+i<frames;i++){
    chunk[i*2]=channelData[0][offset+i];chunk[i*2+1]=(channelData[1]??channelData[0])[offset+i];
   }
@@ -40,5 +42,5 @@ export async function changeAudioSpeed(bytes:Uint8Array,rate:number):Promise<Uin
   written+=count;
   if(offset%(chunkFrames*16)===0)await setImmediate();
  }
- return new Uint8Array(encodeWav(channels,sampleRate));
+ signal?.throwIfAborted();return new Uint8Array(encodeWav(channels,sampleRate));
 }

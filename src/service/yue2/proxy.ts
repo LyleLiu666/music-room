@@ -1,5 +1,5 @@
 import {randomUUID,createHash} from 'node:crypto';
-import {existsSync,lstatSync,readFileSync,realpathSync,statSync} from 'node:fs';
+import {existsSync,lstatSync,readFileSync,realpathSync,statSync,createReadStream} from 'node:fs';
 import {dirname,join,isAbsolute} from 'node:path';
 import {z} from 'zod';
 import {ProjectStore,ServiceError} from '../projects/store.ts';
@@ -34,7 +34,7 @@ export class YuE2Proxy {
    for(const job of await this.engine.history())if(!this.records.has(job.id)&&![...this.records.values()].some(r=>r.upstreamId===job.id)){
     const record:RecordJob={job:structuredClone(job),directory,upstreamId:job.id};
     if(['queued','running'].includes(job.status)){record.job.status='failed';record.job.stage='interrupted';record.job.error='旧任务未完成；请手动重新生成';}
-    if(record.job.status==='done')try{this.seal(record);}catch(error){record.job.status='failed';record.job.error=String(error);}
+    if(record.job.status==='done')try{await this.seal(record);}catch(error){record.job.status='failed';record.job.error=String(error);}
     this.records.set(job.id,record);
    }this.save();
   })().catch(error=>{this.migration=undefined;throw error;});await this.migration;
@@ -46,9 +46,9 @@ export class YuE2Proxy {
   const marker=join(root,'.music-room-yue2.json');if(lstatSync(marker).isSymbolicLink())throw new ServiceError('UNSAFE_PATH','引擎标记不能是符号链接');const owner=JSON.parse(readFileSync(marker,'utf8'));if(owner.format!=='music-room-yue2'||owner.version!==1)throw new ServiceError('UNSAFE_PATH','音乐目录不属于引擎');
   const path=join(root,'data','songs',record.upstreamId,'song','audio.flac');
   for(let current=path;current!==root;current=dirname(current))if(existsSync(current)&&lstatSync(current).isSymbolicLink())throw new ServiceError('UNSAFE_PATH','音乐音频不能包含符号链接');
-  if(!existsSync(path)||!statSync(path).isFile())throw new ServiceError('NOT_FOUND','音乐音频不存在');return path;
+  if(!existsSync(path)||!statSync(path).isFile())throw new ServiceError('NOT_FOUND','音乐音频不存在');if(statSync(path).size>120_000_000)throw new ServiceError('INVALID_AUDIO','音乐文件超出处理范围');return path;
  }
- private seal(record:RecordJob){const bytes=readFileSync(this.artifact(record));if(bytes.length<8||bytes.subarray(0,4).toString()!=='fLaC')throw new ServiceError('INVALID_AUDIO','音乐音频无效');record.hash=createHash('sha256').update(bytes).digest('hex');record.bytes=bytes.length;}
+ private async seal(record:RecordJob){const path=this.artifact(record),hash=createHash('sha256');let count=0;for await(const chunk of createReadStream(path)){if(count===0&&(chunk.length<8||chunk.subarray(0,4).toString()!=='fLaC'))throw new ServiceError('INVALID_AUDIO','音乐音频无效');hash.update(chunk);count+=chunk.length;if(count>120_000_000)throw new ServiceError('INVALID_AUDIO','音乐文件超出处理范围');}if(count<8)throw new ServiceError('INVALID_AUDIO','音乐音频无效');record.hash=hash.digest('hex');record.bytes=count;}
  private result(record:RecordJob){return {job:structuredClone(record.job),audioPath:record.job.status==='done'?this.artifact(record):undefined};}
  private async request(path:string,body:unknown|undefined,signal:AbortSignal){
   const url=await this.engine.endpoint();const response=await fetch(url+'/api/'+path,{method:body===undefined?'GET':'POST',headers:{...this.engine.headers(),...(body===undefined?{}:{'content-type':'application/json'})},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.any([signal,AbortSignal.timeout(30000)])});
@@ -67,7 +67,7 @@ export class YuE2Proxy {
     await new Promise<void>((resolve,reject)=>{const abort=()=>{clearTimeout(timer);reject(execution.signal.reason);};const timer=setTimeout(()=>{execution.signal.removeEventListener('abort',abort);resolve();},100);execution.signal.addEventListener('abort',abort,{once:true});});
     upstream=await this.request('jobs/'+record.upstreamId,undefined,execution.signal);
    }
-   if(upstream.status==='done')this.seal(record);return upstream;
+   if(upstream.status==='done')await this.seal(record);return upstream;
   }}).then(upstream=>{record.job={...upstream,id,resource:record.job.resource};this.save();}).catch(error=>{record.job.status=controller.signal.aborted?'cancelled':'failed';record.job.error=error instanceof Error?error.message:String(error);this.save();}).finally(()=>this.tasks.delete(id));
   this.tasks.set(id,{controller,done});return this.result(record);
  }

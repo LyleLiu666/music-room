@@ -1,3 +1,5 @@
+import type {ResourceCoordinator} from '../resources/coordinator.ts';
+import type {ResourceTaskState,ResourceExecution} from '../resources/contracts.ts';
 import {randomUUID} from 'node:crypto';
 import {readFileSync,readdirSync,rmSync} from 'node:fs';
 import {ProjectStore,ServiceError,identity,hash,type Artifact} from '../projects/store.ts';
@@ -5,21 +7,23 @@ import {validateMix,type RenderMix} from '../render/renderer.ts';
 import type {Renderer,RenderResult,RenderSnapshot} from '../render/process.ts';
 export type JobRequest = {kind:'render-score';projectId:string;revisionId:string;mix?:Partial<RenderMix>;idempotencyKey:string};
 type State = 'queued'|'running'|'succeeded'|'failed'|'cancelled'|'interrupted';
-export type Job = {id:string;request:JobRequest;fingerprint:string;state:State;stage:string;createdAt:string;updatedAt:string;inputHash:string;error?:string;artifact?:Artifact;result?:Omit<RenderResult,'wav'>};
+export type Job = {id:string;request:JobRequest;fingerprint:string;state:State;stage:string;createdAt:string;updatedAt:string;inputHash:string;error?:string;resource?:ResourceTaskState;artifact?:Artifact;result?:Omit<RenderResult,'wav'>};
 type StoredJob = Job & {snapshot:RenderSnapshot};
 const terminal = (s:State)=>['succeeded','failed','cancelled','interrupted'].includes(s);
 export class JobManager {
   private jobs=new Map<string,StoredJob>();
+  private scheduled=new Map<string,{job:StoredJob;cancel:()=>void;done:Promise<void>;cancelled:boolean;committing:boolean}>();
+  private resources?:ResourceCoordinator;
   private active?:{job:StoredJob;cancel:()=>void;done:Promise<void>;cancelled:boolean;committing:boolean};
   private pending: Promise<unknown>=Promise.resolve();
   private closing=false;
   private store: ProjectStore;
   private renderer: Renderer;
-  private constructor(store:ProjectStore,renderer:Renderer) {
-    this.store=store;this.renderer=renderer;
+  private constructor(store:ProjectStore,renderer:Renderer,resources?:ResourceCoordinator) {
+    this.store=store;this.renderer=renderer;this.resources=resources;resources?.register('render',{resident:()=>undefined,unload:async()=>{}});
   }
-  static async open(store:ProjectStore,renderer:Renderer) {
-    const manager=new JobManager(store,renderer);
+  static async open(store:ProjectStore,renderer:Renderer,resources?:ResourceCoordinator) {
+    const manager=new JobManager(store,renderer,resources);
     for(const file of readdirSync(store.path('jobs')).filter(x=>x.endsWith('.json'))) {
       const j=JSON.parse(readFileSync(store.path('jobs',file),'utf8')) as StoredJob;
       if (`${identity(j.id)}.json`!==file || !['queued','running','succeeded','failed','cancelled','interrupted'].includes(j.state)) throw new ServiceError('CORRUPT_JOB','任务记录无效');
@@ -67,21 +71,22 @@ export class JobManager {
     this.pending=next.catch(()=>{});return next;
   }
   private pump() {
-    if(this.active || this.closing)return;
-    const j=[...this.jobs.values()].find(j=>j.state==='queued');if(!j)return;
-    j.state='running';j.stage='启动渲染';
+    if(!this.resources&&this.active || this.closing)return;
+    const j=[...this.jobs.values()].find(j=>j.state==='queued'&&!this.scheduled.has(j.id));if(!j)return;
+    if(!this.resources){j.state='running';j.stage='启动渲染';}
     try {this.save(j);} catch(error){j.state='failed';j.stage='任务状态保存失败';j.error=String(error);queueMicrotask(()=>this.pump());return;}
-    const active={job:j,cancel:()=>{},done:Promise.resolve(),cancelled:false,committing:false};this.active=active;
+    const active={job:j,cancel:()=>{},done:Promise.resolve(),cancelled:false,committing:false};this.scheduled.set(j.id,active);if(!this.resources)this.active=active;const controller=new AbortController();active.cancel=()=>controller.abort();
     active.done=(async()=> {
       try {
-        const run=this.renderer(j.snapshot,stage=>{if(!active.cancelled && !this.closing){j.stage=stage;this.save(j);}});active.cancel=run.cancel;
-        const {wav,...result}=await run.result;
+        const execute=async(execution?:ResourceExecution)=>{execution?.running();j.state='running';j.stage='启动渲染';this.save(j);const run=this.renderer(j.snapshot,stage=>{if(!active.cancelled && !this.closing){j.stage=stage;this.save(j);}},execution);active.cancel=()=>{controller.abort();run.cancel();};const abort=()=>run.cancel();execution?.signal.addEventListener('abort',abort,{once:true});
+        let rendered:RenderResult;try{rendered=await run.result;}finally{execution?.signal.removeEventListener('abort',abort);}const {wav,...result}=rendered;execution?.signal.throwIfAborted();
         if(active.cancelled || this.closing)return;
         const bytes=Buffer.from(wav),expected=44+Math.round(j.snapshot.composition.score.duration*44100)*4;
         if(bytes.length!==expected || bytes.toString('ascii',0,4)!=='RIFF' || !Number.isFinite(result.peak) || result.peak<0 || result.peak>.891)throw new Error('音频产物校验失败');
         active.committing=true;j.stage='保存音频';
         j.artifact=await this.store.publishArtifact(j.request.projectId,j.request.revisionId,j.id,wav);
-        j.result=result;j.state='succeeded';j.stage='音频已保存';
+        j.result=result;j.state='succeeded';j.stage='音频已保存';};
+        if(this.resources)await this.resources.run({id:j.id,engine:'render',signal:controller.signal,demand:this.resources.estimate('render',j.snapshot),onState:resource=>{j.resource=resource;j.stage=resource.message??resource.stage;this.save(j);},execute});else await execute();
       } catch(error) {if(!active.cancelled && !this.closing){j.state='failed';j.stage='渲染失败';j.error=error instanceof Error?error.message:String(error);}}
       finally {
         if(this.closing && !j.artifact){j.state='interrupted';j.stage='退出服务，任务中断';}
@@ -90,17 +95,17 @@ export class JobManager {
           j.state='failed';j.stage=j.artifact?'音频已保存，任务状态保存失败':'任务状态保存失败';
           j.error=error instanceof Error?error.message:String(error);console.error('任务状态保存失败：',error);
         }
-        finally {if(this.active===active)this.active=undefined;queueMicrotask(()=>this.pump());}
+        finally {this.scheduled.delete(j.id);if(this.active===active)this.active=undefined;queueMicrotask(()=>this.pump());}
       }
     })();
     // A disk failure during terminal status write must not become an unhandled rejection.
-    active.done.catch(error=>{console.error('任务执行收尾失败：',error);});
+    active.done.catch(error=>{console.error('任务执行收尾失败：',error);});if(this.resources)queueMicrotask(()=>this.pump());
   }
   async cancel(id:string) {
     const j=this.jobs.get(identity(id));if(!j)throw new ServiceError('NOT_FOUND','任务不存在');
     if(terminal(j.state))return this.public(j);
-    if(this.active?.job===j){
-      const active=this.active;if(active.committing)return this.public(j);
+    if(this.scheduled.has(j.id)){
+      const active=this.scheduled.get(j.id)!;if(active.committing)return this.public(j);
       active.cancelled=true;j.stage='正在取消';let saveError:unknown;
       try{this.save(j);}catch(error){saveError=error;}
       active.cancel();await active.done;if(saveError)throw saveError;
@@ -112,7 +117,7 @@ export class JobManager {
   }
   async close() {
     this.closing=true;await this.pending;
-    if(this.active){this.active.cancel();await this.active.done;}
+    for(const active of this.scheduled.values())active.cancel();await Promise.all([...this.scheduled.values()].map(a=>a.done));
     for(const j of this.jobs.values())if(!terminal(j.state)){j.state='interrupted';j.stage='退出服务，任务中断';this.save(j);}
   }
 }
