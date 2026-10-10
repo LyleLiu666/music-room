@@ -1,0 +1,53 @@
+import assert from 'node:assert/strict';
+import {mkdtemp,readFile,writeFile,copyFile,rm} from 'node:fs/promises';
+import {spawn,execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {once} from 'node:events';
+import {tmpdir} from 'node:os';
+import {dirname,join,resolve} from 'node:path';
+import {fileURLToPath} from 'node:url';
+import {createHash} from 'node:crypto';
+import {chromium} from 'playwright';
+import decoder from 'wav-decoder';
+import {encodeWav} from '../../src/wav.ts';
+const renderer=resolve(process.argv[2]??'/tmp/music-room-speed-render');
+const root=await mkdtemp(join(tmpdir(),'music-room-speed-preview-'));
+const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
+const decode=async path=>decoder.decode(new Uint8Array(await readFile(path)).buffer);
+const rms=samples=>Math.sqrt(samples.reduce((sum,x)=>sum+x*x,0)/samples.length);
+let server,browser;
+try{
+ const sr=24000,frames=sr*3;
+ const left=Float32Array.from({length:frames},(_,i)=>.25*Math.sin(2*Math.PI*440*i/sr));
+ const right=Float32Array.from({length:frames},(_,i)=>i>=frames-sr*.2?.25*Math.sin(2*Math.PI*660*i/sr):0);
+ const original=join(root,'original-v16.wav'),output=join(root,'voice-085-apple.wav');
+ const sourceBytes=new Uint8Array(encodeWav([left,right],sr));
+ await writeFile(original,sourceBytes);await copyFile(original,join(root,'old-saved-v17.wav'));
+ await promisify(execFile)(renderer,[original,output,'0.85'],{timeout:30000});
+ const audio=await decode(output),samples=audio.channelData;
+ assert.equal(audio.sampleRate,sr);assert.equal(samples.length,2);
+ assert.equal(samples[0].length,Math.round(frames/.85));
+ assert.ok(samples.every(channel=>channel.every(Number.isFinite)));
+ let cycles=0;for(let i=sr;i<sr*1.5;i++)if(samples[0][i]>=0&&samples[0][i-1]<0)cycles++;
+ assert.ok(Math.abs(cycles*2-440)<5,`expected 440 Hz, got ${cycles*2}`);
+ assert.ok(rms(samples[0].subarray(0,sr*.04))>.05,'first sound retained');
+ assert.ok(rms(samples[1].subarray(-sr*.2))>.05,'last phrase retained');
+ assert.equal(rms(samples[1].subarray(0,sr)),0,'stereo channels remain separate');
+ assert.equal(hash(await readFile(original)),hash(sourceBytes),'source unchanged');
+ server=spawn(process.execPath,[join(dirname(fileURLToPath(import.meta.url)),'serve.mjs'),root],{stdio:['ignore','pipe','pipe']});
+ const url=await new Promise((accept,reject)=>{const timer=setTimeout(()=>reject(Error('server startup timed out')),10000);server.once('error',error=>{clearTimeout(timer);reject(error);});server.stdout.once('data',data=>{clearTimeout(timer);accept(data.toString().trim());});});
+ browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required']});
+ const page=await browser.newPage();await page.goto(url);
+ await page.waitForFunction(()=>document.querySelector('#preview')?.readyState>=1);
+ const duration=await page.locator('#preview').evaluate(async audio=>{await audio.play();return audio.duration;});
+ assert.ok(Math.abs(duration-samples[0].length/sr)<1e-5);
+ assert.equal(await page.locator('#preview').evaluate(audio=>audio.playbackRate),1);
+ assert.equal(await page.locator('#preview').evaluate(audio=>audio.paused),false);
+ const download=page.waitForEvent('download');await page.click('#save');const saved=await download;
+ assert.equal(hash(await readFile(await saved.path())),hash(await readFile(output)),'saved audio is byte-identical to preview');
+ console.log('PASS: fixed pitch, exact duration, stereo, first/last sound, source unchanged, preview/download identical.');
+}finally{
+ await browser?.close();
+ if(server&&server.exitCode===null){server.kill('SIGTERM');await once(server,'exit');}
+ await rm(root,{recursive:true,force:true});
+}
