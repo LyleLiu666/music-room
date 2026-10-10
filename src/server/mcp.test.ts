@@ -34,6 +34,7 @@ test('official HTTP MCP client authors, renders, reads artifacts/resources and r
   const job=await invoke('render_revision',{projectId:example.work.id,revisionId:example.revision.id,idempotencyKey:'mcp-render'});
   const done=await wait(client,job.id);assert.equal(done.state,'succeeded',done.error??'');
   const wav=await fetch(`${http.runtime.url}/artifacts/${example.work.id}/${example.revision.id}/${job.id}`,{headers:{authorization:`Bearer ${http.runtime.token}`}});
+  assert.equal(wav.headers.get('content-disposition'),`attachment; filename="${job.id}.wav"`);
   assert.equal((await wav.arrayBuffer()).byteLength,44+20*44100*4);
   await invoke('add_feedback',{projectId:example.work.id,revisionId:example.revision.id,text:'主题保留'});
   assert.equal((await invoke('get_project',{projectId:example.work.id})).feedback[0].text,'主题保留');

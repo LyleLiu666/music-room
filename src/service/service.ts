@@ -23,7 +23,7 @@ export class MusicService {
   resources!:ResourceCoordinator;speedProcessor:SpeedProcessor=processSpeed();
   private closing?:Promise<void>;
   store:ProjectStore; jobs:JobManager; read:AssetReader;yue2:YuE2Engine;yue2Client:YuE2Client;speech:SpeechService;studio:StudioService;conversion:ConversionService;
-  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator) {this.resources=resources;this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources);this.studio=new StudioService(this);}
+  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator) {this.resources=resources;resources.register('import',{resident:()=>undefined,unload:async()=>{}});this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources);this.studio=new StudioService(this);}
   static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver,resources:ResourceCoordinator=createResources(),speedProcessor:SpeedProcessor=processSpeed()) {
     const store=await ProjectStore.open(root);
     let jobs:JobManager|undefined,yue2:YuE2Engine|undefined,speech:SpeechService|undefined,conversion:ConversionService|undefined;
@@ -39,7 +39,7 @@ export class MusicService {
         }
       }
       return service;
-    } catch(error){await resources.close();await conversion?.close();await speech?.close();await yue2?.close();await jobs?.close();await store.close();throw error;}
+    } catch(error){await Promise.allSettled([resources.close(),conversion?.close(),speech?.close(),yue2?.close(),jobs?.close()]);await store.close();throw error;}
   }
   private async cancelResource(taskId:string){const snapshot=this.resources.snapshot(),task=[...(snapshot.active?[snapshot.active]:[]),...snapshot.queued].find(t=>t.id===taskId);if(!task){await this.resources.cancel(taskId);return this.resources.status();}
     switch(task.engine){case 'tts':await this.speech.cancel(taskId);break;case 'reference':await this.speech.cancelReference(taskId);break;case 'conversion':await this.conversion.cancel(taskId);break;case 'yue2':await this.yue2Client.cancel(taskId);break;case 'render':await this.jobs.cancel(taskId);break;case 'speed':await this.studio.cancelSpeed(taskId);break;case 'installation':if(taskId==='install-tts')await this.speech.cancelPreparation();else if(taskId==='install-yue2')await this.yue2.stop();else await this.resources.cancel(taskId);break;default:await this.resources.cancel(taskId);}

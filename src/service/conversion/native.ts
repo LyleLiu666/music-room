@@ -1,3 +1,4 @@
+import {readAudioFile} from '../projects/audio-files.ts';
 import {conversionProfile} from '../resources/profiles.ts';
 import { spawn } from 'node:child_process';
 import { createReadStream, existsSync, statSync, readFileSync } from 'node:fs';
@@ -58,7 +59,7 @@ async function loadWav(path: string) {
   const info = await stat(path);
   // Bounded to 20 min, stereo float32 WAV with small header allowance.
   if (info.size > SR * 1200 * 2 * 4 + 65536) throw new Error('音频文件超过 20 分钟限制');
-  const bytes = await readFile(path);
+  const bytes = readAudioFile(path,SR * 1200 * 2 * 4 + 65536);
   const audio = await decodeNativeWav(bytes);
   if (audio.sampleRate !== SR || !audio.channelData.length || audio.channelData.length > 2) throw new Error('需要 44.1 kHz 单声道或立体声音频');
   if (audio.channelData.some(c => c.length !== audio.channelData[0].length || c.some(x => !Number.isFinite(x)))) throw new Error('音频采样无效');

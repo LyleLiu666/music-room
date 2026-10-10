@@ -1,5 +1,8 @@
 # audio.cpp F16 推理引擎
 
+当前调度与支持范围见[本机模型与资源](model-resources.md)。下面的常驻复用、Python/MLX 对照和旧内存实验是历史证据；当前服务每项任务后确认卸载，未验证后端/输入不能作为自动回退放行。
+
+
 ## 当前运行方式
 
 Apple Silicon 的默认 TTS 后端为 audio.cpp 0.9.1-music-room-tail2 / Metal / IndexTTS 2.0 F16 GGUF。模型、参考 WAV、情绪描述与版本数据沿用现有项目流程。五个内置音色和自定义干人声都由同一引擎处理；原 NPZ 特征仅供旧 Python 后端使用。
@@ -47,9 +50,11 @@ Music Room 持有监督进程的 stdin 租约；服务退出或租约消失时�
 
 档位校准实测：新低档 0.1 与原低档 0.3 在留空描述和「开心、活泼」两种输入下连续成功生成 4 条真实音频，同文、同音色、种子 42、共用 PID `19106`。原低档两段均与初版对应 WAV 逐字节一致；新低档生成不同音频，待用户试听。36 项强度、驱动、队列与兼容回归及网页草稿/重启测试通过。记录为本机 `test-results/emotion-calibration-2026-10-09/result.json`。随后最终独立程序连续提交两条「非常平淡」0.03 的真实任务（留空 / 开心描述），共用 PID `20275`，生成成功且完整保存设置；最终五档网页回归和 12 项独立程序检查通过。记录为该目录下 `very-flat/compiled-result.json`。
 
-以上实测硬件为 Apple M4 / 32 GiB，仅覆盖指定输入。尚未在真实 16 GB 电脑验收；任意长文、联合音乐生成及无限次运行的内存上限不能用该结果保证。迁移初期的真实队列记录保存在本机 `project-resident-result.json` 与 `production-native-result.json`；当前验收以 `tail-*` 记录为准。听感由用户确认，WAV 格式检查不替代音质判断。
+以上实测硬件为 Apple M4 / 32 GiB，仅覆盖指定输入。尚未在真实 16 GB 电脑验收；任意长文、联合音乐生成及无限次运行的内存上限不能用该结果保证。迁移初期的真实队列记录保存在本机 `project-resident-result.json` 与 `production-native-result.json`；该次原生迁移验收以 `tail-*` 记录为准；资源保护最新验收见 design/model-resource-evidence.json。听感由用户确认，WAV 格式检查不替代音质判断。
 
-## 回退
+## 历史回退记录
+
+当前统一资源版本保留 Python 驱动，但其新推理没有验证档案，会在加载前拒绝；下列环境变量不绕过资源保护。确需恢复旧实现，需使用经过验证的历史源码版本。
 
 迁移前源码已提交并推送：`5559685`，标签 `codex/pre-audio-cpp-20261009`。
 

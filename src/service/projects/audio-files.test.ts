@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {mkdtemp,rm,writeFile,open,symlink} from 'node:fs/promises';import {tmpdir} from 'node:os';import {join} from 'node:path';import {readAudioFile} from './audio-files.ts';
+test('changed oversized files are rejected before allocation; symlinks and size mismatch are rejected',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'bounded-audio-')),file=join(root,'audio');try{await writeFile(file,'audio');assert.equal(readAudioFile(file,10,5).toString(),'audio');assert.throws(()=>readAudioFile(file,10,6),/变化/);await symlink(file,join(root,'link'));assert.throws(()=>readAudioFile(join(root,'link'),10));const fd=await open(file,'r+');await fd.truncate(2**32);await fd.close();assert.throws(()=>readAudioFile(file,10),/范围/);}finally{await rm(root,{recursive:true,force:true});}
+});

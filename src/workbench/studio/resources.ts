@@ -1,5 +1,5 @@
 import type {ResourceStatus} from '../../service/operations.ts';
-export const resourceEngineNames:Record<string,string>={tts:'语音',reference:'参考清理',conversion:'音色转换',yue2:'音乐',render:'乐谱合成',speed:'调速',installation:'安装准备'};
+export const resourceEngineNames:Record<string,string>={tts:'语音',reference:'参考清理',conversion:'音色转换',yue2:'音乐',render:'乐谱合成',speed:'调速',installation:'安装准备',import:'音频导入'};
 const escape=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 const gib=(bytes:number)=>`${(bytes/2**30).toFixed(1)} GiB`;
 const stages:Record<string,string>={queued:'排队中',waiting_resources:'等待资源',loading:'加载中',running:'处理中',cancelling:'正在取消',succeeded:'完成',blocked:'已阻止',failed:'失败',cancelled:'已取消'};

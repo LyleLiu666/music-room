@@ -1,3 +1,4 @@
+import {readAudioFile} from '../projects/audio-files.ts';
 import {randomUUID,createHash} from 'node:crypto';
 import {existsSync,lstatSync,readFileSync,realpathSync,statSync,createReadStream} from 'node:fs';
 import {dirname,join,isAbsolute} from 'node:path';
@@ -74,7 +75,7 @@ export class YuE2Proxy {
  async job(id:string){await this.migrate();return this.result(this.record(id));}
  async list(){await this.migrate();return {jobs:[...this.records.values()].reverse().slice(0,30).map(r=>structuredClone(r.job))};}
  async cancel(id:string){const record=this.record(id),task=this.tasks.get(id);if(task){task.controller.abort();await task.done;}return this.result(record);}
- async audio(id:string){await this.migrate();const record=this.record(id);if(record.job.status!=='done')throw new ServiceError('YUE2_NOT_READY','音乐未完成');const bytes=readFileSync(this.artifact(record));if(bytes.length!==record.bytes||createHash('sha256').update(bytes).digest('hex')!==record.hash)throw new ServiceError('INVALID_AUDIO','音乐音频校验失败');return new Uint8Array(bytes);}
+ async audio(id:string){await this.migrate();const record=this.record(id);if(record.job.status!=='done')throw new ServiceError('YUE2_NOT_READY','音乐未完成');const bytes=readAudioFile(this.artifact(record),120_000_000,record.bytes);if(bytes.length!==record.bytes||createHash('sha256').update(bytes).digest('hex')!==record.hash)throw new ServiceError('INVALID_AUDIO','音乐音频校验失败');return new Uint8Array(bytes.buffer,bytes.byteOffset,bytes.byteLength);}
  async purgeTarget(id:string){await this.migrate();const record=this.record(id);if(this.tasks.has(id))throw new ServiceError('YUE2_BUSY','请先取消音乐任务');return {directory:record.directory,id:record.upstreamId??id};}
  async stop(){for(const task of this.tasks.values())task.controller.abort();await Promise.all([...this.tasks.values()].map(t=>t.done));}
  async close(){this.closed=true;await this.stop();}

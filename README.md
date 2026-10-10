@@ -10,7 +10,7 @@
 
 ## 新 UX 提案
 
-[模型服务与硬件资源管理设计](docs/design/model-resource-management.md)规划三个生成引擎的统一调度、动态内存预算与卸载保护，按实际硬件能力判断可运行范围；目前属于待实现设计。实施步骤见[开发计划](docs/design/model-resource-management-plan.md)。
+[本机模型与资源](docs/model-resources.md)说明已实现的统一队列、动态内存预算、所属进程释放和当前支持范围。三个引擎与辅助处理按实际硬件准入；不假设每台电脑都有 32 GiB。架构见[设计](docs/design/model-resource-management.md)，实施和验收见[开发计划](docs/design/model-resource-management-plan.md)及[逐轮记录](docs/design/model-resource-development.md)。
 
 正式首页已采用统一创作空间，启动本地服务即可使用。`/speech.html` 为兼容入口；`/score.html` 为按需打开的 MIDI 编辑器。早期 [UX 提案](docs/design/sound-first-ux.md)及 `public/prototypes/sound-first/` 仅保留为设计历史，不是正式入口。
 

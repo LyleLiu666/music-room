@@ -1,7 +1,8 @@
+import {readAudioFile} from '../projects/audio-files.ts';
 import type {ResourceTaskState} from '../resources/contracts.ts';
 import {validateSpeed,type SpeedEdit} from './speed.ts';
 import {wavInfo} from '../tts/speech.ts';
-import {existsSync,readFileSync,mkdirSync,writeFileSync,unlinkSync} from 'node:fs';
+import {existsSync,readFileSync,mkdirSync,writeFileSync,unlinkSync,renameSync,readdirSync,lstatSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
 import {validateComposition} from '../../music/authoring/validate.mjs';
 import {ServiceError,hash,identity} from '../projects/store.ts';
@@ -24,7 +25,12 @@ export class StudioService{
  private data:Data;private pending:Promise<unknown>=Promise.resolve();private yueChecked=0;
  private speedTasks=new Map<string,{sourceId:string;soundId:string;controller:AbortController;rate:number;done:Promise<StudioVersion>;resolve:(v:StudioVersion)=>void;reject:(e:unknown)=>void}>();private closing=false;
  private service:MusicService;
- constructor(service:MusicService){this.service=service;service.resources.register('speed',{resident:()=>undefined,unload:async()=>{}});const path=service.store.path('studio.json');this.data=existsSync(path)?JSON.parse(readFileSync(path,'utf8')):{format:'music-room-studio',version:1,sounds:[],versions:[]};if(this.data.format!=='music-room-studio'||this.data.version!==1)fail('声音库格式不正确');for(const v of this.data.versions)if(v.source.kind==='music'&&!v.source.id&&v.state==='queued'){v.state='interrupted';v.stage='提交中断，请重新生成';}}
+ constructor(service:MusicService){this.service=service;service.resources.register('speed',{resident:()=>undefined,unload:async()=>{}});const path=service.store.path('studio.json');this.data=existsSync(path)?JSON.parse(readFileSync(path,'utf8')):{format:'music-room-studio',version:1,sounds:[],versions:[]};if(this.data.format!=='music-room-studio'||this.data.version!==1)fail('声音库格式不正确');for(const v of this.data.versions)if(v.source.kind==='music'&&!v.source.id&&v.state==='queued'){v.state='interrupted';v.stage='提交中断，请重新生成';}this.discardInterruptedSpeedFiles();}
+ private discardInterruptedSpeedFiles(){
+  const directory=this.service.store.path('studio-audio');if(!existsSync(directory))return;
+  if(lstatSync(directory).isSymbolicLink())fail('调速音频目录不能是符号链接');
+  for(const name of readdirSync(directory))if(/^speed-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.partial\.wav$/.test(name))unlinkSync(this.service.store.path('studio-audio',name));
+ }
  private async serial<T>(fn:()=>Promise<T>,rollback=true):Promise<T>{const next=this.pending.then(async()=>{const before=clone(this.data);try{const result=await fn();if(JSON.stringify(before)!==JSON.stringify(this.data))this.save();return clone(result);}catch(e){if(rollback)this.data=before;else this.save();throw e;}});this.pending=next.catch(()=>{});return next;}
  private save(){this.service.store.atomicJSON(this.service.store.path('studio.json'),this.data);}
  private sound(id:string){return this.data.sounds.find(s=>s.id===id)??fail('声音不存在');}
@@ -108,22 +114,22 @@ export class StudioService{
   return {...this.data,sounds:this.data.sounds.filter(s=>!s.purged),versions,conversionPagination,projects:await this.service.store.projects(),voices:this.service.speech.snapshot().voices,conversionVoices:this.service.speech.conversionVoices(),engines:{conversion:this.service.conversion.snapshot({page:1,pageSize:1}).status,speech:this.service.speech.status(),music:await this.service.yue2.status()}};
  });}
  async createSound(args:{projectId:string;title:string;kind:SoundKind}){return this.serial(async()=>{this.service.store.assertActive(args.projectId);if(args.kind==='speech'){const s=await this.service.speech.createSound(args.projectId,args.title);const result:StudioSound={...s,kind:'speech'};this.data.sounds.push(result);return result;}const s:StudioSound={...args,id:`sound-${randomUUID()}`,createdAt:new Date().toISOString()};this.data.sounds.push(s);return s;});}
- async uploadConversion(args:{pitchShiftSemitones?:number;soundId?:string;parentId?:string;name:string;bytes:Uint8Array;voiceId:string;requestId:string}){return this.serial(async()=>{
-  await this.sync();let sound:StudioSound|undefined;
+ async uploadConversion(args:{pitchShiftSemitones?:number;soundId?:string;parentId?:string;name:string;bytes:Uint8Array;voiceId:string;requestId:string},signal?:AbortSignal){return this.serial(async()=>{
+  await this.sync();signal?.throwIfAborted();let sound:StudioSound|undefined;
   if(args.soundId){sound=this.activeSound(args.soundId);if(sound.kind!=='conversion')fail('请选择音色转换类型的声音片段');}
   if(args.parentId){const parent=this.version(args.parentId);if(!sound||parent.soundId!==sound.id||parent.deleted||parent.purged)fail('来源版本必须属于当前声音');}
   const audio=this.service.speech.voiceAudio(args.voiceId),voice=this.service.speech.conversionVoices().find(v=>v.id===args.voiceId)!;
   const old=this.service.conversion.snapshot().jobs.find(j=>j.requestId===args.requestId);
   if(!sound&&old?.soundId)sound=this.activeSound(old.soundId);
   const job=this.service.conversion.add(args.name,args.bytes,{id:voice.id,name:voice.name,audio},args.requestId,sound?{projectId:sound.projectId,soundId:sound.id,parentId:args.parentId}:undefined,args.pitchShiftSemitones??0);
-  await this.syncConversions();return this.service.conversion.get(job.id);
+  await this.syncConversions();if(signal?.aborted){await this.service.conversion.cancel(job.id);signal.throwIfAborted();}return this.service.conversion.get(job.id);
  });}
- async createConversionVersion(args:{pitchShiftSemitones?:number;soundId:string;sourceJobId:string;voiceId:string;requestId:string}){return this.serial(async()=>{
-  await this.sync();const sound=this.activeSound(args.soundId),source=this.version(args.sourceJobId);if(sound.kind!=='conversion'||source.soundId!==sound.id||source.source.kind!=='conversion'||source.deleted||source.purged)fail('请选择当前声音中未删除的原音版本');
+ async createConversionVersion(args:{pitchShiftSemitones?:number;soundId:string;sourceJobId:string;voiceId:string;requestId:string},signal?:AbortSignal){return this.serial(async()=>{
+  await this.sync();signal?.throwIfAborted();const sound=this.activeSound(args.soundId),source=this.version(args.sourceJobId);if(sound.kind!=='conversion'||source.soundId!==sound.id||source.source.kind!=='conversion'||source.deleted||source.purged)fail('请选择当前声音中未删除的原音版本');
   const old=this.service.conversion.get(source.source.id),voice=this.service.speech.conversionVoices().find(v=>v.id===args.voiceId);if(!voice)fail('目标音色不存在');
-  const job=this.service.conversion.add(old.name,this.service.conversion.audio(old.id,'original'),{id:voice!.id,name:voice!.name,audio:this.service.speech.voiceAudio(voice!.id)},args.requestId,{projectId:sound.projectId,soundId:sound.id,parentId:source.id},args.pitchShiftSemitones??0);await this.syncConversions();return job;
+  const job=this.service.conversion.add(old.name,{sourceJobId:old.id},{id:voice!.id,name:voice!.name,audio:this.service.speech.voiceAudio(voice!.id)},args.requestId,{projectId:sound.projectId,soundId:sound.id,parentId:source.id},args.pitchShiftSemitones??0);await this.syncConversions();return job;
  });}
- async retryConversion(jobId:string){return this.serial(async()=>{await this.sync();const version=this.data.versions.find(v=>v.source.kind==='conversion'&&v.source.id===jobId)??fail('转换版本不存在');this.activeSound(version.soundId);if(version.deleted||version.purged)fail('版本在回收站中，请先恢复');const job=this.service.conversion.retry(jobId);await this.syncConversions();return job;});}
+ async retryConversion(jobId:string,signal?:AbortSignal){return this.serial(async()=>{await this.sync();signal?.throwIfAborted();const version=this.data.versions.find(v=>v.source.kind==='conversion'&&v.source.id===jobId)??fail('转换版本不存在');this.activeSound(version.soundId);if(version.deleted||version.purged)fail('版本在回收站中，请先恢复');const job=this.service.conversion.retry(jobId);await this.syncConversions();return job;});}
  async cancelConversion(jobId:string){return this.serial(async()=>{await this.sync();const version=this.data.versions.find(v=>v.source.kind==='conversion'&&v.source.id===jobId)??fail('转换版本不存在');this.activeSound(version.soundId);if(version.deleted||version.purged)fail('版本在回收站中');await this.service.conversion.cancel(jobId);await this.syncConversions();return this.service.conversion.get(jobId);});}
  async conversionAudio(jobId:string,kind:'original'|'source'|'converted'|'vocals'){return this.serial(async()=>{await this.sync();const version=this.data.versions.find(v=>v.source.kind==='conversion'&&v.source.id===jobId)??fail('转换版本不存在');this.activeSound(version.soundId);if(version.deleted||version.purged||version.purgePending)fail('版本在回收站中');return this.service.conversion.audio(jobId,kind);});}
  async generate(args:StudioInput){return this.serial(async()=>{
@@ -138,8 +144,8 @@ export class StudioService{
  audio(id:string){
   const v=this.version(identity(id));this.activeSound(v.soundId);
   if(v.source.kind!=='audio'||v.state!=='succeeded'||v.deleted||v.purged)fail('当前版本没有可下载的音频');
-  const bytes=new Uint8Array(readFileSync(this.service.store.path('studio-audio',`${v.id}.wav`)));
-  if(hash(bytes)!==v.audioHash)fail('已保存音频发生外部修改');return bytes;
+  const bytes=readAudioFile(this.service.store.path('studio-audio',`${v.id}.wav`));
+  if(hash(bytes)!==v.audioHash)fail('已保存音频发生外部修改');return new Uint8Array(bytes.buffer,bytes.byteOffset,bytes.byteLength);
  }
  async saveSpeed(args:{versionId:string;rate:number;requestId:string}){
   validateSpeed(args.rate);
@@ -166,14 +172,17 @@ export class StudioService{
 
     const sourceHash=hash(bytes),adjusted=await this.service.speedProcessor(bytes,args.rate,execution);
     execution.signal.throwIfAborted();
-    return this.serial(async()=>{
-     execution.signal.throwIfAborted();const current=this.version(source.id);this.activeSound(source.soundId);if(current.deleted||current.purged)fail('来源版本已删除');
+    const artifact={...wavInfo(adjusted),bytes:adjusted.length,sha256:hash(adjusted)};
+    mkdirSync(this.service.store.path('studio-audio'),{recursive:true,mode:0o700});
+    outputPath=this.service.store.path('studio-audio',`speed-${randomUUID()}.partial.wav`);
+    writeFileSync(outputPath,adjusted,{flag:'wx',mode:0o600});return {sourceHash,artifact};
+   }}).then(prepared=>this.serial(async()=>{
+     controller.signal.throwIfAborted();const current=this.version(source.id);this.activeSound(source.soundId);if(current.deleted||current.purged)fail('来源版本已删除');
      const edit:SpeedEdit={rate:args.rate,sourceVersionId:source.id,requestId:args.requestId};
-     if(source.source.kind==='speech'){const saved=this.service.speech.saveSpeed(source.id,edit,adjusted,sourceHash);await this.sync();return this.version(saved.id);}
-     const id=`speed-${randomUUID()}`,v:StudioVersion={...source,id,number:Math.max(0,...this.data.versions.filter(v=>v.soundId===source.soundId).map(v=>v.number))+1,parentId:source.id,speed:edit,createdAt:new Date().toISOString(),kept:false,deleted:false,source:{kind:'audio',id},originalAudioPath:undefined,vocalsAudioPath:undefined,duration:wavInfo(adjusted).duration,audioPath:`/studio-audio/${id}`,audioHash:hash(adjusted)};
-     mkdirSync(this.service.store.path('studio-audio'),{recursive:true,mode:0o700});outputPath=this.service.store.path('studio-audio',`${id}.wav`);writeFileSync(outputPath,adjusted,{flag:'wx',mode:0o600});this.data.versions.push(v);return v;
-    });
-   }}).catch(error=>{if(outputPath&&existsSync(outputPath))unlinkSync(outputPath);throw error;}).finally(()=>this.speedTasks.delete(args.requestId));
+     if(source.source.kind==='speech'){const saved=this.service.speech.saveSpeed(source.id,edit,{path:outputPath!,artifact:prepared.artifact},prepared.sourceHash);await this.sync();return this.version(saved.id);}
+     const id=`speed-${randomUUID()}`,v:StudioVersion={...source,id,number:Math.max(0,...this.data.versions.filter(v=>v.soundId===source.soundId).map(v=>v.number))+1,parentId:source.id,speed:edit,createdAt:new Date().toISOString(),kept:false,deleted:false,source:{kind:'audio',id},originalAudioPath:undefined,vocalsAudioPath:undefined,duration:prepared.artifact.duration,audioPath:`/studio-audio/${id}`,audioHash:prepared.artifact.sha256};
+     const finalPath=this.service.store.path('studio-audio',`${id}.wav`);renameSync(outputPath!,finalPath);outputPath=finalPath;this.data.versions.push(v);return v;
+    })).catch(error=>{if(outputPath&&existsSync(outputPath))unlinkSync(outputPath);throw error;}).finally(()=>this.speedTasks.delete(args.requestId));
   void done.then(task.resolve,task.reject);return task.done;
  }
  async update(args:{versionId:string;kept?:boolean;deleted?:boolean;final?:boolean}){return this.serial(async()=>{await this.sync();const v=this.version(args.versionId),s=this.activeSound(v.soundId);if(v.purged)fail('版本已彻底删除');if(v.purgePending)fail('彻底删除尚未完成，请在回收站重试');if([...this.speedTasks.values()].some(t=>t.sourceId===v.id)||v.renderJobId||['queued','running'].includes(v.state))fail('请先取消生成');if(args.final&&(v.state!=='succeeded'||v.deleted||args.deleted))fail('只能将已完成的版本选为成品');if(v.source.kind==='speech'){this.service.speech.updateVersion(v.source.id,args);await this.sync();return this.version(v.id);}if(args.kept!==undefined)v.kept=args.kept;if(args.deleted!==undefined)v.deleted=args.deleted;if(args.final)s.finalVersionId=v.id;if((args.final===false||v.deleted)&&s.finalVersionId===v.id)s.finalVersionId=undefined;return v;});}

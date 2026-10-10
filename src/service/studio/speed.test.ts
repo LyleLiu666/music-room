@@ -1,3 +1,5 @@
+import {ResourceLease} from '../resources/lease.ts';
+import {ResourceCoordinator} from '../resources/coordinator.ts';
 import {testResources} from '../resources/testing.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -80,7 +82,8 @@ test('FLAC music speed versions own WAV files, protected downloads, metadata and
   assert.ok(Math.abs(wavInfo(audio).duration-2.5)<.002);assert.equal(saved.source.kind,'audio');
   assert.equal((await service.call('studio_save_speed',args)).id,saved.id);
   await service.call('studio_update_version',{versionId:saved.id,final:true,kept:true});
-  await service.close();service=await open(root);connect();
+  const staging=join(root,'studio-audio','speed-12345678-1234-1234-1234-123456789abc.partial.wav');await writeFile(staging,wav);
+  await service.close();service=await open(root);connect();await assert.rejects(readFile(staging),{code:'ENOENT'});
   assert.equal(hash(service.studio.audio(saved.id)),hash(audio));
   assert.equal((await service.call('studio_library',{})).sounds[0].finalVersionId,saved.id);
   http=await serveHttp(service,{read:async()=>new Uint8Array(),has:()=>false,embedded:false});
@@ -113,4 +116,14 @@ test('queued speed leaves library responsive, protects source, cancels without p
  const args={versionId:v.id,rate:.8,requestId:'queued'},a=service.call('studio_save_speed',args),b=service.call('studio_save_speed',args);const results=Promise.allSettled([a,b]);
  await new Promise(r=>setTimeout(r,20));assert.equal((await service.call('studio_library',{})).versions.length,1);assert.equal(service.resources.snapshot().queued.filter(q=>q.engine==='speed').length,1);
  await assert.rejects(service.call('studio_update_version',{versionId:v.id,deleted:true}),/取消/);await service.call('studio_cancel',{versionId:v.id});assert.ok((await results).every(r=>r.status==='rejected'));assert.equal((await service.call('studio_library',{})).versions.length,1);controller.abort();await held;
+});
+
+test('speed publication waits for execution release; cleanup failure leaves no completed version or orphan file',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'speed-release-')),lease=new ResourceLease(join(root,'lease')),release=lease.release.bind(lease);let failRelease=false;
+ lease.release=()=>{if(failRelease)throw Error('模拟释放失败');release();};
+ const resources=new ResourceCoordinator({policy:testResources().snapshot().policy,lease,estimate:()=>({verified:true,peak:{memory:256*2**20}}),probe:async()=>({supported:true,topology:'cpu',sampledAt:Date.now(),pressure:'normal',pools:[{id:'memory',capacity:16*2**30,available:12*2**30,owned:2**30}]})});
+ const service=await MusicService.open(root,()=>{throw Error('unused');},async()=>new Uint8Array(),false,music,speech,undefined,resources);
+ try{await service.call('create_project',{projectId:'p',title:'p'});const sound=await service.call('studio_create_sound',{projectId:'p',title:'s',kind:'speech'}),voice=await service.call('tts_add_voice',{cleanup:false,name:'v',audioBase64:Buffer.from(wav).toString('base64')});const original=await service.call('studio_generate',{soundId:sound.id,voiceId:voice.id,text:'text'});for(let i=0;i<100&&service.speech.job(original.id).state!=='succeeded';i++)await new Promise(r=>setTimeout(r,5));assert.equal(service.speech.job(original.id).state,'succeeded');
+ failRelease=true;await assert.rejects(service.call('studio_save_speed',{versionId:original.id,rate:.8,requestId:'release-failure'}),/释放失败/);assert.equal((await service.call('studio_library',{})).versions.length,1);assert.equal((await readdir(join(root,'speech','audio'))).length,1);assert.equal((await readdir(join(root,'studio-audio'))).length,0);
+ }finally{failRelease=false;await service.close();release();await rm(root,{recursive:true,force:true});}
 });

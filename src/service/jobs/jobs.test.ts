@@ -1,3 +1,6 @@
+import {ResourceCoordinator} from '../resources/coordinator.ts';
+import {ResourceLease} from '../resources/lease.ts';
+import {testResources} from '../resources/testing.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile,mkdtemp,rm,writeFile,unlink} from 'node:fs/promises';
@@ -137,4 +140,14 @@ for(const damage of ['uncommitted','wrong-input'] as const)test(`restart cannot 
   assert.equal(recovered.get(first.id).state,damage==='uncommitted'?'interrupted':'failed');
   assert.equal(recovered.get(first.id).artifact,undefined);
   assert.ok(await readFile(join(root,'projects',request.projectId,done.artifact!.path)),'unclaimed file is preserved, not blindly deleted');
+});
+
+test('render completion is published only after the user execution lease releases',async t=>{
+ const root=await mkdtemp(join(tmpdir(),'render-release-')),store=await ProjectStore.open(root),lease=new ResourceLease(join(root,'lease'));let observed:string|undefined,id:string|undefined;const release=lease.release.bind(lease);
+ const resources=new ResourceCoordinator({policy:testResources().snapshot().policy,lease,estimate:()=>({verified:true,peak:{memory:256*2**20}}),probe:async()=>({supported:true,topology:'cpu',sampledAt:Date.now(),pressure:'normal',pools:[{id:'memory',capacity:16*2**30,available:12*2**30,owned:2**30}]})});await store.importRevision(example);const jobs=await JobManager.open(store,processRenderer(),resources);lease.release=()=>{if(id)observed=jobs.get(id).state;release();};
+ t.after(async()=>{await jobs.close();await resources.close();await store.close();await rm(root,{recursive:true,force:true});});const job=await jobs.submit(request);id=job.id;assert.equal((await jobs.wait(id)).state,'succeeded');assert.equal(observed,'running','completed audio must stay running until release is confirmed');
+});
+
+test('restart validates committed render files without loading complete audio buffers',async t=>{
+ const {store,jobs}=await fixture(t),job=await jobs.submit(request);assert.equal((await jobs.wait(job.id)).state,'succeeded');await jobs.close();t.mock.method(store,'artifact',async()=>{throw Error('完整音频读取不能用于恢复校验');});const restarted=await JobManager.open(store,processRenderer());try{assert.equal(restarted.get(job.id).state,'succeeded');}finally{await restarted.close();}
 });

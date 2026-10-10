@@ -20,7 +20,7 @@ import {musicMcp} from '../interfaces/mcp.ts';
 import {operationName,type Operation,type OperationInput,type OperationResults,type ServiceCaller} from '../service/operations.ts';
 import {serveHttp,type Runtime,type WebAssets} from './http.ts';
 export async function remoteCall<K extends Operation>(runtime:Runtime,name:K,args:OperationInput<K>):Promise<OperationResults[K]> {
-  const response=await fetch(`${runtime.url}/api/${name}`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${runtime.token}`},body:JSON.stringify(args),signal:AbortSignal.timeout(name==='yue2_choose_directory'?310000:30000)});
+  const response=await fetch(`${runtime.url}/api/${name}`,{method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${runtime.token}`},body:JSON.stringify(args),signal:AbortSignal.timeout(name==='yue2_choose_directory'?310000:name==='studio_save_speed'?30*60*1000:30000)});
   const value:unknown=await response.json();
   if(!response.ok){const failure=value as {message?:string;code?:string};const e=new Error(failure.message??'本地服务请求失败') as Error&{code?:string};e.code=failure.code;throw e;}
   return value as OperationResults[K];

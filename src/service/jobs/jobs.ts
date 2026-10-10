@@ -35,7 +35,7 @@ export class JobManager {
           if(metadata.sha256!==j.inputHash)throw new Error('任务输入与版本原件不一致');
           const committed=metadata.artifacts.find(a=>a.id===j.id);
           if(committed) {
-            const {metadata:artifact}=await store.artifact(j.request.projectId,j.request.revisionId,j.id);
+            const {metadata:artifact}=await store.verifyArtifact(j.request.projectId,j.request.revisionId,j.id);
             if(artifact.jobId!==j.id || artifact.mime!=='audio/wav')throw new Error('音频产物与任务不一致');
             j.artifact=artifact;j.state='succeeded';j.stage='音频已保存';delete j.error;
           } else if(j.state==='succeeded' || j.artifact)throw new Error('已完成任务缺少音频提交记录');
@@ -85,8 +85,9 @@ export class JobManager {
         if(bytes.length!==expected || bytes.toString('ascii',0,4)!=='RIFF' || !Number.isFinite(result.peak) || result.peak<0 || result.peak>.891)throw new Error('音频产物校验失败');
         active.committing=true;j.stage='保存音频';
         j.artifact=await this.store.publishArtifact(j.request.projectId,j.request.revisionId,j.id,wav);
-        j.result=result;j.state='succeeded';j.stage='音频已保存';};
+        j.result=result;};
         if(this.resources)await this.resources.run({id:j.id,engine:'render',signal:controller.signal,demand:this.resources.estimate('render',j.snapshot),onState:resource=>{j.resource=resource;j.stage=resource.message??resource.stage;this.save(j);},execute});else await execute();
+        if(j.artifact){j.state='succeeded';j.stage='音频已保存';}
       } catch(error) {if(!active.cancelled && !this.closing){j.state='failed';j.stage='渲染失败';j.error=error instanceof Error?error.message:String(error);}}
       finally {
         if(this.closing && !j.artifact){j.state='interrupted';j.stage='退出服务，任务中断';}

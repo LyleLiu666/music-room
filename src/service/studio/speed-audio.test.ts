@@ -1,3 +1,4 @@
+import {audioShape} from './audio-budget.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import decoder from 'wav-decoder';
@@ -33,4 +34,11 @@ test('short clips and silence finish without NaN, empty output or dropped ending
  const silent=await changeAudioSpeed(new Uint8Array(encodeWav([new Float32Array(24000)],24000)),.8);
  assert.ok((await decoder.decode(new Uint8Array(silent).buffer)).channelData[0].every(x=>x===0));
  await assert.rejects(changeAudioSpeed(new Uint8Array([1,2,3]),.8));
+});
+test('FLAC declared frames cannot hide a larger decoded stream',async()=>{
+ const {readFile}=await import('node:fs/promises');const bytes=Buffer.from(await readFile(new URL('./fixtures/tone-440hz.flac',import.meta.url)));bytes.writeUInt32BE(bytes.readUInt32BE(18)&0xfffffff0,18);bytes.writeUInt32BE(1,22);await assert.rejects(changeAudioSpeed(bytes,.8),/长度|帧/);
+});
+
+test('WAV preflight rejects mismatched codec block sizes and multiple data chunks',()=>{
+ const valid=Buffer.from(encodeWav([new Float32Array(8000)],8000)),bad=Buffer.from(valid);bad.writeUInt16LE(1,32);assert.throws(()=>audioShape(bad),/WAV/);const extra=Buffer.concat([valid,valid.subarray(36)]);extra.writeUInt32LE(extra.length-8,4);assert.throws(()=>audioShape(extra),/WAV/);
 });

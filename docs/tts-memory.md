@@ -1,5 +1,8 @@
 # IndexTTS 2.0 PyTorch 内存诊断（历史记录）
 
+当前调度与支持范围见[本机模型与资源](model-resources.md)。下面的常驻复用、Python/MLX 对照和旧内存实验是历史证据；当前服务每项任务后确认卸载，未验证后端/输入不能作为自动回退放行。
+
+
 当前 Apple Silicon 默认路径已接入 audio.cpp F16，常驻与内存验证见 [原生引擎验收](tts-native-engine.md)。本页记录此前 PyTorch 路径的诊断，不代表新引擎的运行方式。
 
 2026-10-09，在 32 GiB Apple Silicon Mac、PyTorch 2.8.0、固定的 IndexTTS 2.0 程序与权重上验证。

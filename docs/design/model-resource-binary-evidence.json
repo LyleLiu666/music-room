@@ -1,0 +1,141 @@
+{
+  "format": "music-room-resource-binary-evidence",
+  "version": 1,
+  "date": "2026-10-10",
+  "device": "Apple M4 / 32 GiB unified memory / macOS",
+  "binary": {
+    "path": "release/music-room",
+    "sha256": "0b424e27a2667d2b4f82dff90459fea507444e4faf5e7c381c70451ba7ec9309",
+    "bytes": 139717746,
+    "bun": "1.4.2",
+    "embeddedFiles": 64
+  },
+  "regression": {
+    "service": 194,
+    "ordinary": 31,
+    "studioBrowser": 12,
+    "serviceBrowser": 20,
+    "resourceBrowser": 1,
+    "typescript": "passed",
+    "build": "passed"
+  },
+  "standalone": {
+    "checks": [
+      "copied executable runs without Node/Bun in PATH",
+      "five dry built-in voices and protected conditioning archives are embedded without loose files",
+      "patched native TTS package is embedded and matches the pinned archive SHA-256",
+      "YuE2 contracts and hash-locked installer requirements are embedded",
+      "compiled YuE2 supervisor stops its fixture process tree on parent EOF (not inference)",
+      "plain shell launcher reuses service without an App",
+      "stdio MCP tools, authoring resource, actual embedded example",
+      "MCP creates project and parent/child 8→16 bar versions",
+      "standalone backend worker uses embedded samples; real 40 second WAV/hash",
+      "standalone pitch-preserving speed save produces an independent 50 second WAV from a 40 second score",
+      "embedded HTTP MCP interoperates with official client",
+      "embedded page previews real samples, plays saved WAV, shows feedback",
+      "restart restores project, versions, artifact and feedback"
+    ],
+    "scoreWav": {
+      "seconds": 40,
+      "bytes": 7056044,
+      "peak": 0.3839634358882904,
+      "rms": 0.04892815251097575
+    },
+    "raw": "test-results/binary/verification.json"
+  },
+  "native": {
+    "checks": [
+      "opening pinned installed models remains cold",
+      "3 GiB user limit rejects before native load",
+      "real native speech completes after pause/resume and plays after release",
+      "unified cancel waits for real native process group exit",
+      "SIGKILL application leaves no owned model descendants",
+      "restart recovers stale lease and explicit retry succeeds",
+      "normal shutdown closes HTTP and service exactly once"
+    ],
+    "hardware": {
+      "supported": true,
+      "topology": "unified",
+      "sampledAt": 1791612144361,
+      "pressure": "normal",
+      "pools": [
+        {
+          "id": "memory",
+          "capacity": 34359738368,
+          "available": 17867063951,
+          "owned": 52848231
+        }
+      ],
+      "swapUsed": 2811630715
+    },
+    "observation": {
+      "usage": {
+        "memory": 3897452135
+      },
+      "swapUsed": 2811630715,
+      "pressure": "warning"
+    },
+    "results": [
+      {
+        "id": "speech-v-cebcc640-5907-4073-bcfd-331ba9a1142a",
+        "state": "failed",
+        "reason": "INSUFFICIENT_CAPACITY",
+        "peakBytes": null,
+        "artifact": null
+      },
+      {
+        "id": "speech-v-8eef700e-ce3d-42a9-9890-2ff988bb76d6",
+        "state": "succeeded",
+        "reason": null,
+        "peakBytes": 4212549223,
+        "artifact": {
+          "duration": 5.347709750566893,
+          "sampleRate": 22050,
+          "peak": 0.82159423828125,
+          "bytes": 235878,
+          "sha256": "96778d0f1057eb2c8154f01e04b7d276e6a381c0ebe574e36c555ad244345541"
+        }
+      },
+      {
+        "id": "speech-v-907bddc1-396c-49bd-90c9-2d058a767e91",
+        "state": "cancelled",
+        "reason": "CANCELLED",
+        "peakBytes": 4230794446,
+        "artifact": null
+      },
+      {
+        "id": "speech-v-b7be8f51-bd4b-4116-a3e1-c23ceedcbfd0",
+        "state": "succeeded",
+        "reason": null,
+        "peakBytes": 4436525057,
+        "artifact": {
+          "duration": 5.347709750566893,
+          "sampleRate": 22050,
+          "peak": 0.82159423828125,
+          "bytes": 235878,
+          "sha256": "96778d0f1057eb2c8154f01e04b7d276e6a381c0ebe574e36c555ad244345541"
+        }
+      }
+    ],
+    "started": "2026-10-10T06:02:23.589Z",
+    "finished": "2026-10-10T06:05:49.127Z",
+    "raw": "/Users/liu_y/code/music/test-results/resources-real/binary-1791612143587/verification.json"
+  },
+  "negativeRuns": [
+    {
+      "raw": "test-results/resources-real/binary-1791611119593/verification.json",
+      "result": "Native six checks passed, but normal shutdown exposed duplicate HTTP close; fixed with idempotent close and a compiled exit-code assertion."
+    },
+    {
+      "raw": "test-results/resources-real/binary-1791611624165/verification.json",
+      "result": "Four native checks passed; harness registration timeout while actual pressure protection delayed admission. Harness wait corrected; production policy retained."
+    }
+  ],
+  "limits": [
+    "Only this M4 / 32 GiB device ran real models; other capacities and discrete GPUs have policy simulations only.",
+    "1 s sampling is not an instantaneous hard memory ceiling.",
+    "The 3 GiB limit is a user-cap admission negative case, not a physical low-memory machine.",
+    "Reference browser input is now bounded uncompressed PCM WAV before decoding.",
+    "The user existing service was not replaced; original models and works were retained."
+  ]
+}

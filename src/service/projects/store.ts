@@ -1,12 +1,11 @@
+import {readAudioFile,verifyAudioFile} from './audio-files.ts';
 import { randomUUID, createHash } from 'node:crypto';
 import { mkdirSync, openSync, closeSync, writeFileSync, readFileSync, renameSync, unlinkSync, rmSync, readdirSync, lstatSync, realpathSync, fsyncSync } from 'node:fs';
 import { resolve, join, relative, sep } from 'node:path';
 import { validateComposition, SCORE_ID_PATTERN, type Composition } from '../../music/authoring/validate.mjs';
 
-export class ServiceError extends Error {
-  code: string;
-  constructor(code: string, message: string) { super(message); this.code = code; }
-}
+import {ServiceError} from './errors.ts';
+export {ServiceError} from './errors.ts';
 export function identity(value: string) {
   if (typeof value !== 'string' || !/^[a-z0-9][a-z0-9-]{0,79}$/.test(value)) throw new ServiceError('INVALID_ID','ID 必须为 1–80 个小写字母、数字或连字符');
   return value;
@@ -181,10 +180,16 @@ export class ProjectStore {
       return a;
     });
   }
+  private async artifactRecord(projectId:string,revisionId:string,id:string){
+    const {metadata}=await this.revision(projectId,revisionId),a=metadata.artifacts.find(a=>a.id===identity(id));
+    if(!a||a.path!==`revisions/${revisionId}/${id}.wav`)fail('NOT_FOUND','产物不存在');return a;
+  }
+  async verifyArtifact(projectId:string,revisionId:string,id:string){
+    const a=await this.artifactRecord(projectId,revisionId,id);verifyAudioFile(this.path('projects',projectId,a.path),a.sha256,undefined,a.bytes);return {metadata:a};
+  }
   async artifact(projectId: string, revisionId: string, id: string) {
-    const {metadata} = await this.revision(projectId,revisionId), a = metadata.artifacts.find(a=>a.id===identity(id));
-    if (!a || a.path!==`revisions/${revisionId}/${id}.wav`) fail('NOT_FOUND','产物不存在');
-    const bytes = readFileSync(this.path('projects',projectId,a.path));
+    const a=await this.artifactRecord(projectId,revisionId,id);
+    const bytes = readAudioFile(this.path('projects',projectId,a.path),undefined,a.bytes);
     if (bytes.length!==a.bytes || hash(bytes)!==a.sha256) fail('SOURCE_CHANGED','产物原件哈希不符');
     return {metadata:a,bytes};
   }
