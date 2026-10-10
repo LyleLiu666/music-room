@@ -8,6 +8,7 @@ import { createNativeConversionDriver, runCommand } from './native.ts';
 test('uninstalled native engine reports actionable unavailable state', () => {
   const status = createNativeConversionDriver('/nonexistent-conversion-engine').status();
   assert.equal(status.ready, false); assert.match(status.message, /安装/);
+  assert.equal(status.model,'Seed-VC · F16 · v1_svc');assert.equal(status.backend,'Metal');assert.equal(status.separationModel,'HTDemucs · F16');assert.equal(status.directory,'/nonexistent-conversion-engine');
 });
 test('native command captures both output streams and fails on nonzero exit', async () => {
   const directory = await mkdtemp(join(tmpdir(), 'conversion-command-'));

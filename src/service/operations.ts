@@ -13,11 +13,12 @@ const jobId=z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/);
 const ref={projectId:id,revisionId:id};
 const text=z.string().min(1).max(8000);
 export const operations = {
-  svc_library:{description:'读取音色转换引擎状态和持久化任务。原音、参考音色与完整转换结果独立保存。',schema:z.object({}).strict()},
+  svc_library:{description:'读取音色转换引擎状态和持久化任务。原音、参考音色与完整转换结果独立保存。',schema:z.object({page:z.number().int().positive().optional(),pageSize:z.number().int().positive().max(50).optional()}).strict()},
+  svc_create_version:{description:'使用当前声音版本保存的原音和指定音色新建转换版本。',schema:z.object({pitchShiftSemitones:z.number().int().min(-12).max(12).optional(),soundId:id,sourceJobId:jobId,voiceId:id,requestId:z.string().min(1).max(120)}).strict()},
   svc_cancel:{description:'取消指定音色转换任务，保留原音。',schema:z.object({jobId}).strict()},
   svc_retry:{description:'用原任务保存的音频和参考音色新建重试任务，不覆盖历史结果。',schema:z.object({jobId}).strict()},
-  studio_library:{description:'统一读取项目、声音和版本。',schema:z.object({}).strict()},
-  studio_create_sound:{description:'在项目内创建音乐片段、完整音乐或语音。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120),kind:z.enum(['clip','music','speech'])}).strict()},
+  studio_library:{description:'统一读取项目、声音和版本。',schema:z.object({paginateConversions:z.boolean().optional(),includeDeletedConversions:z.boolean().optional(),conversionSoundId:id.optional(),conversionPage:z.number().int().positive().optional(),conversionPageSize:z.number().int().positive().max(50).optional(),selectedVersionId:id.optional()}).strict()},
+  studio_create_sound:{description:'在项目内创建音乐片段、完整音乐或语音。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120),kind:z.enum(['clip','music','speech','conversion'])}).strict()},
   studio_update_project:{description:'项目重命名或移入/恢复回收站；整个层级保持原状态，生成中拒绝删除。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
   studio_update_sound:{description:'片段重命名或移入/恢复回收站，保留其版本和成品选择。',schema:z.object({soundId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
   studio_purge:{description:'彻底删除回收站中的项目、片段、版本或音色及其保存文件；不可恢复。',schema:z.object({kind:z.enum(['project','sound','version','voice']),id}).strict()},
@@ -70,7 +71,7 @@ export type RevisionDocument = Awaited<ReturnType<ProjectStore['revision']>>;
 export type LibrarySnapshot = {projects:Project[];documents:Composition[];jobs:Job[]};
 export type AuthoringContext = {project?:Project;revision?:RevisionDocument;feedback:Feedback[];guide:string;example:Composition;prompt:string;rules:string;workflow:Operation[];tracks:string};
 export type OperationResults = {
-  svc_library:ReturnType<ConversionService['snapshot']>&{voices:SpeechVoice[]};svc_cancel:ConversionJob;svc_retry:ConversionJob;
+  svc_library:ReturnType<ConversionService['snapshot']>&{voices:SpeechVoice[]};svc_create_version:ConversionJob;svc_cancel:ConversionJob;svc_retry:ConversionJob;
   studio_update_project:Project;studio_update_sound:StudioSound;studio_purge:{purged:true};
   studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_generate:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_save_speed:StudioVersion;studio_import_score:StudioVersion;
   tts_status:SpeechStatus;tts_prepare:SpeechStatus;tts_cancel_preparation:SpeechStatus;

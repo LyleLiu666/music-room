@@ -35,13 +35,14 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
         if(req.method!=='POST'){json(res,405,{message:'请用 POST'});return;}
         const chunks:Buffer[]=[];let size=0;
         for await(const chunk of req){size+=chunk.length;if(size>conversionUploadLimit)throw new ServiceError('TOO_LARGE','音频不能超过 200 MiB');chunks.push(chunk);}
-        const voiceId=url.searchParams.get('voiceId')??'',audio=service.speech.voiceAudio(voiceId),voice=service.speech.conversionVoices().find(v=>v.id===voiceId)!;
-        const job=service.conversion.add(url.searchParams.get('name')??'',Buffer.concat(chunks),{id:voiceId,name:voice.name,audio},url.searchParams.get('requestId')??'');json(res,200,job);return;
+        const voiceId=url.searchParams.get('voiceId')??'',pitch=url.searchParams.get('pitchShiftSemitones');
+        const pitchShiftSemitones=pitch===null?0:pitch.trim()?Number(pitch):NaN;
+        const job=await service.studio.uploadConversion({pitchShiftSemitones,soundId:url.searchParams.get('soundId')??undefined,parentId:url.searchParams.get('parentId')??undefined,name:url.searchParams.get('name')??'',bytes:Buffer.concat(chunks),voiceId,requestId:url.searchParams.get('requestId')??''});json(res,200,job);return;
       }
       if(path.startsWith('/conversion/audio/')) {
         if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
         const parts=path.slice('/conversion/audio/'.length).split('/');if(parts.length!==2||!['original','source','converted','vocals'].includes(parts[1]))throw new ServiceError('NOT_FOUND','音频不存在');
-        const [id,kind]=parts,job=service.conversion.get(id),bytes=service.conversion.audio(id,kind as 'original'|'source'|'converted'|'vocals');
+        const [id,kind]=parts,job=service.conversion.get(id),bytes=await service.studio.conversionAudio(id,kind as 'original'|'source'|'converted'|'vocals');
         const contentType=kind!=='original'?'audio/wav':({'.wav':'audio/wav','.mp3':'audio/mpeg','.m4a':'audio/mp4','.aac':'audio/aac','.flac':'audio/flac','.aif':'audio/aiff','.aiff':'audio/aiff'}[job.extension]??'application/octet-stream');
         res.writeHead(200,{'content-type':contentType,'content-length':bytes.length,'cache-control':'no-store','content-disposition':`inline; filename="${id}-${kind}${kind==='original'?job.extension:'.wav'}"`});res.end(bytes);return;
       }

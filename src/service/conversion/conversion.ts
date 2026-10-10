@@ -4,10 +4,14 @@ import {extname} from 'node:path';
 import {ProjectStore,ServiceError,hash,identity} from '../projects/store.ts';
 import {wavInfo} from '../tts/speech.ts';
 export type ConversionPhase='preparing'|'separation'|'conversion'|'mixing'|'complete';
-export type ConversionDriver={status:()=>{ready:boolean;message:string};run:(directory:string,progress:(phase:ConversionPhase,stage:string,progress:number)=>void,signal:AbortSignal)=>Promise<{duration:number}>};
+export type ConversionDriver={status:()=>{ready:boolean;message:string;model?:string;backend?:string;separationModel?:string;directory?:string};run:(directory:string,progress:(phase:ConversionPhase,stage:string,progress:number)=>void,signal:AbortSignal)=>Promise<{duration:number}>};
+export type ConversionPageOptions={page?:number;pageSize?:number};
+export type ConversionPagination={page:number;pageSize:number;total:number;totalPages:number};
+export type ConversionSnapshot={status:ReturnType<ConversionDriver['status']>;jobs:ConversionJob[];pagination?:ConversionPagination};
 type AudioKind='original'|'source'|'converted'|'vocals';
 type Artifact={sha256:string;bytes:number};
-export type ConversionJob={id:string;requestId:string;name:string;extension:string;voiceId:string;voiceName:string;sourceSha256:string;referenceSha256:string;state:'queued'|'running'|'succeeded'|'failed'|'cancelled'|'interrupted';phase:ConversionPhase;stage:string;progress:number;createdAt:string;duration?:number;error?:string;artifacts?:Partial<Record<AudioKind,Artifact>>};
+export type ConversionOwner={projectId:string;soundId:string;parentId?:string};
+export type ConversionJob={pitchShiftSemitones?:number;projectId?:string;soundId?:string;parentId?:string;purged?:boolean;id:string;requestId:string;name:string;extension:string;voiceId:string;voiceName:string;sourceSha256:string;referenceSha256:string;state:'queued'|'running'|'succeeded'|'failed'|'cancelled'|'interrupted';phase:ConversionPhase;stage:string;progress:number;createdAt:string;duration?:number;error?:string;artifacts?:Partial<Record<AudioKind,Artifact>>};
 type Data={format:'music-room-conversion';version:1;jobs:ConversionJob[]};
 export const conversionUploadLimit=200*1024*1024;
 const extensions=new Set(['.wav','.mp3','.m4a','.flac','.aif','.aiff','.aac']);
@@ -20,7 +24,7 @@ export class ConversionService {
   mkdirSync(store.path('conversion'),{recursive:true});const file=store.path('conversion','library.json');
   const data:Data=existsSync(file)?JSON.parse(readFileSync(file,'utf8')):{format:'music-room-conversion',version:1,jobs:[]};
   if(data.format!=='music-room-conversion'||data.version!==1||!Array.isArray(data.jobs))throw new ServiceError('CORRUPT_CONVERSION','音色转换记录损坏');
-  for(const job of data.jobs){identity(job.id);if(!extensions.has(job.extension))throw new ServiceError('CORRUPT_CONVERSION','音色转换文件记录无效');if(['queued','running'].includes(job.state)){job.state='interrupted';job.stage='服务上次已停止，可以重试';}}
+  for(const job of data.jobs){job.pitchShiftSemitones??=0;if(!Number.isInteger(job.pitchShiftSemitones)||job.pitchShiftSemitones < -12||job.pitchShiftSemitones > 12)throw new ServiceError('CORRUPT_CONVERSION','移调记录无效');identity(job.id);if(!extensions.has(job.extension))throw new ServiceError('CORRUPT_CONVERSION','音色转换文件记录无效');if(['queued','running'].includes(job.state)){job.state='interrupted';job.stage='服务上次已停止，可以重试';}}
   const service=new ConversionService(store,driver,data,otherEngineBusy);
   for(const job of data.jobs)if(job.state==='succeeded'){try{for(const kind of ['source','converted','vocals'] as const){if(!job.artifacts?.[kind])throw Error('缺少音频校验记录');service.audio(job.id,kind);}}catch{job.state='failed';job.stage='保存的音频不可用，可以重试';job.error='保存的音频缺失或发生外部修改，请重试';}}
   service.persist();return service;
@@ -30,28 +34,40 @@ export class ConversionService {
  private record(id:string){identity(id);const job=this.data.jobs.find(j=>j.id===id);if(!job)throw new ServiceError('NOT_FOUND','转换任务不存在');return job;}
  private directory(id:string){return this.store.path('conversion',identity(id));}
  private path(id:string,name:string){return this.store.path('conversion',identity(id),name);}
- snapshot(){return {status:this.driver.status(),jobs:structuredClone(this.data.jobs)};}
+ snapshot(options:ConversionPageOptions={}):ConversionSnapshot {
+  const {page:requestedPage,pageSize=10}=options;
+  if(requestedPage!==undefined&&(!Number.isSafeInteger(requestedPage)||requestedPage<1)||!Number.isSafeInteger(pageSize)||pageSize<1||pageSize>50)throw new ServiceError('INVALID_REQUEST','页码必须为正整数，每页数量为 1–50');
+  const status=this.driver.status();
+  if(requestedPage===undefined)return {status,jobs:structuredClone(this.data.jobs)};
+  const total=this.data.jobs.length,totalPages=Math.max(1,Math.ceil(total/pageSize)),page=Math.min(requestedPage,totalPages);
+  const ordered=this.data.jobs.map((job,index)=>({job,index})).sort((a,b)=>b.job.createdAt.localeCompare(a.job.createdAt)||b.index-a.index);
+  return {status,jobs:structuredClone(ordered.slice((page-1)*pageSize,page*pageSize).map(item=>item.job)),pagination:{page,pageSize,total,totalPages}};
+ }
  get(id:string){return structuredClone(this.record(id));}
+ bindOwner(id:string,owner:ConversionOwner){identity(owner.projectId);identity(owner.soundId);const job=this.record(id);if(job.soundId&&(job.soundId!==owner.soundId||job.projectId!==owner.projectId))throw new ServiceError('CONFLICT','转换任务已有所属声音');return this.change(()=>Object.assign(job,owner));}
+ purge(id:string){const job=this.record(id);if(this.active?.id===id||['queued','running'].includes(job.state))throw new ServiceError('CONFLICT','请先取消或等待转换完成');this.change(()=>Object.assign(job,{purged:true,name:'已删除音色转换',voiceName:'',artifacts:undefined,state:'cancelled'}));rmSync(this.directory(id),{recursive:true,force:true});}
  isBusy(){return !!this.active||this.data.jobs.some(j=>j.state==='queued');}
- add(name:string,bytes:Uint8Array,voice:{id:string;name:string;audio:Uint8Array},requestId:string){
+ add(name:string,bytes:Uint8Array,voice:{id:string;name:string;audio:Uint8Array},requestId:string,owner?:ConversionOwner,pitchShiftSemitones=0){
   if(this.closing)throw new ServiceError('CLOSED','服务正在退出');
+  if(!Number.isInteger(pitchShiftSemitones)||pitchShiftSemitones < -12||pitchShiftSemitones > 12)throw new ServiceError('INVALID_REQUEST','整体移调必须是 -12 至 12 的整数半音');
   if(typeof name!=='string'||!name.trim()||name.length>240||typeof requestId!=='string'||!requestId||requestId.length>120)throw new ServiceError('INVALID_REQUEST','请提供文件名称和请求标识');
   const extension=extname(name).toLowerCase();if(!extensions.has(extension))throw new ServiceError('INVALID_AUDIO','请选择 WAV、MP3、M4A、FLAC 或 AIFF 音频');
   if(!bytes.length||bytes.length>conversionUploadLimit)throw new ServiceError('TOO_LARGE','音频需大于 0 字节且不超过 200 MiB');
+  if(owner){identity(owner.soundId);this.store.assertActive(owner.projectId);if(owner.parentId)identity(owner.parentId);}
   identity(voice.id);const reference=wavInfo(voice.audio);if(reference.duration<.3||reference.duration>25||reference.peak<.001)throw new ServiceError('INVALID_AUDIO','请选择包含可听见人声的参考音色');
   const sourceSha256=hash(bytes),referenceSha256=hash(voice.audio),existing=this.data.jobs.find(j=>j.requestId===requestId);
-  if(existing){if(existing.name!==name||existing.sourceSha256!==sourceSha256||existing.referenceSha256!==referenceSha256||existing.voiceId!==voice.id)throw new ServiceError('CONFLICT','这个请求已使用不同的音频或音色');return structuredClone(existing);}
+  if(existing){if((existing.pitchShiftSemitones??0)!==pitchShiftSemitones)throw new ServiceError('CONFLICT','这个请求已使用不同的移调参数');if(existing.purged)throw new ServiceError('NOT_FOUND','原转换已永久删除');if(existing.soundId!==owner?.soundId||existing.projectId!==owner?.projectId||existing.parentId!==owner?.parentId)throw new ServiceError('CONFLICT','请求已有不同所属声音');if(existing.name!==name||existing.sourceSha256!==sourceSha256||existing.referenceSha256!==referenceSha256||existing.voiceId!==voice.id)throw new ServiceError('CONFLICT','这个请求已使用不同的音频或音色');return structuredClone(existing);}
   if(!this.driver.status().ready)throw new ServiceError('NOT_READY',this.driver.status().message);
-  const job:ConversionJob={id:`conversion-${randomUUID()}`,requestId,name,extension,voiceId:voice.id,voiceName:voice.name,sourceSha256,referenceSha256,state:'queued',phase:'preparing',stage:'等待转换',progress:0,createdAt:new Date().toISOString()};
+  const job:ConversionJob={...owner,pitchShiftSemitones,id:`conversion-${randomUUID()}`,requestId,name,extension,voiceId:voice.id,voiceName:voice.name,sourceSha256,referenceSha256,state:'queued',phase:'preparing',stage:'等待转换',progress:0,createdAt:new Date().toISOString()};
   mkdirSync(this.directory(job.id),{recursive:false,mode:0o700});
-  try{writeFileSync(this.path(job.id,'original'+extension),bytes,{flag:'wx',mode:0o600});writeFileSync(this.path(job.id,'reference.wav'),voice.audio,{flag:'wx',mode:0o600});this.store.atomicJSON(this.path(job.id,'meta.json'),{extension});this.change(()=>this.data.jobs.push(job));}
+  try{writeFileSync(this.path(job.id,'original'+extension),bytes,{flag:'wx',mode:0o600});writeFileSync(this.path(job.id,'reference.wav'),voice.audio,{flag:'wx',mode:0o600});this.store.atomicJSON(this.path(job.id,'meta.json'),{extension,pitchShiftSemitones});this.change(()=>this.data.jobs.push(job));}
   catch(error){rmSync(this.directory(job.id),{recursive:true,force:true});throw error;}
   this.pump();return this.get(job.id);
  }
- retry(id:string){const job=this.record(id);if(['queued','running','succeeded'].includes(job.state))throw new ServiceError('CONFLICT','仅失败、取消或中断的任务可以重试');return this.add(job.name,this.audio(id,'original'),{id:job.voiceId,name:job.voiceName,audio:this.reference(id)},randomUUID());}
+ retry(id:string){const job=this.record(id);if(job.purged)throw new ServiceError('NOT_FOUND','转换已永久删除');if(['queued','running','succeeded'].includes(job.state))throw new ServiceError('CONFLICT','仅失败、取消或中断的任务可以重试');return this.add(job.name,this.audio(id,'original'),{id:job.voiceId,name:job.voiceName,audio:this.reference(id)},randomUUID(),job.soundId&&job.projectId?{soundId:job.soundId,projectId:job.projectId,parentId:job.id}:undefined,job.pitchShiftSemitones??0);}
  private reference(id:string){const bytes=new Uint8Array(readFileSync(this.path(id,'reference.wav')));if(hash(bytes)!==this.record(id).referenceSha256)throw new ServiceError('SOURCE_CHANGED','保存的参考音色已发生变化');return bytes;}
  audio(id:string,kind:AudioKind){
-  const job=this.record(id);if(!['original','source','converted','vocals'].includes(kind))throw new ServiceError('NOT_FOUND','音频不存在');
+  const job=this.record(id);if(job.purged)throw new ServiceError('NOT_FOUND','转换已永久删除');if(!['original','source','converted','vocals'].includes(kind))throw new ServiceError('NOT_FOUND','音频不存在');
   if((kind==='converted'||kind==='vocals')&&job.state!=='succeeded')throw new ServiceError('NOT_READY','转换尚未完成');
   const file=this.path(id,kind==='original'?'original'+job.extension:kind+'.wav');if(!existsSync(file))throw new ServiceError('NOT_FOUND','音频尚未准备好');
   const bytes=new Uint8Array(readFileSync(file)),expected=kind==='original'?job.sourceSha256:job.artifacts?.[kind]?.sha256;

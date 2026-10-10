@@ -8,6 +8,7 @@ import { decodeNativeWav } from './audio-codec.ts';
 import { encodeWav } from '../../wav.ts';
 import { SR, fitLength, gate, mix, mono, plan, rms, weights } from './audio.ts';
 import type { ConversionDriver } from './conversion.ts';
+import {shiftBackingStem} from './pitch.ts';
 
 const models = [
   { file: 'seed-vc-f16.gguf', size: 3629186560, sha256: '03740be5b4b55ae677c34d63514ff879aaedd6a77fd31773938166fb84debf93' },
@@ -76,21 +77,24 @@ async function verifyModels(directory: string, signal: AbortSignal) {
 }
 export function createNativeConversionDriver(engineDirectory: string, worker: ConversionWorker = defaultWorker): ConversionDriver {
   const cli = join(engineDirectory, 'audiocpp_cli');
+  const details = { model: 'Seed-VC · F16 · v1_svc', backend: 'Metal', separationModel: 'HTDemucs · F16', directory: engineDirectory };
   const execute = (command: string, args: string[], log: string, signal: AbortSignal, timeoutMs = 20 * 60_000) => runCommand(command, args, log, signal, timeoutMs, worker);
   return {
     status: () => {
       try {
-        if (!existsSync(cli) || !existsSync(join(engineDirectory, 'installed.json'))) return { ready: false, message: '尚未安装原生音色转换引擎' };
+        if (!existsSync(cli) || !existsSync(join(engineDirectory, 'installed.json'))) return { ...details, ready: false, message: '尚未安装原生音色转换引擎' };
         installation(engineDirectory);
-        if (models.some(m => statSync(join(engineDirectory, m.file)).size !== m.size)) return { ready: false, message: '音色转换模型不完整' };
-        return { ready: true, message: '已就绪 · 在本机处理，无需为新音色训练' };
-      } catch { return { ready: false, message: '音色转换模型不可用' }; }
+        if (models.some(m => statSync(join(engineDirectory, m.file)).size !== m.size)) return { ...details, ready: false, message: '音色转换模型不完整' };
+        return { ...details, ready: true, message: '已就绪 · 在本机处理，无需为新音色训练' };
+      } catch { return { ...details, ready: false, message: '音色转换模型不可用' }; }
     },
     run: async (directory, progress, signal) => {
       const started = Date.now(), log = join(directory, 'native.log');
       progress('preparing', '校验模型与原始音频', 0);
       await verifyModels(engineDirectory, signal);
-      const meta = JSON.parse(await readFile(join(directory, 'meta.json'), 'utf8')) as { extension: string };
+      const meta = JSON.parse(await readFile(join(directory, 'meta.json'), 'utf8')) as { extension: string; pitchShiftSemitones?:number };
+      const pitchShiftSemitones=meta.pitchShiftSemitones??0;
+      if(!Number.isInteger(pitchShiftSemitones)||Math.abs(pitchShiftSemitones)>12)throw new Error('升降调必须为 -12 至 12 之间的整数半音');
       if (!/^\.[a-zA-Z0-9]{1,8}$/.test(meta.extension)) throw new Error('原始文件扩展名无效');
       const sourcePath = join(directory, 'source.wav');
       await execute('/usr/bin/afconvert', ['-f', 'WAVE', '-d', 'LEI16@44100', join(directory, `original${meta.extension}`), sourcePath], log, signal, 120_000);
@@ -111,7 +115,8 @@ export function createNativeConversionDriver(engineDirectory: string, worker: Co
       // Sum model background stems; keep stereo channel placement through remix.
       const backing = Array.from({ length: source.length }, () => new Float32Array(n));
       for (const stem of ['drums', 'bass', 'other']) {
-        const channels = await loadWav(join(stems, `${stem}.wav`));
+        const separatedChannels = await loadWav(join(stems, `${stem}.wav`));
+        const channels = await shiftBackingStem(stem as 'drums'|'bass'|'other',separatedChannels.map(c=>fitLength(c,n)),pitchShiftSemitones,signal);
         if (source.length === 2 && channels.length !== 2) throw new Error('分离引擎丢失立体声背景，拒绝输出降为单声道的结果');
         for (let ch = 0; ch < backing.length; ch++) { const a = fitLength(channels[ch] ?? channels[0], n); for (let i = 0; i < n; i++) backing[ch][i] += a[i]; }
       }
@@ -124,7 +129,7 @@ export function createNativeConversionDriver(engineDirectory: string, worker: Co
         if (level >= 10 ** (-55 / 20)) {
           const input = join(directory, 'segment-source.wav'), output = join(directory, 'segment-converted.wav');
           await saveWav(input, [vocal.subarray(p.inputStart, p.inputEnd)]); await rm(output, { force: true });
-          await execute(cli, ['--task', 'svc', '--family', 'seed_vc', '--task-route', 'v1_svc', '--model', join(engineDirectory, 'seed-vc-f16.gguf'), '--backend', 'metal', '--audio', input, '--voice-ref', referencePath, '--out', output, '--num-inference-steps', '30', '--seed', '42', '--request-option', 'f0_condition=true', '--request-option', 'auto_f0_adjust=false', '--request-option', 'semitone_shift=0', '--request-option', 'length_adjust=1.0', '--metrics', '--log'], log, signal);
+          await execute(cli, ['--task', 'svc', '--family', 'seed_vc', '--task-route', 'v1_svc', '--model', join(engineDirectory, 'seed-vc-f16.gguf'), '--backend', 'metal', '--audio', input, '--voice-ref', referencePath, '--out', output, '--num-inference-steps', '30', '--seed', '42', '--request-option', 'f0_condition=true', '--request-option', 'auto_f0_adjust=false', '--request-option', `semitone_shift=${pitchShiftSemitones}`, '--request-option', 'length_adjust=1.0', '--metrics', '--log'], log, signal);
           const rendered = fitLength(mono(await loadWav(output)), p.inputEnd - p.inputStart);
           piece.set(rendered.subarray(p.start - p.inputStart, p.end - p.inputStart));
           if (rms(piece) < 1e-8) throw new Error(`第 ${i + 1} 段转换得到空白人声`);
@@ -134,7 +139,7 @@ export function createNativeConversionDriver(engineDirectory: string, worker: Co
         const w = weights(parts, i); for (let j = 0; j < piece.length; j++) merged[p.start + j] += piece[j] * w[j];
         records.push({ ...p, sourceRms: level, gain, skipped: gain === 0, seconds: (Date.now() - begin) / 1000 });
       }
-      aborted(signal); progress('mixing', '混回原背景并检查完整长度', .95);
+      aborted(signal); progress('mixing', pitchShiftSemitones?'混回同步升降调的伴奏并检查完整长度':'混回原背景并检查完整长度', .95);
       gate(vocal, merged);
       const mixed = mix(backing, merged), vocalOutput = mix([new Float32Array(n)], merged);
       await saveWav(join(directory, 'converted.pending.wav'), mixed.channels);
@@ -142,7 +147,7 @@ export function createNativeConversionDriver(engineDirectory: string, worker: Co
       const verified = await loadWav(join(directory, 'converted.pending.wav'));
       if (verified.length !== source.length || verified.some(c => c.length !== n)) throw new Error('转换输出未通过完整长度检查');
       aborted(signal);
-      await writeFile(join(directory, 'metrics.json'), JSON.stringify({ installation: installation(engineDirectory), duration: n / SR, sampleRate: SR, channels: source.length, elapsedSeconds: (Date.now() - started) / 1000, mixGain: mixed.gain, vocalBoostDb: 3, referenceSeconds: reference[0].length / SR, parts: records }, null, 2));
+      await writeFile(join(directory, 'metrics.json'), JSON.stringify({ installation: installation(engineDirectory), duration: n / SR, sampleRate: SR, channels: source.length, pitchShiftSemitones, drumsPitchShiftSemitones:0, elapsedSeconds: (Date.now() - started) / 1000, mixGain: mixed.gain, vocalBoostDb: 3, referenceSeconds: reference[0].length / SR, parts: records }, null, 2));
       await rename(join(directory, 'converted.pending.wav'), join(directory, 'converted.wav'));
       progress('complete', '转换完成', 1);
       return { duration: n / SR };

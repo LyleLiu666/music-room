@@ -1331,7 +1331,7 @@ dialog::backdrop {
   /* No backdrop-filter here on purpose: blurring a full-viewport backdrop makes the
      compositor re-run the blur pass while anything above it moves, which shows up as
      scroll jank in the dialog (and in WebKit it re-rasterizes the whole page). */
-  background: rgba(18, 26, 17, 0.44);
+  background: rgba(8, 12, 9, 0.72);
 }
 
 .dialog-frame {
@@ -2623,3 +2623,51 @@ pre {
     align-self: center;
   }
 }
+
+/* Keep project context, sound selection and creation actions in one compact row. */
+#workspace > .workspace-toolbar {
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+.workspace-toolbar h1 {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 180px;
+  font-size: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.workspace-toolbar .sound-nav {
+  flex: 1 1 160px;
+  min-width: 0;
+  border-bottom: 0;
+}
+.workspace-toolbar .sound-tab { padding: 8px 10px; margin-bottom: 0; }
+.workspace-toolbar .sound-tab > span:last-child { max-width: 130px; font-size: 13px; }
+.workspace-toolbar .project-actions { flex-shrink: 0; gap: 6px; }
+.workspace-toolbar .primary { padding: 8px 12px; font-size: 13px; }
+.workspace-toolbar .add-sound { position: static; margin-left: 0; padding: 7px 10px; }
+.workspace-toolbar .quiet { padding: 8px; font-size: 12px; }
+.workspace-toolbar + .sound-workspace { margin-top: 20px; }
+@media (max-width: 1100px) {
+  .workspace-toolbar { flex-wrap: wrap; }
+  .workspace-toolbar .sound-nav { order: 3; flex-basis: 100%; }
+  .workspace-toolbar .project-actions { margin-left: auto; }
+}
+@media (max-width: 600px) {
+  .workspace-toolbar h1 { max-width: 130px; font-size: 18px; }
+  .workspace-toolbar .project-actions { flex-wrap: wrap; justify-content: flex-end; flex: 1 1 160px; }
+  .workspace-toolbar .project-actions .quiet { padding: 5px; }
+  .workspace-toolbar .primary { padding: 7px 9px; font-size: 12px; }
+  .workspace-toolbar .add-sound { font-size: 12px; }
+}
+/* Conversion is another sound in the same project, with compact paged versions. */
+.conversion-version-pagination{display:flex;justify-content:flex-end;align-items:center;gap:12px;padding:16px 0;font-size:12px}.conversion-versions .version-row>button{min-height:52px;padding:8px 0}.conversion-versions .version-copy{display:flex;flex-direction:row;align-items:center;gap:16px;min-width:0}.conversion-versions .version-metadata{flex-shrink:0}.conversion-versions .version-description{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}.conversion-reuse{display:flex;align-items:center;gap:8px}.conversion-reuse input{width:auto}#conversion-compose-form{display:grid;gap:12px}#conversion-compose-form input[type=file]{width:100%;max-width:100%}#conversion-part-audio{width:100%}@media(max-width:600px){.conversion-version-pagination{justify-content:space-between;gap:5px}.conversion-versions .version-copy{display:block}.conversion-versions .version-description{max-width:150px}}
+/* Compact creation form only; the standalone voice library keeps its roomy layout. */
+#compose-form .form-intro{margin:4px 0 10px}#compose-form .form-group{margin-top:10px;padding:0 12px 10px}#compose-form .form-group-title{margin:10px 0 6px}#compose-form .voice-preview{margin:6px 0}#compose-form .voice-preview-actions{gap:8px}#compose-form .voice-preview-actions button{padding:4px 8px}#compose-form .voice-sample{margin:6px 0 3px}#compose-form .voice-sample>span{margin-bottom:3px}#compose-form .voice-sample audio{height:32px}#compose-form .reference-upload{margin:4px 0 0;padding:0 10px}#compose-form .reference-upload summary{min-height:32px;padding:5px 0;margin:0}#compose-form .reference-upload[open]{padding-bottom:10px}#compose-form label:not(.sr-only){margin-top:10px;margin-bottom:5px}#compose-form .field-note{margin-top:6px;margin-bottom:6px}#compose-form #creation-text{min-height:70px;resize:vertical;padding-top:8px;padding-bottom:8px}#compose-form .advanced{margin-top:6px}#compose-form .advanced summary{padding-top:6px;padding-bottom:6px}
+
+#compose-form select{height:36px;min-height:36px;padding-top:5px;padding-bottom:5px}
+
+#conversion-compose-form #conversion-pitch{height:36px;min-height:36px;padding-top:5px;padding-bottom:5px}
