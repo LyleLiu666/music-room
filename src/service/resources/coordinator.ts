@@ -6,7 +6,7 @@ import type {ResourceLease} from './lease.ts';
 type Entry = {
   request: ResourceRequest<unknown>; state: ResourceTaskState; controller: AbortController;
   resolve: (value: unknown) => void; reject: (error: unknown) => void;
-  detach: () => void;
+  detach: () => void; cancel:()=>void;done:Promise<void>;
 };
 export type CoordinatorOptions = {
   probe: () => Promise<HardwareSnapshot>;
@@ -26,6 +26,7 @@ export class ResourceCoordinator {
   private history: ResourceTaskState[] = [];
   private fault?: ResourceError;
   private closed = false;
+  private paused=false;private hardwareError?:string;private configurationError?:string;
   private closing?: Promise<void>;
   private pumping?: Promise<void>;
   private wake?: () => void;
@@ -47,6 +48,7 @@ export class ResourceCoordinator {
   run<T>(request: ResourceRequest<T>): Promise<T> {
     if (this.closed) return Promise.reject(new ResourceError('CLOSED', '服务正在退出'));
     if (this.fault) return Promise.reject(this.fault);
+    if(this.configurationError)return Promise.reject(new ResourceError('RESOURCE_PROFILE_UNVERIFIED',this.configurationError));
     if (!this.adapters.has(request.engine)) return Promise.reject(new ResourceError('UNSUPPORTED_BACKEND', '引擎未接入资源管理'));
     if (this.queue.length + (this.active ? 1 : 0) >= this.options.policy.maxQueue)
       return Promise.reject(new ResourceError('QUEUE_FULL', '任务队列已满，请等待或取消任务'));
@@ -54,10 +56,10 @@ export class ResourceCoordinator {
       return Promise.reject(new ResourceError('DUPLICATE_RESOURCE_TASK', '任务已在排队或执行'));
     if (request.signal?.aborted) return Promise.reject(new ResourceError('CANCELLED', '任务已取消'));
     return new Promise<T>((resolve, reject) => {
-      const controller = new AbortController();
+      const controller = new AbortController();let settled!:()=>void;const done=new Promise<void>(r=>settled=r);
       const entry: Entry = {request: {...request, demand: structuredClone(request.demand)} as ResourceRequest<unknown>,
         state: {id: request.id, engine: request.engine, stage: 'queued', submittedAt: this.now()}, controller,
-        resolve: value => resolve(value as T), reject, detach: () => request.signal?.removeEventListener('abort', abort)};
+        resolve: value => {settled();resolve(value as T);}, reject:error=>{settled();reject(error);},done,cancel:()=>{}, detach: () => request.signal?.removeEventListener('abort', abort)};
       const abort = () => {
         const error = new ResourceError('CANCELLED', '任务已取消'); controller.abort(error);
         const index = this.queue.indexOf(entry);
@@ -70,20 +72,26 @@ export class ResourceCoordinator {
         }
         this.wake?.();
       };
-      request.signal?.addEventListener('abort', abort, {once: true});
+      entry.cancel=abort;request.signal?.addEventListener('abort', abort, {once: true});
       try {this.emit(entry, 'queued');} catch (error) {entry.detach(); reject(error); return;}
       this.queue.push(entry);
       queueMicrotask(() => this.pump());
     });
   }
   snapshot() {
-    return {active: this.active ? structuredClone(this.active.state) : undefined,
+    return {paused:this.paused,policy:structuredClone(this.options.policy),configurationError:this.configurationError,hardwareError:this.hardwareError,active: this.active ? structuredClone(this.active.state) : undefined,
       queued: this.queue.map(e => structuredClone(e.state)), history: structuredClone(this.history),
       hardware:this.lastHardware?structuredClone(this.lastHardware):undefined,observation:this.observation?structuredClone(this.observation):undefined,
       reservations: {...this.reservations}, residents: [...this.adapters].flatMap(([engine, a]) => {
-        const bytes = a.resident(); return bytes ? [{engine, bytes: {...bytes}}] : [];
+        const bytes = a.resident(); return bytes ? [{engine,loaded:true,estimatedBytes:Object.values(bytes).some(v=>v>0)?{...bytes}:undefined}] : [];
       }), fault: this.fault ? {code: this.fault.code, message: this.fault.message} : undefined};
   }
+  async status(){try{this.lastHardware=await this.options.probe();this.hardwareError=undefined;}catch{this.lastHardware=undefined;this.hardwareError='暂时无法读取电脑资源';}return this.snapshot();}
+  pause(){this.paused=true;return this.snapshot();}
+  resume(){if(this.closed)throw new ResourceError('CLOSED','服务正在退出');this.paused=false;queueMicrotask(()=>this.pump());return this.snapshot();}
+  async cancel(id:string){const entry=[...this.queue,...(this.active?[this.active]:[])].find(e=>e.state.id===id);if(!entry){if(this.history.some(e=>e.id===id))return this.snapshot();throw Error('资源任务不存在');}entry.cancel();await entry.done;return this.snapshot();}
+  setConfigurationError(message:string){this.configurationError=message;}
+  setLimits(limits:Record<string,number>|undefined,persist:()=>void=()=>{}){if(this.closed||this.active||this.queue.length||this.pumping)throw Error('请等任务结束或先取消，再修改内存上限');const policy={...this.options.policy,limits};if(!validPolicy(policy)||limits&&Object.keys(limits).some(k=>k!=='memory'))throw Error('内存上限无效');persist();this.options.policy=structuredClone(policy);this.configurationError=undefined;return this.snapshot();}
   private emit(entry: Entry, stage: ResourceStage, error?: ResourceError) {
     entry.state = {...entry.state, stage, reason: error?.code, message: error?.message};
     entry.request.onState?.(structuredClone(entry.state));
@@ -106,7 +114,7 @@ export class ResourceCoordinator {
   }
   private pump() {
     if (this.pumping) return;
-    this.pumping = this.drain().finally(() => {this.pumping = undefined; if (this.queue.length) this.pump();});
+    this.pumping = this.drain().finally(() => {this.pumping = undefined; if (this.queue.length&&!this.paused) this.pump();});
     // Every entry has its own rejection. Never leak a background rejection.
     void this.pumping.catch(() => {});
   }
@@ -121,7 +129,7 @@ export class ResourceCoordinator {
     if(this.options.observe)tick();return async()=>{stopped=true;if(timer)clearTimeout(timer);await pending;};
   }
   private async drain() {
-    while (this.queue.length) {
+    while (this.queue.length&&!this.paused) {
       const entry = this.queue.shift()!; this.active = entry;
       const adapter = this.adapters.get(entry.request.engine)!;
       let executed = false;
@@ -200,10 +208,10 @@ export class ResourceCoordinator {
   }
   close(): Promise<void> {
     if (this.closing) return this.closing;
-    this.closed = true;
+    this.closed = true;this.paused=false;
     this.closing = (async () => {
       for (const entry of [...this.queue, ...(this.active ? [this.active] : [])])
-        entry.controller.abort(new ResourceError('CANCELLED', '服务退出，任务中断'));
+        entry.cancel();
       this.wake?.(); this.pump(); await this.pumping;
       let failure: unknown;
       for (const [engine, a] of this.adapters) {

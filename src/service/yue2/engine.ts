@@ -30,7 +30,7 @@ export class YuE2Engine {
         if(lstatSync(path).isSymbolicLink())throw new Error('YuE2 设置文件不能是符号链接');
         const value=JSON.parse(readFileSync(path,'utf8')) as Config;
         if(value.version!==1 || typeof value.directory!=='string'||!isAbsolute(value.directory) || typeof value.autoStart!=='boolean')throw new ServiceError('CORRUPT_ENGINE','YuE2 设置格式无效');
-        engine.config=value;engine.phase=driver.installed(value.directory)?'stopped':'uninstalled';engine.message='YuE2 尚未启动';
+        engine.config=value;engine.phase=driver.installed(value.directory)?'stopped':'uninstalled';engine.message=resources?(value.autoStart?'YuE2 已启用，生成时按需加载':'YuE2 尚未启用'):'YuE2 尚未启动';
       }catch(error){engine.fail(error);}
     }
     const reason=driver.unsupported();if(reason){engine.phase='unsupported';engine.message=reason;}
@@ -54,7 +54,7 @@ export class YuE2Engine {
       try {const status=await running.status();if(this.process===running&&this.phase==='running'){modelsReady=status.modelsPresent&&!status.fake;this.message='YuE2 服务已启动';}}
       catch(error){if(this.process===running)this.message=`YuE2 状态暂时无法读取：${error instanceof Error?error.message:String(error)}`;}
     }
-    return {phase:this.phase,directory:this.config?.directory,defaultDirectory:join(homedir(),'Music','YuE2'),installed,autoStart:this.config?.autoStart??false,modelsReady,canGenerate:modelsReady&&(!!this.resources||this.phase==='running'),url:this.phase==='running'?this.process?.url:undefined,message:this.message,error:this.error,logs:[...this.logs]};
+    return {phase:this.phase,directory:this.config?.directory,defaultDirectory:join(homedir(),'Music','YuE2'),installed,autoStart:this.config?.autoStart??false,modelsReady,canGenerate:modelsReady&&!this.closing&&(this.resources?!!this.config?.autoStart:this.phase==='running'),url:this.phase==='running'?this.process?.url:undefined,message:this.message,error:this.error,logs:[...this.logs]};
   }
   async chooseDirectory(){return {directory:await this.driver.chooseDirectory()};}
   private check(){if(this.closing)throw new ServiceError('CLOSED','服务正在退出');const reason=this.driver.unsupported();if(reason)throw new ServiceError('YUE2_UNSUPPORTED',reason);}
@@ -106,6 +106,7 @@ export class YuE2Engine {
   }
   async prepare(input:string,models:boolean) {
     this.check();if(this.active)throw new ServiceError('YUE2_BUSY','YuE2 正在准备或启动，请等待完成或先停止');
+    const queue=this.resources?.snapshot();if(queue&&[...(queue.active?[queue.active]:[]),...queue.queued].some(task=>task.engine==='yue2'))throw new ServiceError('YUE2_BUSY','音乐正在排队或生成，请先完成或取消，再准备环境');
     const directory=this.directory(input);
     if(this.process&&this.config?.directory!==directory)throw new ServiceError('YUE2_BUSY','更换安装目录前请先停止 YuE2');
     mkdirSync(this.store.path('engines'),{recursive:true});

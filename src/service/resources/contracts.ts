@@ -40,7 +40,7 @@ export type ResourceTaskState = {
   id: string; engine: string; stage: ResourceStage; submittedAt: number;
   reason?: ResourceReason; message?: string;peak?:Record<string,number>;
 };
-export type ResidentModel = {engine: string; bytes: Record<string, number>};
+export type ResidentModel = {engine: string; loaded:boolean; estimatedBytes?:Record<string, number>};
 export type ResourceAdapter = {
   resident: () => Record<string, number> | undefined;
   /** Resolves only after actual resource release. Rejecting fences new work. */

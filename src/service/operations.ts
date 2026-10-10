@@ -1,3 +1,4 @@
+import type {ResourceCoordinator} from './resources/coordinator.ts';
 import type {ConversionService,ConversionJob} from './conversion/conversion.ts';
 import type {StudioService,StudioSound,StudioVersion} from './studio/studio.ts';
 import {z} from 'zod';
@@ -13,6 +14,12 @@ const jobId=z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/);
 const ref={projectId:id,revisionId:id};
 const text=z.string().min(1).max(8000);
 export const operations = {
+  resource_status:{description:'查看同一服务的硬件、估计预算、实际任务采样、队列、等待原因及模型驻留。查询不会启动模型。',schema:z.object({}).strict()},
+  resource_pause:{description:'暂停后续重型任务；当前已取得执行权的任务继续。作品浏览和播放可用。',schema:z.object({}).strict()},
+  resource_resume:{description:'恢复后续重型任务调度；每项任务仍需重新检查资源。',schema:z.object({}).strict()},
+  resource_cancel:{description:'取消指定资源任务并等待所属处理停止；保留原输入和已完成作品。',schema:z.object({taskId:z.string().min(1).max(200)}).strict()},
+  resource_release:{description:'空闲时确认释放模型；有任务时须先完成或取消。',schema:z.object({}).strict()},
+  resource_set_limit:{description:'空闲时保存应用内存上限（字节），只能收紧默认安全额度；null 恢复自动管理。不会降低系统保留量。',schema:z.object({memoryBytes:z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable()}).strict()},
   svc_library:{description:'读取音色转换引擎状态和持久化任务。原音、参考音色与完整转换结果独立保存。',schema:z.object({page:z.number().int().positive().optional(),pageSize:z.number().int().positive().max(50).optional()}).strict()},
   svc_create_version:{description:'使用当前声音版本保存的原音和指定音色新建转换版本。',schema:z.object({pitchShiftSemitones:z.number().int().min(-12).max(12).optional(),soundId:id,sourceJobId:jobId,voiceId:id,requestId:z.string().min(1).max(120)}).strict()},
   svc_cancel:{description:'取消指定音色转换任务，保留原音。',schema:z.object({jobId}).strict()},
@@ -36,14 +43,14 @@ export const operations = {
   tts_clean_voice:{description:'清理已有音色，旧音色另存清理版以免改变历史版本；失败或中断的清理可重试。轮询 tts_library 查看处理状态。',schema:z.object({voiceId:id}).strict()},
   tts_update_voice:{description:'给已保存音色改名、标记常用或移入/恢复回收站，所有项目共用同一个音色库。',schema:z.object({voiceId:id,name:z.string().trim().min(1).max(120).optional(),favorite:z.boolean().optional(),deleted:z.boolean().optional(),usage:z.enum(['all','conversion']).optional()}).strict()},
   tts_create_sound:{description:'在已有项目中创建一个语音，如片头旁白；后续生成均属于此声音。',schema:z.object({projectId:id,title:z.string().min(1).max(120)}).strict()},
-  tts_generate:{description:'使用 IndexTTS 2.0 根据参考人声、正文和可选情绪生成新版本；立即返回版本 id，后台继续执行。',schema:z.object({soundId:id,voiceId:id,text:z.string().trim().min(1).max(8000),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),parentId:id.optional(),seed:z.number().int().min(0).max(0xffffffff).optional()}).strict()},
+  tts_generate:{description:'使用 IndexTTS 2.0 根据参考人声、正文和可选情绪生成新版本；当前原生档案正文最多 140 字，其他配置须有已验证档案。立即返回版本 id，后台继续执行。',schema:z.object({soundId:id,voiceId:id,text:z.string().trim().min(1).max(8000),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),parentId:id.optional(),seed:z.number().int().min(0).max(0xffffffff).optional()}).strict()},
   tts_get_version:{description:'查询语音版本的真实状态、创作输入和音频校验信息。',schema:z.object({versionId:id}).strict()},
   tts_cancel:{description:'取消排队或生成中的语音版本，停止所属推理进程。',schema:z.object({versionId:id}).strict()},
   tts_update_version:{description:'语音版本保留灵感、选作成品或移入/恢复回收站；删除不会删除后续版本。',schema:z.object({versionId:id,kept:z.boolean().optional(),final:z.boolean().optional(),deleted:z.boolean().optional()}).strict()},
   yue2_status:{description:'查看 YuE2 安装目录、准备进度、日志与真实模型就绪状态。',schema:z.object({}).strict()},
   yue2_choose_directory:{description:'弹出本机文件夹选择窗口，用户指定 YuE2 程序、Python、模型、缓存和产物的统一目录。',schema:z.object({}).strict()},
-  prepare_yue2:{description:'在用户指定的空文件夹安装 YuE2 专用环境并启动。downloadModels=true 下载约 10GB 权重及器乐适配器；后台运行，用 yue2_status 轮询。',schema:z.object({directory:z.string().min(1).max(4096),downloadModels:z.boolean().default(true)}).strict()},
-  start_yue2:{description:'后台启动已安装的 YuE2；以后启动工作台时自动恢复。',schema:z.object({}).strict()},
+  prepare_yue2:{description:'在用户指定的空文件夹安装 YuE2 专用环境；生成时按需加载。downloadModels=true 下载约 10GB 权重及器乐适配器；后台运行，用 yue2_status 轮询。',schema:z.object({directory:z.string().min(1).max(4096),downloadModels:z.boolean().default(true)}).strict()},
+  start_yue2:{description:'启用已安装的 YuE2；工作台打开时保持空闲，生成时统一申请资源。',schema:z.object({}).strict()},
   stop_yue2:{description:'停止所属 YuE2 及安装下载进程，保留文件；关闭自动启动。',schema:z.object({}).strict()},
   yue2_generate:{description:'使用本地真实 YuE2 模型生成音乐，立即返回 job.id。instrumental 默认 true，自动使用器乐适配器；lyrics 为段落结构（如 [instrumental]），cot=full。用 yue2_get_job 查询，done 后 audioPath 是本机 FLAC。',schema:z.object({style:z.string().min(1).max(8000),lyrics:z.string().min(1).max(16000).default('[instrumental]'),preset:z.enum(['fast','quality']).default('fast'),instrumental:z.boolean().default(true),seed:z.number().int().min(0).max(2147483647).optional(),title:z.string().min(1).max(200).optional()}).strict()},
   yue2_get_job:{description:'查询 YuE2 真实生成状态、失败原因及完成后音频路径。',schema:z.object({jobId:yue2JobId}).strict()},
@@ -70,7 +77,9 @@ export type OperationArgs<K extends Operation> = z.output<(typeof operations)[K]
 export type RevisionDocument = Awaited<ReturnType<ProjectStore['revision']>>;
 export type LibrarySnapshot = {projects:Project[];documents:Composition[];jobs:Job[]};
 export type AuthoringContext = {project?:Project;revision?:RevisionDocument;feedback:Feedback[];guide:string;example:Composition;prompt:string;rules:string;workflow:Operation[];tracks:string};
+export type ResourceStatus=Awaited<ReturnType<ResourceCoordinator['status']>>;
 export type OperationResults = {
+  resource_status:ResourceStatus;resource_pause:ResourceStatus;resource_resume:ResourceStatus;resource_cancel:ResourceStatus;resource_release:ResourceStatus;resource_set_limit:ResourceStatus;
   svc_library:ReturnType<ConversionService['snapshot']>&{voices:SpeechVoice[]};svc_create_version:ConversionJob;svc_cancel:ConversionJob;svc_retry:ConversionJob;
   studio_update_project:Project;studio_update_sound:StudioSound;studio_purge:{purged:true};
   studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_generate:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_save_speed:StudioVersion;studio_import_score:StudioVersion;

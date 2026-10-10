@@ -30,7 +30,7 @@ test('managed music is lazy, serialized, and reads completed audio after unloadi
 });
 test('queued music cancellation never launches a model',async t=>{
  const f=await fixture(t);const block=new AbortController();f.resources.register('block',{resident:()=>undefined,unload:async()=>{}});const held=f.resources.run({id:'block',engine:'block',demand:{verified:true,peak:{memory:1}},signal:block.signal,execute:async ctx=>new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}))}).catch(()=>{});
- const a=await f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true});await f.client.cancel(a.job.id);assert.equal((await f.client.job(a.job.id)).job.status,'cancelled');assert.equal(f.counts().launches,0);block.abort();await held;
+ const a=await f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true});await assert.rejects(f.engine.prepare(f.directory,false),/请先完成或取消/);assert.equal((await f.engine.status()).canGenerate,true);await f.client.cancel(a.job.id);assert.equal((await f.client.job(a.job.id)).job.status,'cancelled');assert.equal(f.counts().launches,0);block.abort();await held;
 });
 
 test('reopening marks unfinished local and old upstream tasks interrupted without execution',async t=>{
@@ -40,4 +40,7 @@ test('reopening marks unfinished local and old upstream tasks interrupted withou
  f.engine.history=async()=>[{id:old,kind:'create',status:'queued'}];
  const client=new YuE2Client(f.engine,f.store,f.resources);t.after(()=>client.close());
  assert.equal((await client.job(pending)).job.stage,'interrupted');assert.equal((await client.job(old)).job.stage,'interrupted');assert.equal(f.counts().launches,0);
+});
+test('managed enable and disable are meaningful without loading a model',async t=>{
+ const f=await fixture(t);await f.engine.stop();assert.equal((await f.engine.status()).canGenerate,false);await assert.rejects(f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true}));await f.engine.start();assert.equal((await f.engine.status()).canGenerate,true);assert.equal(f.counts().launches,0);
 });

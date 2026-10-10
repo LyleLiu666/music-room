@@ -2671,3 +2671,5 @@ pre {
 #compose-form select{height:36px;min-height:36px;padding-top:5px;padding-bottom:5px}
 
 #conversion-compose-form #conversion-pitch{height:36px;min-height:36px;padding-top:5px;padding-bottom:5px}
+
+.resource-actions{display:flex;flex-wrap:wrap;gap:8px}.resource-task{display:flex;align-items:center;justify-content:space-between;gap:16px;border-top:1px solid var(--line);padding:10px 0}.resource-task p{margin:4px 0;overflow-wrap:anywhere}.resource-task>div{min-width:0}.resource-tasks{margin-top:12px}

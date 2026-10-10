@@ -32,7 +32,8 @@
     "verify:tts:real": "node scripts/verify-tts-real.mjs && node scripts/verify-tts-default-real.mjs",
     "verify:studio": "node --test scripts/verify-studio-ui.test.mjs scripts/verify-emotion-strength-ui.test.mjs scripts/verify-player-menu-ui.test.mjs scripts/verify-speed-ui.test.mjs scripts/verify-studio-conversion-ui.test.mjs scripts/verify-conversion-ui.test.mjs",
     "perf:studio-scroll": "node scripts/perf-studio-scroll.mjs",
-    "verify:resources:real": "node scripts/verify-resources-real.ts"
+    "verify:resources:real": "node scripts/verify-resources-real.ts",
+    "verify:resources": "node --test scripts/verify-resources-ui.test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",

@@ -56,7 +56,7 @@ export class YuE2Proxy {
  }
  async generate(input:YuE2Generate,body:unknown){
   if(this.closed)throw new ServiceError('CLOSED','服务正在退出');await this.migrate();
-  const state=await this.engine.status();if(!state.canGenerate||!state.directory)throw new ServiceError('YUE2_UNAVAILABLE','请先准备音乐模型');
+  const state=await this.engine.status();if(!state.canGenerate||!state.directory)throw new ServiceError('YUE2_UNAVAILABLE','请先准备并启用音乐模型');
   const id=randomUUID().replaceAll('-',''),record:RecordJob={job:{id,kind:'create',status:'queued',title:input.title,created_at:new Date().toISOString()},directory:state.directory,input:structuredClone(input)};
   this.records.set(id,record);this.save();const controller=new AbortController();
   const done=this.resources.run({id,engine:'yue2',signal:controller.signal,demand:this.resources.estimate('yue2',{...input,resourceProfile:this.engine.resourceProfile()}),onState:resource=>{record.job.resource=resource;record.job.stage=resource.message??resource.stage;this.save();},execute:async execution=>{

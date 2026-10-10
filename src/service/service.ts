@@ -1,3 +1,4 @@
+import {existsSync,readFileSync,lstatSync,mkdirSync} from 'node:fs';
 import {processSpeed,type SpeedProcessor} from './studio/speed-process.ts';
 import {ConversionService,type ConversionDriver} from './conversion/conversion.ts';
 import {createNativeConversionDriver} from './conversion/native.ts';
@@ -27,6 +28,8 @@ export class MusicService {
     const store=await ProjectStore.open(root);
     let jobs:JobManager|undefined,yue2:YuE2Engine|undefined,speech:SpeechService|undefined,conversion:ConversionService|undefined;
     try {
+    const settings=store.path('engines','resources.json');if(existsSync(settings)){try{if(lstatSync(settings).isSymbolicLink())throw Error('设置文件不能是符号链接');const config=JSON.parse(readFileSync(settings,'utf8'));if(config.version!==1||config.memoryBytes!==null&&(!Number.isSafeInteger(config.memoryBytes)||config.memoryBytes<0))throw Error('设置格式无效');resources.setLimits(config.memoryBytes===null?undefined:{memory:config.memoryBytes});}catch{resources.setConfigurationError('内存设置损坏，重型任务已阻止；请在设置中恢复自动管理');}}
+
       jobs=await JobManager.open(store,renderer,resources);yue2=await YuE2Engine.open(store,driver,resources);
       speech=await SpeechService.open(store,speechDriver,()=>false,resources);conversion=ConversionService.open(store,conversionDriver??createNativeConversionDriver(store.path('engines','voice-conversion')),()=>false,resources);const service=new MusicService(store,jobs,read,yue2,speech,conversion,resources);service.resources=resources;service.speedProcessor=speedProcessor;
       if(seed) {
@@ -38,7 +41,12 @@ export class MusicService {
       return service;
     } catch(error){await resources.close();await conversion?.close();await speech?.close();await yue2?.close();await jobs?.close();await store.close();throw error;}
   }
+  private async cancelResource(taskId:string){const snapshot=this.resources.snapshot(),task=[...(snapshot.active?[snapshot.active]:[]),...snapshot.queued].find(t=>t.id===taskId);if(!task){await this.resources.cancel(taskId);return this.resources.status();}
+    switch(task.engine){case 'tts':await this.speech.cancel(taskId);break;case 'reference':await this.speech.cancelReference(taskId);break;case 'conversion':await this.conversion.cancel(taskId);break;case 'yue2':await this.yue2Client.cancel(taskId);break;case 'render':await this.jobs.cancel(taskId);break;case 'speed':await this.studio.cancelSpeed(taskId);break;case 'installation':if(taskId==='install-tts')await this.speech.cancelPreparation();else if(taskId==='install-yue2')await this.yue2.stop();else await this.resources.cancel(taskId);break;default:await this.resources.cancel(taskId);}
+    return this.resources.status();
+  }
   private handlers:OperationHandlers = {
+    resource_status:async()=>this.resources.status(),resource_pause:async()=>this.resources.pause(),resource_resume:async()=>this.resources.resume(),resource_cancel:async args=>this.cancelResource(args.taskId),resource_release:async()=>{await this.resources.releaseIdle();return this.resources.status();},resource_set_limit:async args=>{this.resources.setLimits(args.memoryBytes===null?undefined:{memory:args.memoryBytes},()=>{mkdirSync(this.store.path('engines'),{recursive:true});this.store.atomicJSON(this.store.path('engines','resources.json'),{version:1,memoryBytes:args.memoryBytes});});return this.resources.status();},
     svc_library:async args=>({...this.conversion.snapshot(args),voices:this.speech.conversionVoices()}),svc_create_version:async args=>this.studio.createConversionVersion(args),svc_cancel:async args=>this.studio.cancelConversion(args.jobId),svc_retry:async args=>this.studio.retryConversion(args.jobId),
     studio_update_project:async args=>this.studio.updateProject(args),studio_update_sound:async args=>this.studio.updateSound(args),studio_purge:async args=>this.studio.purge(args),
     studio_save_speed:async args=>this.studio.saveSpeed(args),
