@@ -1,3 +1,6 @@
+import {ownedCommand} from '../resources/commands.ts';
+import {checkDisk,diskGuard} from '../resources/installation.ts';
+import {dirname} from 'node:path';
 import {groupMembers} from '../resources/processes.ts';
 import {yue2JobSchema} from './contracts.ts';
 import {createHash,randomBytes} from 'node:crypto';
@@ -45,17 +48,12 @@ async function download(path:string,spec:{url:string;hash:string},context:YuE2Co
   if(await valid())return;
   context.report(`下载 ${spec.url.split('/').at(-1)}`);
   const response=await fetch(spec.url,{signal:context.signal});if(!response.ok||!response.body)throw new Error(`下载失败：HTTP ${response.status}`);
-  const temporary=path+'.partial',f=await open(temporary,'w',0o600),hash=createHash('sha256');let bytes=0,last=0;
-  try{for await(const part of response.body){await f.write(part);hash.update(part);bytes+=part.length;if(Date.now()-last>2000){context.report(`已下载 ${(bytes/1048576).toFixed(1)} MB`);last=Date.now();}}}finally{await f.close();}
+  const remaining=Number(response.headers.get('content-length'));if(Number.isSafeInteger(remaining)&&remaining>0)checkDisk(dirname(path),remaining);
+  const temporary=path+'.partial',f=await open(temporary,'w',0o600),hash=createHash('sha256'),guard=diskGuard(dirname(path));let bytes=0,last=0;
+  try{for await(const part of response.body){guard(part.length);await f.write(part);hash.update(part);bytes+=part.length;if(Date.now()-last>2000){context.report(`已下载 ${(bytes/1048576).toFixed(1)} MB`);last=Date.now();}}}finally{await f.close();}
   if(hash.digest('hex')!==spec.hash)throw new Error('安装文件校验失败，请重新下载');renameSync(temporary,path);
 }
-async function untar(archive:string,target:string,context:YuE2Context) {
-  await new Promise<void>((resolve,reject)=>{
-    const child=spawn('/usr/bin/tar',['-xzf',archive,'--strip-components=1','-C',target],{stdio:['ignore','ignore','pipe']});let error='';
-    child.stderr.on('data',chunk=>error+=chunk);const abort=()=>child.kill('SIGTERM');context.signal.addEventListener('abort',abort,{once:true});
-    child.once('error',reject);child.once('close',code=>{context.signal.removeEventListener('abort',abort);if(context.signal.aborted)reject(context.signal.reason);else if(code!==0)reject(new Error(`解压失败：${error.slice(-1000)}`));else resolve();});
-  });
-}
+async function untar(archive:string,target:string,context:YuE2Context){await ownedCommand('/usr/bin/tar',['-xzf',archive,'--strip-components=1','-C',target],target,context);}
 async function freePort(){const server=createServer();return new Promise<number>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',()=>{const port=(server.address() as {port:number}).port;server.close(error=>error?reject(error):resolve(port));});});}
 function writtenBytes(directory:string):number {let total=0;try{for(const entry of readdirSync(directory,{withFileTypes:true})){const path=join(directory,entry.name);if(entry.isDirectory())total+=writtenBytes(path);else if(entry.isFile())total+=statSync(path).blocks*512;}}catch{}return total;}
 /** The pinned HF version uses unique temporary names; interrupted files cannot be reused. */

@@ -1,3 +1,4 @@
+import {installTask} from '../resources/installation.ts';
 import {randomUUID} from 'node:crypto';
 import {existsSync,lstatSync,mkdirSync,openSync,closeSync,writeFileSync,readFileSync,readdirSync,realpathSync,unlinkSync} from 'node:fs';
 import {isAbsolute,join} from 'node:path';
@@ -113,7 +114,8 @@ export class YuE2Engine {
     this.config={version:1,directory,autoStart:false};this.persist(false);
     this.begin('prepare',async context=>{
       this.acquire(directory);await this.stopOwned();context.report(models?'准备运行环境及生成模型':'准备运行环境（不下载模型）');
-      await this.driver.prepare(directory,models,context);if(context.signal.aborted)throw context.signal.reason;
+      const execute=(execution?:ResourceExecution)=>this.driver.prepare(directory,models,{...context,signal:execution?.signal??context.signal,trackProcess:execution?.trackProcess,lease:execution?.lease});
+      if(this.resources)await installTask(this.resources,{id:'install-yue2',directory,diskBytes:this.driver.installed(directory)&&(!models||this.driver.modelsReady?.(directory))?0:30*2**30,signal:context.signal,onState:state=>{this.message=state.message??'准备音乐 · '+state.stage;},execute});else await execute();if(context.signal.aborted)throw context.signal.reason;
       if(this.resources){this.phase='stopped';this.message='YuE2 已准备，生成时按需加载';this.release();}else await this.launch(context);this.persist(true);
     });return this.status();
   }

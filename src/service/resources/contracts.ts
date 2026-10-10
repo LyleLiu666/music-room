@@ -26,7 +26,7 @@ export type ResourcePolicy = {
 };
 export type ResourceReason = 'INSUFFICIENT_CAPACITY' | 'WAITING_FOR_MEMORY' | 'UNSUPPORTED_BACKEND' |
   'RESOURCE_PROFILE_UNVERIFIED' | 'RESOURCE_TELEMETRY_UNAVAILABLE' | 'UNLOAD_FAILED' |
-  'QUEUE_FULL' | 'CLOSED' | 'CANCELLED' | 'DUPLICATE_RESOURCE_TASK' | 'WAITING_FOR_WORKSPACE';
+  'QUEUE_FULL' | 'CLOSED' | 'CANCELLED' | 'DUPLICATE_RESOURCE_TASK' | 'WAITING_FOR_WORKSPACE' | 'INSUFFICIENT_DISK' | 'DISK_TELEMETRY_UNAVAILABLE';
 export class ResourceError extends Error {
   code: ResourceReason;
   constructor(code: ResourceReason, message: string) {super(message); this.code = code;}

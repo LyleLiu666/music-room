@@ -1,3 +1,5 @@
+import {checkDisk,diskGuard} from '../resources/installation.ts';
+import {dirname} from 'node:path';
 import {createHash} from 'node:crypto';
 import {createReadStream,createWriteStream,existsSync,lstatSync,readFileSync,renameSync,writeFileSync,mkdirSync,rmSync,chmodSync} from 'node:fs';
 import {join} from 'node:path';
@@ -25,8 +27,9 @@ async function download(url:string,path:string,sha:string,context:SpeechContext)
  if(!response.ok||!response.body)throw new Error(`模型下载失败：HTTP ${response.status}`);
  if(start&&response.status!==206)start=0;
  if(start&&response.headers.get('content-range')?.split('/')[0]!==`bytes ${start}-${start+Number(response.headers.get('content-length'))-1}`)throw new Error('续传范围与暂存文件不一致');
- let downloaded=start,last=Date.now();const total=start+Number(response.headers.get('content-length')??0);
- const meter=new Transform({transform(chunk,_,callback){downloaded+=chunk.length;if(Date.now()-last>2000){context.stage(`下载语音模型 · ${(downloaded/2**30).toFixed(2)}${total?'/'+(total/2**30).toFixed(2):''} GiB`);last=Date.now();}callback(null,chunk);}});
+ const remaining=Number(response.headers.get('content-length'));if(Number.isSafeInteger(remaining)&&remaining>0)checkDisk(dirname(path),remaining);
+ const guard=diskGuard(dirname(path));let downloaded=start,last=Date.now();const total=start+Number(response.headers.get('content-length')??0);
+ const meter=new Transform({transform(chunk,_,callback){try{guard(chunk.length);}catch(error){callback(error as Error);return;}downloaded+=chunk.length;if(Date.now()-last>2000){context.stage(`下载语音模型 · ${(downloaded/2**30).toFixed(2)}${total?'/'+(total/2**30).toFixed(2):''} GiB`);last=Date.now();}callback(null,chunk);}});
  await pipeline(Readable.fromWeb(response.body as any),meter,createWriteStream(partial,{flags:start?'a':'w',mode:0o600}),{signal:context.signal});
  if(await hashFile(partial,context.signal)!==sha){rmSync(partial,{force:true});throw new Error('下载文件校验失败');}context.signal.throwIfAborted();renameSync(partial,path);
 }

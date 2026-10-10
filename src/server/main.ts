@@ -1,3 +1,4 @@
+import {configureCommandWorker,runCommandWorker} from '../service/resources/commands.ts';
 import {runSpeedWorker,processSpeed} from '../service/studio/speed-process.ts';
 import {createResources} from '../service/resources/runtime.ts';
 import {runConversionWorker} from '../service/conversion/worker.ts';
@@ -34,14 +35,15 @@ export function readRuntime(directory:string):Runtime|undefined {
 }
 function options(argv:string[]) {
   const mode=argv[0]??'serve',args=argv.slice(1),out:Record<string,string>={};
-  if(!['serve','mcp','status','call','--help','help','render-worker','speed-worker','yue2-worker','tts-worker','tts-native-worker','conversion-native-worker'].includes(mode))throw new Error('未知命令，请运行 --help');
+  if(!['serve','mcp','status','call','--help','help','render-worker','command-worker','speed-worker','yue2-worker','tts-worker','tts-native-worker','conversion-native-worker'].includes(mode))throw new Error('未知命令，请运行 --help');
   if(mode==='call'){out.operation=args.shift()??'';}
   for(let i=0;i<args.length;i+=2){if(!['--workspace','--port','--input'].includes(args[i]) || !args[i+1] || args[i+1].startsWith('--'))throw new Error('参数无效：'+args[i]);out[args[i].slice(2)]=args[i+1];}
   const port=out.port===undefined?0:Number(out.port);if(!Number.isInteger(port)||port<0||port>65535)throw new Error('端口必须在 0–65535');
   return {mode,workspace:resolve(out.workspace??join(homedir(),'Music','MusicRoom')),port,input:out.input,operation:out.operation};
 }
 export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
-  const opt=options(argv);
+  const opt=options(argv);configureCommandWorker(process.execPath,[...selfArgs,'command-worker']);
+  if(opt.mode==='command-worker'){await runCommandWorker();return;}
   if(opt.mode==='help'||opt.mode==='--help'){console.log('Music Room\n  serve [--workspace DIRECTORY] [--port PORT]\n  mcp [--workspace DIRECTORY]  # stdio MCP; connects to or starts local service\n  status [--workspace DIRECTORY]\n  call OPERATION --input request.json [--workspace DIRECTORY]\nDefault workspace: ~/Music/MusicRoom. No Electron or browser runtime. Optional YuE2 is installed into your chosen directory from the web page.');return;}
   if(opt.mode==='speed-worker'){await runSpeedWorker();return;}
   if(opt.mode==='render-worker'){await runRenderWorker(assets.read);return;}

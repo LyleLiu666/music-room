@@ -1,3 +1,4 @@
+import {installTask,checkDisk} from '../resources/installation.ts';
 import type {ResourceCoordinator} from '../resources/coordinator.ts';
 import type {ResourceExecution,ResourceTaskState} from '../resources/contracts.ts';
 import type {SpeedEdit} from '../studio/speed.ts';
@@ -66,7 +67,7 @@ export class SpeechService {
  async prepare(directory=this.directory()){
   this.check();this.assertEngineAvailable();if(this.preparation)throw new ServiceError('SPEECH_BUSY','正在准备语音环境，请等待');if(this.scheduled.size)throw new ServiceError('SPEECH_BUSY','语音正在生成，请完成后再准备环境');
   this.change(()=>{this.data.directory=directory;});this.phase='preparing';this.message='正在准备运行环境和模型';const controller=new AbortController(),active={controller,done:Promise.resolve()};this.preparation=active;
-  active.done=Promise.resolve().then(()=>this.driver.prepare(directory,{signal:controller.signal,report:this.report,stage:message=>{this.message=message;this.report(message);}})).then(()=>{controller.signal.throwIfAborted();this.phase='ready';this.message='IndexTTS 2.0'+(this.driver.engineLabel?' · '+this.driver.engineLabel:'')+' 已准备好';this.seedExample();}).catch(error=>{this.phase=this.driver.installed(directory)?'ready':controller.signal.aborted?'uninstalled':'failed';this.message=controller.signal.aborted?'准备已取消，已下载的文件保留，可继续':error.message;this.report(this.message);}).finally(()=>{if(this.preparation===active)this.preparation=undefined;});return this.status();
+  active.done=Promise.resolve().then(()=>{const execute=async(execution?:ResourceExecution)=>this.driver.prepare(directory,{signal:execution?.signal??controller.signal,trackProcess:execution?.trackProcess,lease:execution?.lease,report:this.report,stage:message=>{this.message=message;this.report(message);}});return this.resources?installTask(this.resources,{id:'install-tts',directory,diskBytes:this.driver.installed(directory)?0:12*2**30,signal:controller.signal,onState:state=>{this.message=state.message??'准备语音 · '+state.stage;},execute}):execute();}).then(()=>{controller.signal.throwIfAborted();this.phase='ready';this.message='IndexTTS 2.0'+(this.driver.engineLabel?' · '+this.driver.engineLabel:'')+' 已准备好';this.seedExample();}).catch(error=>{this.phase=this.driver.installed(directory)?'ready':controller.signal.aborted?'uninstalled':'failed';this.message=controller.signal.aborted?'准备已取消，已下载的文件保留，可继续':error.message;this.report(this.message);}).finally(()=>{if(this.preparation===active)this.preparation=undefined;});return this.status();
  }
  async cancelPreparation(){this.preparation?.controller.abort();await this.preparation?.done;return this.status();}
  addVoice(name:string,bytes:Uint8Array,cleanup=false,sourceVoiceId?:string){
@@ -120,7 +121,7 @@ export class SpeechService {
    execute:async execution=>{
     const abort=()=>controller.abort(execution.signal.reason);
     execution.signal.addEventListener('abort',abort,{once:true});
-    try{execution.signal.throwIfAborted();execution.running();await execute(execution);}
+    try{execution.signal.throwIfAborted();execution.running();if(kind==='reference')checkDisk(this.directory(),6*2**30);await execute(execution);}
     finally{execution.signal.removeEventListener('abort',abort);}
    },
    onState:resource=>this.change(()=>{

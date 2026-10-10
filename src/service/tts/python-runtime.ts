@@ -1,6 +1,10 @@
+import {ownedCommand} from '../resources/commands.ts';
+import {createReadStream} from 'node:fs';
+import {open} from 'node:fs/promises';
+import {checkDisk,diskGuard} from '../resources/installation.ts';
 import {spawn} from 'node:child_process';
 import {existsSync,lstatSync,mkdirSync,readFileSync,writeFileSync,readdirSync,renameSync,copyFileSync,chmodSync,openSync,closeSync,unlinkSync,realpathSync} from 'node:fs';
-import {isAbsolute,join} from 'node:path';
+import {isAbsolute,join,dirname} from 'node:path';
 import {homedir} from 'node:os';
 import {createHash,randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
@@ -16,8 +20,14 @@ const uvUrl='https://github.com/astral-sh/uv/releases/download/0.12.23/uv-aarch6
 const alive=(pid:number)=>{try{process.kill(pid,0);return true;}catch(e:any){return e.code!=='ESRCH';}};
 export function checkedDirectory(directory:string){if(!isAbsolute(directory))throw new Error('安装目录需要绝对路径');if(existsSync(directory)&&lstatSync(directory).isSymbolicLink())throw new Error('语音安装目录不能是符号链接');mkdirSync(directory,{recursive:true,mode:0o700});const root=realpathSync(directory),marker=join(root,'.music-room-indextts.json');if(existsSync(marker)){if(lstatSync(marker).isSymbolicLink()||JSON.parse(readFileSync(marker,'utf8')).sourceRevision!==sourceRevision)throw new Error('该目录不是受管理的 IndexTTS 2.0 环境');}else{if(readdirSync(root).some(n=>n!=='.DS_Store'))throw new Error('首次安装请选择空文件夹');writeFileSync(marker,JSON.stringify({format:'music-room-indextts',version:1,sourceRevision}),{flag:'wx',mode:0o600});}for(const part of ['bin','tmp','cache'])mkdirSync(join(root,part),{recursive:true,mode:0o700});return root;}
 export function lock(root:string){const path=join(root,'.music-room-indextts.lock'),owner=randomUUID();try{const fd=openSync(path,'wx',0o600);writeFileSync(fd,JSON.stringify({pid:process.pid,owner}));closeSync(fd);}catch(e:any){if(e.code!=='EEXIST')throw e;if(lstatSync(path).isSymbolicLink())throw new Error('语音环境锁不能是符号链接');const old=JSON.parse(readFileSync(path,'utf8'));if(alive(old.pid)||old.workerPid&&alive(old.workerPid))throw new Error('IndexTTS 环境正在被另一个工作台使用');const recovery=path+'.recovery',fd=openSync(recovery,'wx',0o600);try{const current=JSON.parse(readFileSync(path,'utf8'));if(current.owner!==old.owner||alive(current.pid)||current.workerPid&&alive(current.workerPid))throw new Error('语音环境正在使用');unlinkSync(path);const f=openSync(path,'wx',0o600);writeFileSync(f,JSON.stringify({pid:process.pid,owner}));closeSync(f);}finally{closeSync(fd);unlinkSync(recovery);}}return {path,owner,release:()=>{if(existsSync(path)&&JSON.parse(readFileSync(path,'utf8')).owner===owner)unlinkSync(path);}};}
-export async function runCommand(command:string,args:string[],context:SpeechContext,cwd:string){context.signal.throwIfAborted();const child=spawn(command,args,{cwd,stdio:['ignore','pipe','pipe']});let logs='';for(const stream of [child.stdout,child.stderr])stream.on('data',c=>{logs=(logs+c).slice(-4000);context.report(c.toString());});const stop=()=>child.kill('SIGTERM');context.signal.addEventListener('abort',stop,{once:true});try{await new Promise<void>((resolve,reject)=>{child.once('error',reject);child.once('close',code=>code===0?resolve():reject(new Error(logs||`命令失败：${code}`)));});context.signal.throwIfAborted();}finally{context.signal.removeEventListener('abort',stop);}}
-async function download(url:string,path:string,expected:string,context:SpeechContext){context.signal.throwIfAborted();if(existsSync(path)&&createHash('sha256').update(readFileSync(path)).digest('hex')===expected)return;const response=await fetch(url,{signal:context.signal});if(!response.ok)throw new Error(`下载失败：HTTP ${response.status}`);const bytes=new Uint8Array(await response.arrayBuffer());if(createHash('sha256').update(bytes).digest('hex')!==expected)throw new Error('下载文件校验失败');writeFileSync(path+'.partial',bytes,{mode:0o600});renameSync(path+'.partial',path);}
+export async function runCommand(command:string,args:string[],context:SpeechContext,cwd:string){await ownedCommand(command,args,cwd,context);}
+async function download(url:string,path:string,expected:string,context:SpeechContext){
+ context.signal.throwIfAborted();const digest=async()=>{const hash=createHash('sha256');for await(const part of createReadStream(path)){context.signal.throwIfAborted();hash.update(part);}return hash.digest('hex');};if(existsSync(path)&&await digest()===expected)return;
+ const response=await fetch(url,{signal:context.signal});if(!response.ok||!response.body)throw new Error(`下载失败：HTTP ${response.status}`);const length=Number(response.headers.get('content-length'));if(Number.isSafeInteger(length)&&length>0)checkDisk(dirname(path),length);
+ const partial=path+'.partial';if(existsSync(partial)&&lstatSync(partial).isSymbolicLink())throw new Error('下载暂存文件不能是符号链接');const file=await open(partial,'w',0o600),hash=createHash('sha256'),guard=diskGuard(dirname(path));
+ try{for await(const bytes of response.body){context.signal.throwIfAborted();guard(bytes.length);hash.update(bytes);await file.write(bytes);}}finally{await file.close();}
+ if(hash.digest('hex')!==expected)throw new Error('下载文件校验失败');context.signal.throwIfAborted();renameSync(partial,path);
+}
 export function speechWorker(task:SpeechTask,context:SpeechContext,command:string,args:string[],lease:{path:string;owner:string}){
  context.signal.throwIfAborted();return new Promise<void>((resolve,reject)=>{const child=spawn(command,args,{detached:!!context.lease,stdio:['pipe','pipe','pipe']});let last:string[]=[];let killed=false;let timeout:ReturnType<typeof setTimeout>|undefined;let force:ReturnType<typeof setTimeout>|undefined;let failure:Error|undefined;child.stdin.on('error',()=>{});
   child.once('error',e=>{failure=e;});
