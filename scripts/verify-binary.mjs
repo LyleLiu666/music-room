@@ -70,13 +70,17 @@ try {
   assert.equal((await fetch(runtime.url+'/api/status',{method:'POST'})).status,401);
   assert.equal((await fetch(runtime.url+'/api/status',{method:'POST',headers:{origin:'https://other.invalid',authorization:`Bearer ${runtime.token}`}})).status,403);
   browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required']});const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
-  page.on('pageerror',e=>errors.push(e.message));await page.goto(`${runtime.url}/score.html#${long.revision.id}`);await page.locator('#service-state').filter({hasText:'已连接'}).waitFor();
-  assert.equal(await page.locator('#song-title').textContent(),example.work.title);assert.equal(await page.locator('#service-feedback-list').textContent(),'主题保留，下一版加一点变化。');
-  await page.click('#play');await page.waitForFunction(()=>window.musicRoom.engine.context?.currentTime>.05 && window.musicRoom.engine.ready);
-  // Browser preview must also fetch its actual sound bank from the embedded executable.
-  await page.click('#play');const listen=page.locator('#service-jobs button').filter({hasText:'试听后台 WAV'}).first();await listen.click();await page.waitForFunction(()=>document.querySelector('#service-audio audio')?.currentTime>.05);
-  assert.equal(await page.$eval('#service-audio audio',a=>a.duration),40);
-  await page.screenshot({path:join(out,'desktop.png')});await page.locator('#score-service-panel').screenshot({path:join(out,'tasks.png')});assert.deepEqual(errors,[]);results.push('embedded page previews real samples, plays saved WAV, shows feedback');
+  page.on('pageerror',e=>errors.push(e.message));await page.goto(`${runtime.url}/score.html#${long.revision.id}`);
+  await page.locator('.more-menu summary').click();await page.click('[data-action="score-tools"]');
+  await page.locator('#score-feedback-list').filter({hasText:'主题保留，下一版加一点变化。'}).waitFor();
+  assert.equal(await page.locator('#song-title').textContent(),example.work.title);
+  await page.click('#play');await page.locator('#play').filter({hasText:'暂停'}).waitFor();
+  // Browser preview must fetch its actual sound bank from the embedded executable.
+  await page.screenshot({path:join(out,'desktop.png')});await page.click('[data-action="close"]');
+  await page.waitForFunction(()=>document.querySelector('#version-audio')?.readyState>=1);
+  await page.locator('#version-audio').evaluate(a=>a.play());await page.waitForFunction(()=>document.querySelector('#version-audio')?.currentTime>.05);
+  assert.equal(await page.$eval('#version-audio',a=>a.duration),40);
+  await page.locator('.sound-workspace').screenshot({path:join(out,'tasks.png')});assert.deepEqual(errors,[]);results.push('embedded studio previews real samples, plays saved WAV, shows version feedback');
   await browser.close();browser=undefined;await httpClient.close();httpClient=undefined;
   await client.close();client=undefined;
   // stdio-owned service exits; reopen the same workspace from the copied binary.

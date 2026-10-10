@@ -50,6 +50,7 @@ export class MusicService {
     svc_library:async args=>({...this.conversion.snapshot(args),voices:this.speech.conversionVoices()}),svc_create_version:async args=>this.studio.createConversionVersion(args),svc_cancel:async args=>this.studio.cancelConversion(args.jobId),svc_retry:async args=>this.studio.retryConversion(args.jobId),
     studio_update_project:async args=>this.studio.updateProject(args),studio_update_sound:async args=>this.studio.updateSound(args),studio_purge:async args=>this.studio.purge(args),
     studio_save_speed:async args=>this.studio.saveSpeed(args),
+    studio_save_mix:async args=>this.studio.saveMix(args),
     studio_import_score:async args=>this.studio.importScore(args),
     studio_library:async args=>this.studio.snapshot(args),studio_create_sound:async args=>this.studio.createSound(args),studio_generate:async args=>this.studio.generate(args),studio_update_version:async args=>this.studio.update(args),studio_cancel:async args=>this.studio.cancel(args.versionId),studio_render:async args=>this.studio.render(args.versionId),
     tts_status:async()=>this.speech.status(),tts_prepare:async args=>this.speech.prepare(args.directory),tts_cancel_preparation:async()=>this.speech.cancelPreparation(),

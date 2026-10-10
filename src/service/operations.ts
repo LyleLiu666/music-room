@@ -13,6 +13,7 @@ export const id=z.string().regex(SCORE_ID_PATTERN);
 const jobId=z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/);
 const ref={projectId:id,revisionId:id};
 const text=z.string().min(1).max(8000);
+const mixSchema=z.object({volume:z.number().optional(),lead:z.enum(['piano','rhodes','flute']).optional(),levels:z.partialRecord(z.enum(TRACK_IDS),z.number()).optional(),muted:z.array(z.enum(TRACK_IDS)).optional(),solo:z.array(z.enum(TRACK_IDS)).optional()}).strict();
 export const operations = {
   resource_status:{description:'查看同一服务的硬件、估计预算、实际任务采样、队列、等待原因及模型驻留。查询不会启动模型。',schema:z.object({}).strict()},
   resource_pause:{description:'暂停后续重型任务；当前已取得执行权的任务继续。作品浏览和播放可用。',schema:z.object({}).strict()},
@@ -34,6 +35,7 @@ export const operations = {
   studio_cancel:{description:'取消指定声音版本的生成任务。',schema:z.object({versionId:id}).strict()},
   studio_import_score:{description:'将 Agent 交付的 JSON 乐谱导入指定声音，新版保留来源，不覆盖旧版。',schema:z.object({soundId:id,compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
   studio_save_speed:{description:'将已完成音频按指定速度保存为独立新版本，保持音调并保留原版。requestId 用于安全重试。',schema:z.object({versionId:id,rate:z.number().min(.5).max(2).refine(n=>n!==1),requestId:z.string().min(1).max(120)}).strict()},
+  studio_save_mix:{description:'将当前乐谱混音保存为同一声音的新版本并后台合成，保留原版与成品选择；requestId 保证重试不重复创建。',schema:z.object({versionId:id,requestId:id,mix:mixSchema}).strict()},
   studio_render:{description:'把已有乐谱合成为试听文件。',schema:z.object({versionId:id}).strict()},
   tts_status:{description:'查看固定的 IndexTTS 2.0 环境、模型准备状态和日志。',schema:z.object({}).strict()},
   tts_prepare:{description:'在专用目录准备 IndexTTS 2.0 推理引擎和固定模型；Apple Silicon 默认使用 audio.cpp F16；后台准备，通过 tts_status 查询。',schema:z.object({directory:z.string().min(1).max(4096).optional()}).strict()},
@@ -64,7 +66,7 @@ export const operations = {
   validate_score:{description:'校验 music-room-score v1 JSON 乐谱；不执行作曲源码，不评价音乐审美。',schema:z.object({compositionJson:z.string().min(1).max(4*1024*1024)}).strict()},
   import_revision:{description:'将 JSON 乐谱发布为新版本并写盘；沿用 work.id 扩写，同项目 parentId 保留来源，重复版本不会覆盖。',schema:z.object({compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
   get_revision:{description:'获取指定版本的原始创作乐谱、父版、原件哈希和已渲染产物。',schema:z.object(ref).strict()},
-  render_revision:{description:'在独立后台进程渲染指定版本为 WAV，无需打开网页。立即返回 jobId（字段 id），用 get_job 查询；幂等键防止重传重复渲染。',schema:z.object({...ref,idempotencyKey:z.string().min(1).max(120),mix:z.object({volume:z.number().optional(),lead:z.enum(['piano','rhodes','flute']).optional(),levels:z.partialRecord(z.enum(TRACK_IDS),z.number()).optional(),muted:z.array(z.enum(TRACK_IDS)).optional(),solo:z.array(z.enum(TRACK_IDS)).optional()}).strict().optional()}).strict()},
+  render_revision:{description:'在独立后台进程渲染指定版本为 WAV，无需打开网页。立即返回 jobId（字段 id），用 get_job 查询；幂等键防止重传重复渲染。',schema:z.object({...ref,idempotencyKey:z.string().min(1).max(120),mix:mixSchema.optional()}).strict()},
   list_jobs:{description:'查看后台音乐任务，包括当前阶段、状态、产物和失败原因。',schema:z.object({}).strict()},
   get_job:{description:'查询任务状态。只有 succeeded 才完成写盘；artifact 给出相对路径与 SHA-256，可结合工作目录读取 WAV。',schema:z.object({jobId}).strict()},
   cancel_job:{description:'取消尚未提交产物的排队或运行任务，等待所属计算进程停止，不删除旧版。',schema:z.object({jobId}).strict()},
@@ -82,7 +84,7 @@ export type OperationResults = {
   resource_status:ResourceStatus;resource_pause:ResourceStatus;resource_resume:ResourceStatus;resource_cancel:ResourceStatus;resource_release:ResourceStatus;resource_set_limit:ResourceStatus;
   svc_library:ReturnType<ConversionService['snapshot']>&{voices:SpeechVoice[]};svc_create_version:ConversionJob;svc_cancel:ConversionJob;svc_retry:ConversionJob;
   studio_update_project:Project;studio_update_sound:StudioSound;studio_purge:{purged:true};
-  studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_generate:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_save_speed:StudioVersion;studio_import_score:StudioVersion;
+  studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_generate:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_save_mix:StudioVersion;studio_save_speed:StudioVersion;studio_import_score:StudioVersion;
   tts_status:SpeechStatus;tts_prepare:SpeechStatus;tts_cancel_preparation:SpeechStatus;
   tts_library:ReturnType<SpeechService['snapshot']>;tts_add_voice:SpeechVoice;tts_clean_voice:SpeechVoice;tts_update_voice:SpeechVoice;tts_create_sound:SpeechSound;
   tts_generate:SpeechVersion;tts_get_version:SpeechVersion;tts_cancel:SpeechVersion;tts_update_version:SpeechVersion;

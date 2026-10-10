@@ -1,6 +1,6 @@
 # Music Room：围绕声音创作的 UX 提案
 
-状态：整体声音创作流程有可交互原型；普通语音已在正式 `/speech.html` 页面接通 IndexTTS 2.0，持久化项目、声音、版本和真实音频。音乐主工作台与 MIDI 加工仍沿用现有流程，尚未整体替换。
+状态：历史提案。正式流程与能力边界以 [声音创作空间](studio.md) 为准；独立 MIDI 作品库页面已退役，乐谱工具已纳入当前声音版本。
 依据：2026-10-08 用户提供的创作故事与当前代码。没有其他用户访谈或可用性测试证据，易用性判断仍需实际操作验证。
 
 原型：运行 `npm run dev` 后打开 [/prototypes/sound-first/index.html](http://127.0.0.1:5173/prototypes/sound-first/index.html)。

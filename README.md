@@ -6,13 +6,13 @@
 
 项目中的「新声音 → 音色转换」支持提取人声、零样本换声和混回原背景音，保留完整歌曲时间线；每次转换保存为片段的新版本。当前已验证 Apple Silicon + Seed-VC F16 + Metal 离线处理，见[使用说明与验收范围](docs/voice-conversion.md)。歌曲提取参考仅用于音色转换；TTS 使用独立的自然说话参考。
 
-服务使用本机项目目录保存版本和产物，不依赖浏览器保持打开。无需 Electron / `.app`、在线模型或付费 API；同时保留独立静态网页模式。服务运行说明见 [本地服务](docs/local-service.md)，正式页面交互规则见 [声音创作空间](docs/design/studio.md)。
+服务使用本机项目目录保存版本和产物，不依赖浏览器保持打开。无需 Electron / `.app`、在线模型或付费 API；乐谱工具也在同一创作空间中按需打开。服务运行说明见 [本地服务](docs/local-service.md)，正式页面交互规则见 [声音创作空间](docs/design/studio.md)。
 
 ## 新 UX 提案
 
 [本机模型与资源](docs/model-resources.md)说明已实现的统一队列、动态内存预算、所属进程释放和当前支持范围。三个引擎与辅助处理按实际硬件准入；不假设每台电脑都有 32 GiB。架构见[设计](docs/design/model-resource-management.md)，实施和验收见[开发计划](docs/design/model-resource-management-plan.md)及[逐轮记录](docs/design/model-resource-development.md)。
 
-正式首页已采用统一创作空间，启动本地服务即可使用。`/speech.html` 为兼容入口；`/score.html` 为按需打开的 MIDI 编辑器。早期 [UX 提案](docs/design/sound-first-ux.md)及 `public/prototypes/sound-first/` 仅保留为设计历史，不是正式入口。
+正式首页已采用统一创作空间，启动本地服务即可使用。`/speech.html` 为兼容入口；`/score.html#版本ID` 仅保留为旧链接兼容入口，自动定位回对应声音版本。MIDI 与音轨从版本菜单在当前空间打开。早期 [UX 提案](docs/design/sound-first-ux.md)及 `public/prototypes/sound-first/` 仅保留为设计历史，不是正式入口。
 
 ## 本地服务与单二进制
 
@@ -26,48 +26,29 @@ npm run build:binary
 
 按终端 URL 在已有浏览器听评。构建产物是 `release/music-room` 和启动脚本 `release/start.sh`，运行它们无需安装 Node/Python；构建工具仅用于开发。Agent 通过 stdio / HTTP MCP 调用相同的项目、版本、后台渲染和反馈能力。二进制对应构建机器的操作系统与架构。
 
-[启动、MCP 连接与构建说明](docs/local-service.md) · [YuE2 自动安装与生成](docs/yue2.md) · [IndexTTS 2.0 语音创作](docs/tts.md) · [技术设计与四轮边界](docs/design/local-service.md)。MIDI/JSON 创作闭环已经实现；YuE2 通过网页或内置 MCP 生成音乐。统一页面通过 IndexTTS 2.0 生成真实语音，支持参考声音复用、情绪描述、多版本试听、成品选择、删除恢复和 WAV 下载。两种模型均由后台管理专用运行环境。音视频识谱尚未接入。下面保留独立静态网页模式的说明。
+[启动、MCP 连接与构建说明](docs/local-service.md) · [YuE2 自动安装与生成](docs/yue2.md) · [IndexTTS 2.0 语音创作](docs/tts.md) · [技术设计与四轮边界](docs/design/local-service.md)。MIDI/JSON 创作闭环已经实现；YuE2 通过网页或内置 MCP 生成音乐。统一页面通过 IndexTTS 2.0 生成真实语音，支持参考声音复用、情绪描述、多版本试听、成品选择、删除恢复和 WAV 下载。两种模型均由后台管理专用运行环境。音视频识谱尚未接入。乐谱加工的功能归属见[正式页面交互规则](docs/design/studio.md#midi-与音轨的归属)。
 
-## 独立静态网页模式
+## 乐谱创作与加工
 
-此模式在浏览器中演奏、混音和导出 WAV，导入的版本副本保存在该浏览器；没有后台项目服务或 MCP。下面的本机作品库与静态发布说明均针对这一模式。
+1. 在项目中选择或新建声音片段。
+2. 从「导入与 Agent 创作」导入 MIDI / JSON，或复制当前片段的创作要求交给 Agent。导入产生当前片段的新版本。
+3. 点击「生成试听音频」将乐谱合成为音频；结果与任务状态留在版本列表。
+4. 需要查看音符、选段循环或调整混音时，从版本菜单打开「MIDI 与音轨」。调整后可以「保存为新版本」，原版与成品选择保留。
+5. 满意的版本选作成品，下载音频或已有 MIDI；音频转 MIDI 尚未接入。
 
-使用 Node.js 22.18+，推荐 Node.js 24 或更新版本。
+乐谱工具也支持同片段的对应段落 A/B、保存选段听评、下载完整 JSON 和导出试听 WAV。A/B 的速度与段落长度必须符合对齐条件；普通音频版本仍可从版本列表分别试听比较。工具关闭后停止播放，保存的混音版由后台继续合成。
+
+独立创作包、格式和离线校验器继续可用，见[独立创作说明](src/music/authoring/README.md)。MIDI 不是完整音频，不保存采样音色、效果或本项目的混音；仅有音频的版本不会显示虚假的 MIDI 操作。
+
+## 源码开发
 
 ```sh
 npm ci
-npm run dev -- --port 5173
+npm run build
+npm run serve -- --workspace ~/Music/MusicRoom
 ```
 
-打开 `http://127.0.0.1:5173`，在左侧作品库选择歌曲与版本；手机通过顶部“作品库”按钮选择。第一次播放读取项目内约 21 MB 音色文件，曲目切换复用已加载的音色，不访问第三方音色服务。
-
-- 播放 / 暂停；空格快捷键只在非交互区域生效。播放条显示时间、小节与拍。
-- 点击段落、概览或音符跳转；局部显示 4/8 小节，支持手动查看和跟随播放。
-- 点击“选择当前片段”，或通过小节起止与“框选小节”选择整小节；“循环此片段”从选区开始反复试听。循环中暂停保留位置，跳到选区外自动退出循环。
-- 展开混音器后调整轨道静音、独奏、音量和旋律音色。多轨独奏有效，静音优先；恢复默认混音保留总音量。
-- 普通切换版本会停止旧版，回到曲首，清除选区、循环和临时混音；保留总音量。浏览器前进、后退与版本地址有效，刷新不自动播放。
-- 在“版本比较”选择另一版，进入 A/B。两版按明确对应段落和段内小节、拍切换，保留循环和播放状态；使用各版原始混音，轨道控件只读，响度不自动归一化。
-- 退出比较恢复进入前的版本、位置、混音与查看状态，保持暂停。比较要求固定速度相同、对应段落长度相同、选区在单一段落内；不满足时解释原因并禁用切换。
-- “导出试听 WAV”导出完整曲目，使用点击时的乐谱与混音快照；选区、循环、随后切版和修改音量都不改变该文件。
-- “下载原始成品”下载已保留的版本 WAV；MIDI、JSON 下载跟随当前版本，JSON 包含作品与版本信息。MIDI 的声音取决于接收软件的音源。
-
-页面地址中的 `#rain-letter-v1` 或 `#rain-letter-v2` 可以直接选择对应版本。
-
-## 不给 agent 全部源码，也能创作
-
-作品库支持“先做短乐句，再扩写”的流程，同一项目可以保存多版，时长可不同：
-
-1. 展开“让 agent 创作新曲子”，选择“先写 4 小节”或“先写 8 小节”，修改并复制提示词。
-2. 下载独立创作包 ZIP，一起交给 agent。它用任意语言运行作曲代码，交付 MIDI 或 JSON；不需要本项目源码。
-3. 点击“导入 MIDI / JSON”或把单个文件拖入导入区域。文件校验后保存在当前浏览器，用工作台音色试听、调整混音，导出 WAV、MIDI 和完整创作 JSON 到电脑。
-4. 片段满意后选“扩写当前版本”，点击“下载当前版本，交给 agent”，把 JSON 和新提示词交给 agent。新版本沿用 `work.id`，换 `revision.id`；导入后和草稿归在同一项目。
-5. 按用户试听反馈迭代，保留每版。A/B 只比较明确对应且等长的段落；扩写时可以把原 4/8 小节保留为独立段落。
-
-源文件和长期备份由用户保存在电脑。浏览器副本只为方便刷新后继续，清理站点数据会移除副本；没有云端上传或跨设备同步。本机最多保存 50 个导入版本。移除不改动电脑源文件，内置作品保留。
-
-完整 JSON 格式、音色/GM 对应、限制和离线校验命令见 [独立创作说明](src/music/authoring/README.md)，示例见 [八小节乐谱](src/music/authoring/example.json)，提示词见 [prompt.txt](src/music/authoring/prompt.txt)。普通 MIDI 自动建立独立项目，后续用该项目 JSON 保存版本关系。当前支持固定速度、4/4 和说明里的 GM 音色；踏板、弯音、表情及原混音暂不还原。
-
-`npm run dev` 和 `npm run build` 自动生成创作包；也可用 `npm run authoring:kit` 单独生成。开发打包使用系统的开源 `zip` 命令（macOS 自带）；静态页面和独立校验器使用者不需要它。包中的 `node check.mjs song.json` 没有第三方依赖。页面只读取生成的乐谱，不运行上传的作曲脚本。
+按终端 URL 打开创作空间。页面需要本地项目服务；`npm run dev` 或静态托管不再提供独立作品库。浏览器历史中的旧乐谱地址会回到新流程。
 
 ## 当前作品
 
@@ -122,7 +103,8 @@ npm run dev -- --port 5173
 | `src/music/score.ts` | 共用乐谱类型和乐器轨道定义 |
 | `src/audio.ts` | 音色加载、合成、播放、混音和离线渲染 |
 | `src/midi.ts`、`src/wav.ts` | MIDI 与双声道 PCM WAV 编码 |
-| `src/main.ts`、`src/workbench/` | 页面入口、作品库、片段查看、选择、混音和版本比较；规则与测试放近 |
+| `src/main.ts`、`src/workbench/studio/` | 项目、声音片段、版本与创作入口 |
+| `src/workbench/score-editor.ts` | 当前声音版本的乐谱查看、选段、混音、对齐比较与听评 |
 | `src/audio/playback.ts` | 循环范围校验与音频时钟位置换算 |
 
 一般新增作品直接在页面导入文件。将作品随静态站点预置时，在 `src/catalog.ts` 的 `WORKS` 注册歌曲 ID 和默认版本；在 `src/songs/` 编写独立作曲函数，并在 `SONGS` 添加带 `workId` 的版本条目。不同曲子可以有不同标题、速度、时长和段落；同一曲子的版本使用独立 ID，以 `workId` 明确归属；不通过标题推断分组。固定 4/4 和统一轨道定义是当前模型的边界。导出路径必须独立，避免覆盖旧作品。
@@ -133,29 +115,16 @@ MIDI 使用 `englishTitle` 或曲目 ID 保存 ASCII 标题；新段落可用 `m
 
 `npm run export:score` 为注册作品分别生成 MIDI 和 JSON。WAV 在浏览器选择对应作品后导出，默认混音成品保存到该条目的 `files.wav` 位置。新增作品不需要复制页面。
 
-## 验证与静态发布
+## 验证
 
 ```sh
-npm test
-npm run export:score
-npm run build
-npm run preview -- --port 5174
+npm run verify:all
 ```
 
-将 `dist/` 放到静态托管环境即可。Vite 服务仅用于开发或预览。模块和采样读取需要 HTTP 服务，不能直接双击 HTML。
+包括单元测试、构建、后端服务测试、统一创作空间浏览器验证和乐谱工具浏览器验证。浏览器检查默认使用本机 Google Chrome，并在隔离工作目录运行；不会改动用户项目。
 
-端到端验证默认使用 macOS 已安装的 Google Chrome。保持预览服务运行，在另一终端执行：
+`npm run verify:score` 覆盖旧链接定位、当前片段范围、MIDI 下载、选段听评、播放释放、混音新版本与桌面/窄屏布局。截图位于 `test-results/score-context/`。模型生成测试使用测试驱动，不代表新增真实模型推理验收；模型专用真实验证命令继续保留。
 
-```sh
-MUSIC_ROOM_URL=http://127.0.0.1:5174 npm run verify:all
-```
+旧独立作品库的 `scripts/verify-browser.mjs`、`verify-workbench.mjs`、`verify-imports.mjs`、`verify-loop-audio.mjs`、`verify-comparison.mjs`、`verify-boundaries.mjs`、`verify-service.mjs`、`verify-service-boundaries.test.mjs` 与 `verify-yue2-ui.test.mjs` 为旧页面验证历史，不再作为正式入口验收。核心播放、乐谱、导入与比较规则仍由单元测试覆盖。
 
-`verify:all` 包括单元测试、构建和六组浏览器检查：外部导入与创作包、工作台操作、AudioWorklet 实时循环录音、A/B 比较、加载与键盘边界，以及完整 WAV 导出。也可分别运行 `verify:imports`、`verify:workbench`、`verify:loop-audio`、`verify:comparison`、`verify:boundaries` 和 `verify:browser`。
-
-验证产物生成在忽略提交的 `test-results/`，不会覆盖 `public/exports/` 的原作品。包括桌面/390 px 截图、实时至少二十轮循环的录音测量、180 秒导出音频和各组 JSON 报告。第一版乐谱和原始 WAV 哈希另由单元测试保护。
-
-检查覆盖播放、混音真实路由、局部查看、选区与循环、快速版本比较及快照恢复、历史导航、加载失败重试、加载中切版、循环中完整导出和导出期间切版/修改音量。另用 120 BPM、4 秒的静音乐谱验证非三分钟导出。真实循环录音与离线导出分开验证，不用页面状态或离线模拟冒充实时播放证据。
-
-当前验证环境为本机 Chrome。实时验证要求浏览器前台；后台节流与休眠不保证连续播放。技术检查保证文件和交互可靠，音乐是否好听仍需用户试听。MuseScore 集成、MusicXML、音符编辑、变拍和曲内变速均属于后续范围，不是本轮启动条件。
-
-`npm run assets` 可以补回缺失音色，复用哈希正确的现有文件，不依赖临时目录。
+`npm run assets` 可以补回缺失音色，复用哈希正确的现有文件。音符编辑、MusicXML、变拍、曲内变速与音频转 MIDI 仍属于后续范围。

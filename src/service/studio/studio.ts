@@ -1,3 +1,4 @@
+import {validateMix,type RenderMix} from '../render/renderer.ts';
 import {readAudioFile} from '../projects/audio-files.ts';
 import type {ResourceTaskState} from '../resources/contracts.ts';
 import {validateSpeed,type SpeedEdit} from './speed.ts';
@@ -14,7 +15,7 @@ export type SoundKind='clip'|'music'|'speech'|'conversion';
 export type StudioSound={id:string;projectId:string;title:string;kind:SoundKind;createdAt:string;deleted?:boolean;purged?:boolean;finalVersionId?:string;legacyProject?:string;conversionSourceSha256?:string};
 import type {EmotionStrength} from '../tts/emotion.ts';
 export type StudioInput={pitchShiftSemitones?:number;soundId:string;text:string;voiceId?:string;emotion?:string;emotionStrength?:EmotionStrength;lyrics?:string;instrumental?:boolean;preset?:'fast'|'quality';parentId?:string};
-export type StudioVersion={resource?:ResourceTaskState;speed?:SpeedEdit;audioHash?:string;id:string;soundId:string;number:number;parentId?:string;createdAt:string;state:SpeechVersion['state'];stage:string;kept:boolean;deleted:boolean;purged?:boolean;purgePending?:boolean;voiceName?:string;error?:string;duration?:number;input?:StudioInput;originalAudioPath?:string;vocalsAudioPath?:string;source:{kind:'speech'|'music'|'score'|'audio'|'conversion';id:string;projectId?:string};audioPath?:string;renderJobId?:string};
+export type StudioVersion={scoreMix?:RenderMix;mixRequestId?:string;resource?:ResourceTaskState;speed?:SpeedEdit;audioHash?:string;id:string;soundId:string;number:number;parentId?:string;createdAt:string;state:SpeechVersion['state'];stage:string;kept:boolean;deleted:boolean;purged?:boolean;purgePending?:boolean;voiceName?:string;error?:string;duration?:number;input?:StudioInput;originalAudioPath?:string;vocalsAudioPath?:string;source:{kind:'speech'|'music'|'score'|'audio'|'conversion';id:string;projectId?:string};audioPath?:string;renderJobId?:string};
 export type StudioLibraryOptions={paginateConversions?:boolean;includeDeletedConversions?:boolean;conversionSoundId?:string;conversionPage?:number;conversionPageSize?:number;selectedVersionId?:string};
 export type StudioConversionPagination={soundId:string;page:number;pageSize:number;total:number;totalPages:number;versionIds:string[]};
 type Data={format:'music-room-studio';version:1;sounds:StudioSound[];versions:StudioVersion[]};
@@ -193,5 +194,29 @@ export class StudioService{
   const r=await this.service.store.importRevision(doc);const v:StudioVersion={id:r.id,soundId:s.id,number:this.data.versions.filter(x=>x.soundId===s.id).length+1,parentId:args.parentId,createdAt:r.createdAt,state:'succeeded',stage:'已导入，等待试听',kept:false,deleted:false,source:{kind:'score',id:r.id,projectId:p.id},duration:doc.score.duration,input:{soundId:s.id,text:doc.revision.description??''}};this.data.versions.push(v);return v;
  });}
  async renderRevision(request:JobRequest){return this.serial(async()=>{await this.sync();const v=this.data.versions.find(v=>v.source.kind==='score'&&v.source.id===request.revisionId&&v.source.projectId===request.projectId);if(v){this.activeSound(v.soundId);if(v.deleted||v.purged||v.purgePending)fail('版本在回收站中，请先恢复');}const job=await this.service.jobs.submit(request);if(v&&['queued','running'].includes(job.state))v.renderJobId=job.id;return job;});}
- async render(id:string){return this.serial(async()=>{const v=this.version(id);this.activeSound(v.soundId);if(v.purged||v.deleted||v.source.kind!=='score')fail('此版本无需合成乐谱');if(v.audioPath||v.renderJobId)return v;const job=await this.service.jobs.submit({kind:'render-score',projectId:v.source.projectId!,revisionId:v.source.id,idempotencyKey:randomUUID()});v.renderJobId=job.id;v.error=undefined;v.stage=job.stage;return v;});}
+ private async renderScoreVersion(v:StudioVersion){
+  if(v.audioPath||v.renderJobId)return v;
+  const job=await this.service.jobs.submit({kind:'render-score',projectId:v.source.projectId!,revisionId:v.source.id,mix:v.scoreMix,idempotencyKey:randomUUID()});
+  v.renderJobId=job.id;v.error=undefined;v.stage=job.stage;return v;
+ }
+ async render(id:string){return this.serial(async()=>{const v=this.version(id);this.activeSound(v.soundId);if(v.purged||v.deleted||v.source.kind!=='score')fail('此版本无需合成乐谱');return this.renderScoreVersion(v);});}
+ async saveMix(args:{versionId:string;requestId:string;mix:Partial<RenderMix>}){return this.serial(async()=>{
+  await this.sync();const mix=validateMix(args.mix),source=this.version(args.versionId),s=this.activeSound(source.soundId);
+  if(source.deleted||source.purged||source.purgePending||source.source.kind!=='score')fail('请选择未删除的乐谱版本');
+  const previous=this.data.versions.find(v=>v.mixRequestId===args.requestId);
+  if(previous){
+   if(previous.parentId!==source.id||JSON.stringify(previous.scoreMix)!==JSON.stringify(mix))fail('混音请求与上次不一致');
+   if(previous.deleted||previous.purged)fail('混音版已删除，请重新发起请求');
+   return this.renderScoreVersion(previous);
+  }
+  const doc=clone((await this.service.store.revision(source.source.projectId!,source.source.id)).composition);
+  const project=await this.service.store.project(s.projectId);doc.work={id:project.id,title:project.title};doc.score.title=project.title;
+  doc.revision.id=`score-${randomUUID()}`;doc.revision.label=`V${source.number} 的混音版`;
+  const revision=await this.service.store.importRevision(doc,source.source.id);
+  const v:StudioVersion={id:revision.id,soundId:s.id,number:Math.max(0,...this.data.versions.filter(v=>v.soundId===s.id).map(v=>v.number))+1,parentId:source.id,createdAt:revision.createdAt,state:'succeeded',stage:'混音已保存，等待合成',kept:false,deleted:false,source:{kind:'score',id:revision.id,projectId:s.projectId},duration:source.duration,input:source.input&&clone(source.input),scoreMix:mix,mixRequestId:args.requestId};
+  this.data.versions.push(v);this.save();
+  // Save ownership before scheduling: a failed submission can retry this same version.
+  return this.renderScoreVersion(v);
+ },false);}
+
 }
