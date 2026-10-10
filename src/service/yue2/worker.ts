@@ -1,3 +1,4 @@
+import {createHash} from 'node:crypto';
 import {ResourceLease} from '../resources/lease.ts';
 import {signalWorkload} from '../resources/processes.ts';
 import {spawn} from 'node:child_process';
@@ -71,6 +72,7 @@ class LocalOnly(BaseHTTPMiddleware):
 app.add_middleware(LocalOnly)
 uvicorn.run(app,host='127.0.0.1',port=int(os.environ['MUSIC_ROOM_YUE2_PORT']),log_level='info')`;
 
+export const yueServeProgramHash=createHash('sha256').update(serve).digest('hex');
 export function workerCommand(input:YuE2Task) {
   const task=taskSchema.parse(input),root=task.directory,lock=join(root,'.music-room-yue2.lock');
   if(!existsSync(lock)||JSON.parse(readFileSync(lock,'utf8')).owner!==task.owner)throw new Error('YuE2 目录不属于所属工作台');

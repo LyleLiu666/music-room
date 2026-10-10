@@ -46,6 +46,12 @@ if not link.exists():link.symlink_to(ffmpeg)
 os.environ['PATH']=str(bin_dir)+os.pathsep+os.environ['PATH']
 from audio_separator.separator import Separator
 class ReferenceSeparator(Separator):
+ # Short reference clips favour a bounded CPU path over transient CoreML compilation.
+ def setup_torch_device(self,system_info):
+  self.torch_device_cpu=torch.device('cpu')
+  self.torch_device=self.torch_device_cpu
+  self.torch_device_mps=None
+  self.onnx_execution_provider=['CPUExecutionProvider']
  # Pin metadata together with each weight, avoiding mutable upstream model lists.
  def download_model_files(self,filename):
   model=next(m for m in models if m['filename']==filename)

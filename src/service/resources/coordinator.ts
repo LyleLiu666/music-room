@@ -12,6 +12,8 @@ export type CoordinatorOptions = {
   probe: () => Promise<HardwareSnapshot>;
   policy: ResourcePolicy;
   now?: () => number;
+  monitorMs?:number;
+  observe?:(pids:number[],baseline:HardwareSnapshot)=>Promise<{usage:Record<string,number>;swapUsed?:number;pressure:HardwareSnapshot['pressure']}>;
   lease?: ResourceLease;
   estimate?: (engine: string, input: unknown) => import('./contracts.ts').ResourceDemand;
 };
@@ -27,6 +29,8 @@ export class ResourceCoordinator {
   private closing?: Promise<void>;
   private pumping?: Promise<void>;
   private wake?: () => void;
+  private lastHardware?:HardwareSnapshot;
+  private observation?:{usage:Record<string,number>;swapUsed?:number;pressure:HardwareSnapshot['pressure']};
   private reservations: Record<string, number> = {};
   constructor(options: CoordinatorOptions) {
     if (!validPolicy(options.policy)) throw new Error('资源策略参数无效');
@@ -75,6 +79,7 @@ export class ResourceCoordinator {
   snapshot() {
     return {active: this.active ? structuredClone(this.active.state) : undefined,
       queued: this.queue.map(e => structuredClone(e.state)), history: structuredClone(this.history),
+      hardware:this.lastHardware?structuredClone(this.lastHardware):undefined,observation:this.observation?structuredClone(this.observation):undefined,
       reservations: {...this.reservations}, residents: [...this.adapters].flatMap(([engine, a]) => {
         const bytes = a.resident(); return bytes ? [{engine, bytes: {...bytes}}] : [];
       }), fault: this.fault ? {code: this.fault.code, message: this.fault.message} : undefined};
@@ -105,12 +110,22 @@ export class ResourceCoordinator {
     // Every entry has its own rejection. Never leak a background rejection.
     void this.pumping.catch(() => {});
   }
+  private monitor(entry:Entry,pids:number[],baseline:HardwareSnapshot){
+    let stopped=false,timer:ReturnType<typeof setTimeout>|undefined,pending=Promise.resolve();
+    const tick=()=>{pending=(async()=>{if(!this.options.observe||stopped)return;try{const result=await this.options.observe([...pids],baseline);if(stopped)return;this.observation=result;for(const pool of Object.keys(this.reservations))if(!Number.isFinite(result.usage[pool]))throw new Error('缺少占用指标');
+      for(const [pool,bytes] of Object.entries(result.usage)){if(!Number.isFinite(bytes)||bytes<0)throw new Error('占用指标无效');entry.state.peak??={};entry.state.peak[pool]=Math.max(entry.state.peak[pool]??0,bytes);if(bytes>(this.reservations[pool]??0))throw new ResourceError('PEAK_EXCEEDED','任务实际占用超过内存预算，已停止');}
+      if(baseline.swapUsed!==undefined){if(!Number.isFinite(result.swapUsed))throw new Error('缺少交换空间指标');if(result.swapUsed!-baseline.swapUsed>=512*2**20)throw new ResourceError('PRESSURE_PROTECTION','系统交换空间增长超过安全阈值，已停止任务');}
+      if(result.pressure==='critical')throw new ResourceError('PRESSURE_PROTECTION','系统内存压力过高，已停止任务');if(result.pressure==='unknown')throw new Error('压力指标无效');
+    }catch(error){if(!stopped&&!entry.controller.signal.aborted)entry.controller.abort(error instanceof ResourceError?error:new ResourceError('RESOURCE_TELEMETRY_UNAVAILABLE','运行期间无法确认内存占用，已停止任务'));}
+    finally{if(!stopped)timer=setTimeout(tick,this.options.monitorMs??1000);}})();};
+    if(this.options.observe)tick();return async()=>{stopped=true;if(timer)clearTimeout(timer);await pending;};
+  }
   private async drain() {
     while (this.queue.length) {
       const entry = this.queue.shift()!; this.active = entry;
       const adapter = this.adapters.get(entry.request.engine)!;
       let executed = false;
-      let leased = false;
+      let leased = false;let stopMonitor:()=>Promise<void>=async()=>{};let admittedHardware!:HardwareSnapshot;const pids:number[]=[];
       try {
         if (this.fault) throw this.fault;
         entry.controller.signal.throwIfAborted();
@@ -131,7 +146,7 @@ export class ResourceCoordinator {
           let hardware: HardwareSnapshot;
           try {hardware = await this.options.probe();}
           catch {throw new ResourceError('RESOURCE_TELEMETRY_UNAVAILABLE', '无法读取电脑资源，请稍后重试');}
-          entry.controller.signal.throwIfAborted();
+          this.lastHardware=hardware;admittedHardware=hardware;entry.controller.signal.throwIfAborted();
           const decision = admit(hardware, entry.request.demand, this.options.policy, this.now(), adapter.resident());
           if (decision.allowed) {this.reservations = decision.budgets; break;}
           const error = new ResourceError(decision.code, decision.message);
@@ -144,16 +159,17 @@ export class ResourceCoordinator {
         entry.controller.signal.throwIfAborted();
         this.emit(entry, 'loading');
         entry.controller.signal.throwIfAborted();
-        executed = true;
+        executed = true;this.observation=undefined;stopMonitor=this.monitor(entry,pids,admittedHardware);
         const value = await entry.request.execute({signal: entry.controller.signal, budgets: {...this.reservations},
           running: () => {entry.controller.signal.throwIfAborted(); this.emit(entry, 'running');},
-          trackProcess: pid => this.options.lease?.track(pid),
+          trackProcess: pid => {this.options.lease?.track(pid);if(!pids.includes(pid))pids.push(pid);},
           lease: leased ? this.options.lease!.capability() : undefined});
         entry.controller.signal.throwIfAborted();
         // First release policy is conservative: a user-wide lease always reaps after each task.
         if (leased) {await this.unload(entry.request.engine, adapter); this.options.lease!.release(); leased = false;}
-        this.emit(entry, 'succeeded'); entry.resolve(value);
+        await stopMonitor();entry.controller.signal.throwIfAborted();this.emit(entry, 'succeeded'); entry.resolve(value);
       } catch (error) {
+        await stopMonitor();if(entry.controller.signal.aborted&&entry.controller.signal.reason instanceof ResourceError)error=entry.controller.signal.reason;
         // A failed/cancelled load may have left a resident. Reap before settling or advancing.
         try {if (executed || adapter.resident()) await this.unload(entry.request.engine, adapter);}
         catch (cleanup) {
@@ -165,7 +181,7 @@ export class ResourceCoordinator {
           catch (cleanup) {this.fault = new ResourceError('UNLOAD_FAILED', `所属进程未释放：${String(cleanup)}`); error = this.fault;}
         }
         const cause = error instanceof ResourceError ? error : undefined;
-        const stage = this.fault ? 'failed' : entry.controller.signal.aborted ? 'cancelled' : cause ? 'blocked' : 'failed';
+        const stage = this.fault ? 'failed' : entry.controller.signal.aborted&&cause?.code==='CANCELLED' ? 'cancelled' : cause ? 'blocked' : 'failed';
         try {this.emit(entry, stage, cause);} catch {/* Persistence failure must not prevent cleanup. */}
         entry.reject(error);
       } finally {

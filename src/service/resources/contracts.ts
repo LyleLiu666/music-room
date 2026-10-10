@@ -7,6 +7,7 @@ export type ResourcePool = {
   platformLimit?: number;
 };
 export type HardwareSnapshot = {
+  swapUsed?:number;
   supported: boolean;
   topology: 'unified' | 'discrete' | 'cpu' | 'unknown';
   sampledAt: number;
@@ -26,7 +27,7 @@ export type ResourcePolicy = {
 };
 export type ResourceReason = 'INSUFFICIENT_CAPACITY' | 'WAITING_FOR_MEMORY' | 'UNSUPPORTED_BACKEND' |
   'RESOURCE_PROFILE_UNVERIFIED' | 'RESOURCE_TELEMETRY_UNAVAILABLE' | 'UNLOAD_FAILED' |
-  'QUEUE_FULL' | 'CLOSED' | 'CANCELLED' | 'DUPLICATE_RESOURCE_TASK' | 'WAITING_FOR_WORKSPACE' | 'INSUFFICIENT_DISK' | 'DISK_TELEMETRY_UNAVAILABLE';
+  'QUEUE_FULL' | 'CLOSED' | 'CANCELLED' | 'DUPLICATE_RESOURCE_TASK' | 'WAITING_FOR_WORKSPACE' | 'INSUFFICIENT_DISK' | 'DISK_TELEMETRY_UNAVAILABLE' | 'PEAK_EXCEEDED' | 'PRESSURE_PROTECTION';
 export class ResourceError extends Error {
   code: ResourceReason;
   constructor(code: ResourceReason, message: string) {super(message); this.code = code;}
@@ -37,7 +38,7 @@ export type ResourceStage = 'queued' | 'waiting_resources' | 'loading' | 'runnin
   'succeeded' | 'failed' | 'cancelled' | 'blocked';
 export type ResourceTaskState = {
   id: string; engine: string; stage: ResourceStage; submittedAt: number;
-  reason?: ResourceReason; message?: string;
+  reason?: ResourceReason; message?: string;peak?:Record<string,number>;
 };
 export type ResidentModel = {engine: string; bytes: Record<string, number>};
 export type ResourceAdapter = {
@@ -57,3 +58,5 @@ export type ResourceRequest<T> = {
   execute: (context: ResourceExecution) => Promise<T>;
   onState?: (state: ResourceTaskState) => void;
 };
+
+export function userCancelled(signal:AbortSignal){return signal.aborted&&(!(signal.reason instanceof ResourceError)||signal.reason.code==='CANCELLED');}

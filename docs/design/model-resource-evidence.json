@@ -1,0 +1,156 @@
+{
+  "format": "music-room-resource-evidence",
+  "version": 1,
+  "date": "2026-10-10",
+  "device": "Apple M4 / 32 GiB unified memory / macOS",
+  "method": "1 s physical-footprint samples across owned process groups plus parent increment; explicit calibration guards and production admission policy; isolated cloned installs, serial global lease",
+  "profiles": {
+    "ttsProfile": {
+      "id": "tts-native-f16-tail2",
+      "version": "0.9.1-music-room-tail2",
+      "program": "dfb8bc3a9d409757cc36a3cad9fa7686a2e1909fe9617aadfa11ee7b268a7d01",
+      "weights": "0f7b95d3d32e18bf9352912a7b21a0bd4a8406853a0aaa2c9180f77389c21523"
+    },
+    "referenceProfile": {
+      "id": "reference-uvr-cpu-v2",
+      "requirements": "b040bc4b52b83688072ecba398702e4d4cbe945e6abd53a07607807f96e8f8ae",
+      "models": "2dc3699abc54e84c488d4175a7fc5e9fc73ade2d3f480dadf914565e6030e974",
+      "program": "5736ca461f9d82d7ffa9f3f2c95203e13fb8f7536485cd758cfc3cb25313f835"
+    },
+    "yueProfile": {
+      "id": "yue2-mlx-low-memory",
+      "revision": "f696147a985081848d4b0310cbe9b10b16259be6",
+      "mlx": "6781272d227d3f7010b76cfd2a9d2a960a8021fe6b41909c361361e23ba2f749",
+      "program": "cb1114b9a1cf3ad100622f78b9db783a4a87061914a02faedbdecea737cacbb2"
+    },
+    "conversionProfile": {
+      "id": "seed-vc-native-f16",
+      "commit": "bd88e6eaa1d25a1ee1513e19e72e72a5de757187",
+      "program": "8d799aaf44ac2dc75db2a64e3444132b00e20d1dd3db8ba2a4144461000641ab"
+    }
+  },
+  "runs": [
+    {
+      "kind": "tts",
+      "state": "succeeded",
+      "id": "speech-v-b7e8e735-4d3e-415a-8e78-c87e74d7b13d",
+      "peakBytes": 4634915636,
+      "guardBytes": 6442450944,
+      "text": "你好，欢迎回来。今天的故事从这里开始。",
+      "artifact": {
+        "duration": 5.347709750566893,
+        "sampleRate": 22050,
+        "peak": 0.82159423828125,
+        "bytes": 235878,
+        "sha256": "96778d0f1057eb2c8154f01e04b7d276e6a381c0ebe574e36c555ad244345541"
+      },
+      "raw": "/Users/liu_y/code/music/test-results/resources-real/run-1791608333702/verification.json"
+    },
+    {
+      "kind": "reference",
+      "state": "succeeded",
+      "id": "voice-3d3ffc73-22d4-4be8-bde8-80f78cfbb09c",
+      "peakBytes": 6021998183,
+      "guardBytes": 6442450944,
+      "raw": "/Users/liu_y/code/music/test-results/resources-real/run-1791608333702/verification.json"
+    },
+    {
+      "kind": "conversion",
+      "state": "succeeded",
+      "id": "conversion-7f9961f9-4541-483f-8b25-488e9c5acc50",
+      "peakBytes": 2759222886,
+      "guardBytes": 10737418240,
+      "artifacts": {
+        "source": {
+          "sha256": "afc48888185ab16bec283077b00d7147e37e0cbbd311a850e7b50a9e4b847b0f",
+          "bytes": 215138
+        },
+        "converted": {
+          "sha256": "1c98e6f134ee4e664e4c81143e34c90b934c8e752ab8ad84853026b5b87cc1d4",
+          "bytes": 215138
+        },
+        "vocals": {
+          "sha256": "cf36e0f8e5b5681bc5d97fc290748b4ddd918cbf376950653ee46ef6ccd13425",
+          "bytes": 215138
+        }
+      },
+      "raw": "/Users/liu_y/code/music/test-results/resources-real/run-1791608333702/verification.json"
+    },
+    {
+      "kind": "yue2",
+      "state": "done",
+      "id": "ccd8e26514214fc8800910b69f8c4d85",
+      "peakBytes": 6162061721,
+      "guardBytes": 15032385536,
+      "artifacts": {
+        "audio": true,
+        "score": true,
+        "plan": true,
+        "transcription": false,
+        "hum": false
+      },
+      "timing": {
+        "plan": 77.076,
+        "semantic": 313.81,
+        "synthesize": 253.103,
+        "decode": 27.369,
+        "transcribe": null,
+        "e2e": 674.799,
+        "abc_tps": 28.43,
+        "semantic_tps": 19.12,
+        "audio_seconds": 239.999
+      },
+      "raw": "/Users/liu_y/code/music/test-results/resources-real/run-1791608333702/verification.json"
+    },
+    {
+      "kind": "yue2-quality-vocal",
+      "state": "done",
+      "id": "9e72f9474b8b4ce9b7edb665ca06ba82",
+      "peakBytes": 5842246042,
+      "guardBytes": 15032385536,
+      "artifacts": {
+        "audio": true,
+        "score": true,
+        "plan": true,
+        "transcription": false,
+        "hum": false
+      },
+      "timing": {
+        "plan": 35.895,
+        "semantic": 78.597,
+        "synthesize": 133.049,
+        "decode": 6.831,
+        "transcribe": null,
+        "e2e": 256.564,
+        "abc_tps": 12.84,
+        "semantic_tps": 15.92,
+        "audio_seconds": 49.999
+      },
+      "raw": "/Users/liu_y/code/music/test-results/resources-real/run-1791608333702/verification.json"
+    }
+  ],
+  "longReference": {
+    "input": "public/tts-presets/tianjin.wav",
+    "duration": 14.81360544217687,
+    "peakBytes": 7739323188,
+    "guardBytes": 8589934592,
+    "sha256": "925503900bbc8a14d551b0814cc73b0c7dbb6e66fc1a60200e092101b6bdad7a",
+    "sourceSha256": "1a2b09d52327da3ab80d6c8aa0b5e316fec290f292820414a0e764c841eb5be6",
+    "state": "succeeded",
+    "raw": "test-results/resources-real/reference-long.json"
+  },
+  "negativeCoreML": {
+    "guardBytes": 6442450944,
+    "observedBytes": 7306156442,
+    "reason": "PEAK_EXCEEDED",
+    "originalPreserved": true
+  },
+  "finalResidents": [],
+  "limitations": [
+    "Only this 32 GiB device ran real models. Other capacities and discrete pools are policy simulations.",
+    "Sampled peaks are not instantaneous hard limits or universal input maxima.",
+    "Swap growth was not captured in these calibration runs; later monitoring adds a 512 MiB growth stop.",
+    "CPU cleanup changes execution provider, not model files; waveform QA does not establish subjective voice quality."
+  ],
+  "reproduction": "npm run verify:resources:real; existing pinned installs required. Optional MUSIC_ROOM_TTS_SOURCE, MUSIC_ROOM_YUE_SOURCE, MUSIC_ROOM_CONVERSION_SOURCE override source directories; output contains run-local verification.json. No deployment credentials required."
+}

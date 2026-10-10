@@ -1,3 +1,5 @@
+import {yueServeProgramHash} from './worker.ts';
+import {yueProfile} from '../resources/profiles.ts';
 import {ownedCommand} from '../resources/commands.ts';
 import {checkDisk,diskGuard} from '../resources/installation.ts';
 import {dirname} from 'node:path';
@@ -67,7 +69,7 @@ export function cleanDownloadPartials(root:string) {
 }
 export function createYuE2Driver(read:AssetReader,command=process.execPath,args=[fileURLToPath(new URL('./worker-entry.ts',import.meta.url))]):YuE2Driver {
   let choosing=false;
-  return {
+  return {resourceProfile:{...yueProfile,revision,mlx:archives.mlx.hash,program:yueServeProgramHash},
     unsupported:()=>process.platform!=='darwin'||process.arch!=='arm64'?'当前自动安装支持 Apple Silicon Mac；此电脑仍可使用乐谱创作与音频渲染。':undefined,
     installed:installationReady,
     modelsReady:root=>['converted/conversion.json','converted/ar-8bit.safetensors','converted/nar-bf16.safetensors','vae/config.json','vae/model.safetensors'].every(name=>{try{const path=join(root,'models',name);return !lstatSync(path).isSymbolicLink()&&statSync(path).isFile()&&statSync(path).size>0;}catch{return false;}}),

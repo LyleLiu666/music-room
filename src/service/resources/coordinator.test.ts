@@ -115,3 +115,11 @@ test('repeated close calls both await final resident cleanup', async () => {
   await new Promise<void>(r => setImmediate(r));
   try {assert.equal(secondFinished, false);} finally {cleanup.release(); await Promise.all([first, second]);}
 });
+
+test('runtime observation stops over-budget work and holds rights until cleanup',async()=>{
+ const events:string[]=[];let sampled=0;
+ const resources=new ResourceCoordinator({policy:{reserveFraction:.1,reserveMinimum:0,headroom:0,maxSnapshotAgeMs:1000,maxWaitMs:100,retryMs:1,maxQueue:10},probe:async()=>({supported:true,topology:'cpu',sampledAt:Date.now(),pressure:'normal',pools:[{id:'memory',capacity:1000,available:1000,owned:0}]}),observe:async()=>{sampled++;return {usage:{memory:101},pressure:'normal'};},monitorMs:1});
+ resources.register('x',{resident:()=>undefined,unload:async()=>{events.push('unloaded');}});
+ await assert.rejects(resources.run({id:'x',engine:'x',demand:{verified:true,peak:{memory:100}},execute:async ctx=>{ctx.running();await new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}));ctx.signal.throwIfAborted();}}),/预算/);
+ assert.ok(sampled>0);assert.deepEqual(events,['unloaded']);assert.equal(resources.snapshot().history.at(-1)?.reason,'PEAK_EXCEEDED');await resources.close();
+});

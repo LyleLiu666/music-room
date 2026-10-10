@@ -1,3 +1,4 @@
+import {conversionProfile} from '../resources/profiles.ts';
 import { spawn } from 'node:child_process';
 import { createReadStream, existsSync, statSync, readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
@@ -80,7 +81,7 @@ async function verifyModels(directory: string, signal: AbortSignal) {
 export function createNativeConversionDriver(engineDirectory: string, worker: ConversionWorker = defaultWorker): ConversionDriver {
   const cli = join(engineDirectory, 'audiocpp_cli');
   const details = { model: 'Seed-VC · F16 · v1_svc', backend: 'Metal', separationModel: 'HTDemucs · F16', directory: engineDirectory };
-  return {
+  return {resourceProfile:()=>{try{const i=installation(engineDirectory);return {...conversionProfile,commit:i.commit,program:i.programSha256};}catch{return undefined;}},
     status: () => {
       try {
         if (!existsSync(cli) || !existsSync(join(engineDirectory, 'installed.json'))) return { ...details, ready: false, message: '尚未安装原生音色转换引擎' };

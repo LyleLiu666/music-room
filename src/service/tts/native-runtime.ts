@@ -1,3 +1,4 @@
+import {ttsProfile,referenceIdentity} from '../resources/profiles.ts';
 import {spawn,type ChildProcess} from 'node:child_process';
 import {createServer} from 'node:net';
 import {readFileSync,writeFileSync} from 'node:fs';
@@ -29,7 +30,7 @@ export function createNativeSpeechDriver(command:string,args:string[],read?:Asse
    throw new Error('audio.cpp 模型加载超时');
   }catch(error){if(r)await stop(r);else lease.release();throw error;}
  }
- return {engineLabel:'audio.cpp F16',resident:()=>resident&&!resident.exited?{memory:distribution.modelBytes}:undefined,unload:()=>stop(),installed:root=>nativeInstalled(root,distribution),builtinVoices:read?()=>readBuiltinVoices(read):undefined,close:()=>stop(),
+ return {resourceProfile:{...ttsProfile,version:distribution.version,program:distribution.programSha256,weights:distribution.modelSha256},referenceProfile:referenceIdentity(),engineLabel:'audio.cpp F16',resident:()=>resident&&!resident.exited?{memory:0}:undefined,unload:()=>stop(),installed:root=>nativeInstalled(root,distribution),builtinVoices:read?()=>readBuiltinVoices(read):undefined,close:()=>stop(),
   prepare:async(directory,context)=>{const root=checkedDirectory(directory);if(nativeInstalled(root,distribution)){if(resident&&resident.root!==root)await stop();return;}await stop();const lease=lock(root);try{await installNative(root,context,distribution,read);}finally{lease.release();}},
   cleanReference:options.cleanReference?async(directory,request,context)=>{await stop();await options.cleanReference!(directory,request,context);}:undefined,
   generate:async(directory,request,context)=>{

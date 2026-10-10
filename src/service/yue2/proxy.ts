@@ -59,16 +59,16 @@ export class YuE2Proxy {
   const state=await this.engine.status();if(!state.canGenerate||!state.directory)throw new ServiceError('YUE2_UNAVAILABLE','请先准备音乐模型');
   const id=randomUUID().replaceAll('-',''),record:RecordJob={job:{id,kind:'create',status:'queued',title:input.title,created_at:new Date().toISOString()},directory:state.directory,input:structuredClone(input)};
   this.records.set(id,record);this.save();const controller=new AbortController();
-  const done=this.resources.run({id,engine:'yue2',signal:controller.signal,demand:this.resources.estimate('yue2',input),onState:resource=>{record.job.resource=resource;record.job.stage=resource.message??resource.stage;this.save();},execute:async execution=>{
+  const done=this.resources.run({id,engine:'yue2',signal:controller.signal,demand:this.resources.estimate('yue2',{...input,resourceProfile:this.engine.resourceProfile()}),onState:resource=>{record.job.resource=resource;record.job.stage=resource.message??resource.stage;this.save();},execute:async execution=>{
    await this.engine.activate(execution);execution.signal.throwIfAborted();execution.running();
    // POST is intentionally not retried: a lost response may already have created an upstream job.
    let upstream=await this.request('jobs',body,execution.signal);record.upstreamId=upstream.id;this.save();
-   for(;;){execution.signal.throwIfAborted();if(['done','failed','cancelled'].includes(upstream.status))break;record.job={...upstream,id,resource:record.job.resource};this.save();
-    await new Promise<void>((resolve,reject)=>{const abort=()=>{clearTimeout(timer);reject(execution.signal.reason);};const timer=setTimeout(()=>{execution.signal.removeEventListener('abort',abort);resolve();},100);execution.signal.addEventListener('abort',abort,{once:true});});
+   for(;;){execution.signal.throwIfAborted();if(['done','failed','cancelled'].includes(upstream.status))break;const next={...upstream,id,resource:record.job.resource};if(JSON.stringify(next)!==JSON.stringify(record.job)){record.job=next;this.save();}
+    await new Promise<void>((resolve,reject)=>{const abort=()=>{clearTimeout(timer);reject(execution.signal.reason);};const timer=setTimeout(()=>{execution.signal.removeEventListener('abort',abort);resolve();},250);execution.signal.addEventListener('abort',abort,{once:true});});
     upstream=await this.request('jobs/'+record.upstreamId,undefined,execution.signal);
    }
    if(upstream.status==='done')await this.seal(record);return upstream;
-  }}).then(upstream=>{record.job={...upstream,id,resource:record.job.resource};this.save();}).catch(error=>{record.job.status=controller.signal.aborted?'cancelled':'failed';record.job.error=error instanceof Error?error.message:String(error);this.save();}).finally(()=>this.tasks.delete(id));
+  }}).then(upstream=>{const next={...upstream,id,resource:record.job.resource};if(JSON.stringify(next)!==JSON.stringify(record.job)){record.job=next;this.save();}}).catch(error=>{record.job.status=controller.signal.aborted?'cancelled':'failed';record.job.error=error instanceof Error?error.message:String(error);this.save();}).finally(()=>this.tasks.delete(id));
   this.tasks.set(id,{controller,done});return this.result(record);
  }
  async job(id:string){await this.migrate();return this.result(this.record(id));}

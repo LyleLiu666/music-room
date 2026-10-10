@@ -1,5 +1,5 @@
 import {signalWorkload} from '../resources/processes.ts';
-import { spawn, execFile } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { appendFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { isAbsolute } from 'node:path';
@@ -25,24 +25,10 @@ export async function runCommandOwned(command: string, args: string[], log: stri
     const timeout = setTimeout(() => stop(new Error('原生音频处理超时')), timeoutMs); timeout.unref();
     signal.addEventListener('abort', cancel, { once: true });
     if (signal.aborted) cancel();
-    let sampling = false, memoryUnavailableLogged = false, finished = false;
-    let memoryProbe: ReturnType<typeof execFile> | undefined;
-    const memoryTimer = setInterval(() => {
-      if (process.platform !== 'darwin' || sampling || !child.pid || failure) return;
-      sampling = true;
-      memoryProbe = execFile('/usr/bin/vmmap', ['-summary', String(child.pid)], { timeout: 5000, maxBuffer: 2 * 1024 * 1024 }, (error, stdout) => {
-        sampling = false;
-        if (finished) return;
-        const peak = footprintGiB(stdout);
-        if (peak) record(Buffer.from(JSON.stringify({ physicalFootprintPeakGiB: peak }) + '\n'));
-        if (peak > 10) stop(new Error('原生推理物理内存超过 10 GiB，已停止转换'));
-        if ((error || !peak) && !memoryUnavailableLogged) { memoryUnavailableLogged = true; record(Buffer.from('Physical footprint sampling unavailable; timeout guard remains active.\n')); }
-      });
-    }, 10_000); memoryTimer.unref();
     child.stdout.on('data', record); child.stderr.on('data', record);
     child.once('error', error => { failure = error; });
     child.once('close', async code => {
-      finished = true; memoryProbe?.kill(); clearInterval(memoryTimer); clearTimeout(timeout); if (killTimer) clearTimeout(killTimer); signal.removeEventListener('abort', cancel);
+      clearTimeout(timeout); if (killTimer) clearTimeout(killTimer); signal.removeEventListener('abort', cancel);
       killGroup('SIGKILL'); // Reap descendants even after a successful group leader exit.
       await pending;
       if (failure) reject(failure); else if (code !== 0) reject(new Error(`原生音频处理失败（退出码 ${code}），请查看转换日志`)); else resolve();
