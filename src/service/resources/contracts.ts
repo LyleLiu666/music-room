@@ -26,7 +26,7 @@ export type ResourcePolicy = {
 };
 export type ResourceReason = 'INSUFFICIENT_CAPACITY' | 'WAITING_FOR_MEMORY' | 'UNSUPPORTED_BACKEND' |
   'RESOURCE_PROFILE_UNVERIFIED' | 'RESOURCE_TELEMETRY_UNAVAILABLE' | 'UNLOAD_FAILED' |
-  'QUEUE_FULL' | 'CLOSED' | 'CANCELLED' | 'DUPLICATE_RESOURCE_TASK';
+  'QUEUE_FULL' | 'CLOSED' | 'CANCELLED' | 'DUPLICATE_RESOURCE_TASK' | 'WAITING_FOR_WORKSPACE';
 export class ResourceError extends Error {
   code: ResourceReason;
   constructor(code: ResourceReason, message: string) {super(message); this.code = code;}
@@ -49,6 +49,8 @@ export type ResourceExecution = {
   signal: AbortSignal;
   budgets: Record<string, number>;
   running: () => void;
+  trackProcess: (pid: number) => void;
+  lease?: {directory: string; owner: string};
 };
 export type ResourceRequest<T> = {
   id: string; engine: string; demand: ResourceDemand; signal?: AbortSignal;

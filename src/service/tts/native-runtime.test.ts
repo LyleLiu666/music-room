@@ -8,6 +8,8 @@ import {execFileSync} from 'node:child_process';
 import {createServer} from 'node:http';
 import {createNativeSpeechDriver,nativeDistribution} from './native-runtime.ts';
 import {installNative} from './native-install.ts';
+import {ResourceCoordinator} from '../resources/coordinator.ts';
+import {ResourceLease} from '../resources/lease.ts';
 const digest=(b:Buffer)=>createHash('sha256').update(b).digest('hex');
 const context=()=>({signal:new AbortController().signal,stage:()=>{},report:()=>{}});
 async function fixture(){
@@ -86,4 +88,17 @@ test('explicit strengths are independent of description and reset across a resid
   assert.deepEqual(requests.map(r=>r.options.emotion_text),['开心','开心','开心','开心','开心','','','','','','开心','']);
   assert.equal(readFileSync(join(f.folder,'starts'),'utf8').trim().split('\n').length,1);
  }finally{await f.close();}
+});
+
+test('managed native execution registers the whole group and reaps it before handing back the lease',async()=>{
+ const f=await fixture(),lease=new ResourceLease(join(f.folder,'resources'));
+ const c=new ResourceCoordinator({lease,policy:{reserveFraction:.25,reserveMinimum:1024,headroom:1024,maxSnapshotAgeMs:1000,maxWaitMs:1000,retryMs:5,maxQueue:8},
+  probe:async()=>({supported:true,topology:'cpu',sampledAt:Date.now(),pressure:'normal',pools:[{id:'memory',capacity:2**30,available:2**30,owned:0}]})});
+ c.register('tts',{resident:()=>f.driver.resident?.(),unload:()=>f.driver.unload!()});
+ try{await f.driver.prepare(f.root,context());await c.run({id:'native-managed',engine:'tts',demand:{verified:true,peak:{memory:2**20}},execute:async execution=>{
+   await f.driver.generate(f.root,{text:'managed',referencePath:join(f.folder,'ref.wav'),outputPath:join(f.folder,'managed.wav')},{...context(),...execution});
+   const r=JSON.parse(readFileSync(join(f.folder,'resources','heavy-task.json'),'utf8'));assert.ok(r.workers.length>=2);assert.ok(r.workers.some((w:any)=>w.group));assert.ok(f.driver.resident?.());
+  }});assert.equal(f.driver.resident?.(),undefined);assert.equal(existsSync(join(f.folder,'resources','heavy-task.json')),false);
+  const engine=Number(readFileSync(join(f.folder,'starts'),'utf8').trim());assert.throws(()=>process.kill(engine,0));
+ }finally{await c.close();await f.close();}
 });

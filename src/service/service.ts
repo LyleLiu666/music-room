@@ -14,16 +14,20 @@ import {YuE2Engine,type YuE2Driver} from './yue2/engine.ts';
 import {createYuE2Driver} from './yue2/runtime.ts';
 import {YuE2Client} from './yue2/client.ts';
 import {parseOperation,type Operation,type OperationInput,type OperationArgs,type OperationResults,type OperationHandlers,type ServiceCaller} from './operations.ts';
+import {createResources} from './resources/runtime.ts';
+import type {ResourceCoordinator} from './resources/coordinator.ts';
 export type {ServiceCaller} from './operations.ts';
 export class MusicService {
+  resources!:ResourceCoordinator;
+  private closing?:Promise<void>;
   store:ProjectStore; jobs:JobManager; read:AssetReader;yue2:YuE2Engine;yue2Client:YuE2Client;speech:SpeechService;studio:StudioService;conversion:ConversionService;
   private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService) {this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2);this.studio=new StudioService(this);}
-  static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver) {
+  static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver,resources:ResourceCoordinator=createResources()) {
     const store=await ProjectStore.open(root);
     let jobs:JobManager|undefined,yue2:YuE2Engine|undefined,speech:SpeechService|undefined,conversion:ConversionService|undefined;
     try {
       jobs=await JobManager.open(store,renderer);yue2=await YuE2Engine.open(store,driver);
-      speech=await SpeechService.open(store,speechDriver,()=>conversion?.isBusy()??false);conversion=ConversionService.open(store,conversionDriver??createNativeConversionDriver(store.path('engines','voice-conversion')),()=>speech!.isBusy());const service=new MusicService(store,jobs,read,yue2,speech,conversion);
+      speech=await SpeechService.open(store,speechDriver,()=>false,resources);conversion=ConversionService.open(store,conversionDriver??createNativeConversionDriver(store.path('engines','voice-conversion')),()=>false,resources);const service=new MusicService(store,jobs,read,yue2,speech,conversion);service.resources=resources;
       if(seed) {
         const existing=await store.documents(),records=await store.projects(true);
         for(const song of SONGS) if(!existing.some(d=>d.revision.id===song.id)&&!records.some(p=>p.id===song.workId&&(p.deleted||p.purged||p.removedRevisionIds?.includes(song.id)))) {
@@ -31,7 +35,7 @@ export class MusicService {
         }
       }
       return service;
-    } catch(error){await conversion?.close();await speech?.close();await yue2?.close();await jobs?.close();await store.close();throw error;}
+    } catch(error){await resources.close();await conversion?.close();await speech?.close();await yue2?.close();await jobs?.close();await store.close();throw error;}
   }
   private handlers:OperationHandlers = {
     svc_library:async args=>({...this.conversion.snapshot(args),voices:this.speech.conversionVoices()}),svc_create_version:async args=>this.studio.createConversionVersion(args),svc_cancel:async args=>this.studio.cancelConversion(args.jobId),svc_retry:async args=>this.studio.retryConversion(args.jobId),
@@ -78,5 +82,8 @@ export class MusicService {
     const handler=this.handlers[name] as (args:OperationArgs<K>)=>Promise<OperationResults[K]>;
     return handler(parseOperation(name,args));
   };
-  async close() {await this.conversion.close();await this.studio.close();await this.speech.close();await this.yue2.close();await this.jobs.close();await this.store.close();}
+  close():Promise<void> {
+    if(this.closing)return this.closing;
+    this.closing=(async()=>{const results=await Promise.allSettled([this.resources.close(),this.conversion.close(),this.studio.close(),this.speech.close(),this.yue2.close(),this.jobs.close()]);await this.store.close();const errors=results.filter(r=>r.status==='rejected').map(r=>r.reason);if(errors.length)throw new AggregateError(errors,'关闭服务时部分资源未释放');})();return this.closing;
+  }
 }

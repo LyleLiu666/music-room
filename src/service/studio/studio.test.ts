@@ -1,3 +1,4 @@
+import {testResources} from '../resources/testing.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
@@ -8,7 +9,7 @@ import {encodeWav} from '../../wav.ts';
 const unused={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
 const wav=new Uint8Array(encodeWav([Float32Array.from({length:22050},(_,i)=>Math.sin(i*.1)*.2)],22050));
 const speech={installed:()=>true,prepare:async()=>{},generate:async(_:string,r:{outputPath:string})=>{await writeFile(r.outputPath,wav);}};
-async function open(root:string){return MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,speech);}
+async function open(root:string){return MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,speech,undefined,testResources());}
 test('one project owns music and speech; versions retain parent, final and trash across restart',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-'));let svc=await open(root);
  try{
@@ -79,7 +80,7 @@ test('project and sound trash restore the prior hierarchy; archived scopes canno
 });
 test('voice trash and purge preserve generated audio and historical voice names without resurrecting built-ins',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-voice-trash-'));const driver={...speech,builtinVoices:async()=>[{id:'official',name:'原音色',audio:wav}]};
- const reopen=()=>MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,driver);let svc=await reopen();
+ const reopen=()=>MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,driver,undefined,testResources());let svc=await reopen();
  try{
   await svc.call('create_project',{projectId:'film',title:'短片'});const s=await svc.call('studio_create_sound',{projectId:'film',title:'旁白',kind:'speech'}),voice=(await svc.call('tts_library',{})).voices[0];const v=await completed(svc,s.id,voice.id);
   await svc.call('tts_update_voice',{voiceId:voice.id,name:'改名音色',deleted:true});
@@ -106,7 +107,7 @@ test('permanent deletion requires trash and removes speech and score files; rest
 test('active jobs block project, sound and voice deletion without changing their saved state',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-busy-trash-'));
  const driver={...speech,generate:async(_:string,r:any,ctx:any)=>new Promise<void>((_,reject)=>ctx.signal.addEventListener('abort',()=>reject(Error('cancelled')),{once:true}))};
- const svc=await MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,driver);
+ const svc=await MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,driver,undefined,testResources());
  try{await svc.call('create_project',{projectId:'film',title:'短片'});const s=await svc.call('studio_create_sound',{projectId:'film',title:'旁白',kind:'speech'}),ref=await svc.call('tts_add_voice',{cleanup:false,name:'参考',audioBase64:Buffer.from(wav).toString('base64')});const v=await svc.call('studio_generate',{soundId:s.id,text:'进行中',voiceId:ref.id});
   for(let i=0;i<100&&svc.speech.job(v.id).state!=='running';i++)await new Promise(r=>setTimeout(r,10));
   await assert.rejects(svc.call('studio_update_project',{projectId:'film',deleted:true}),/取消|完成/);await assert.rejects(svc.call('studio_update_sound',{soundId:s.id,deleted:true}),/取消|完成/);await assert.rejects(svc.call('tts_update_voice',{voiceId:ref.id,deleted:true}),/使用|完成/);let d=await svc.call('studio_library',{});assert.equal(d.projects[0].deleted,undefined);assert.equal(d.sounds[0].deleted,undefined);assert.equal(d.voices[0].deleted,undefined);await svc.call('studio_cancel',{versionId:v.id});await svc.call('studio_update_project',{projectId:'film',deleted:true});assert.equal((await svc.call('studio_library',{})).projects[0].deleted,true);
@@ -124,7 +125,7 @@ test('partially failed permanent deletion retains completed deletion receipts an
 
 test('seeded catalog projects and scores stay permanently removed after reopening the normal app',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-seed-purge-'));
- const reopen=()=>MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),true,unused,speech);let svc=await reopen();
+ const reopen=()=>MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),true,unused,speech,undefined,testResources());let svc=await reopen();
  try{let d=await svc.call('studio_library',{});const score=d.versions.find(v=>v.source.kind==='score')!,projectId=d.sounds.find(s=>s.id===score.soundId)!.projectId;
   await svc.call('studio_update_version',{versionId:score.id,deleted:true});await svc.call('studio_purge',{kind:'version',id:score.id});await svc.close();svc=await reopen();d=await svc.call('studio_library',{});assert.equal(d.versions.some(v=>v.id===score.id),false);
   await svc.call('studio_update_project',{projectId:projectId,deleted:true});await svc.call('studio_purge',{kind:'project',id:projectId});await svc.close();svc=await reopen();d=await svc.call('studio_library',{});assert.equal(d.projects.some(p=>p.id===projectId),false);assert.equal(d.versions.some(v=>v.id===score.id),false);

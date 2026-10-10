@@ -1,3 +1,4 @@
+import {testResources} from '../service/resources/testing.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
@@ -13,7 +14,7 @@ test('official MCP exposes managed install/start/stop and strict generation cont
   const driver:YuE2Driver={unsupported:()=>undefined,installed:()=>installed,chooseDirectory:async()=>directory,prepare:async(_root,download)=>{installed=true;models=download;},launch:async()=>{
     started++;let end!:(code:number)=>void;const exited=new Promise<number>(r=>{end=r;});return {url:'http://127.0.0.1:19876',exited,status:async()=>({modelsPresent:models,fake:false}),stop:async()=>{stopped++;end(0);}};
   }};
-  const read=async()=>new Uint8Array(),service=await MusicService.open(join(root,'projects'),()=>{throw new Error('unused');},read,false,driver),http=await serveHttp(service,{read,has:()=>false,embedded:false});
+  const read=async()=>new Uint8Array(),service=await MusicService.open(join(root,'projects'),()=>{throw new Error('unused');},read,false,driver,undefined,undefined,testResources()),http=await serveHttp(service,{read,has:()=>false,embedded:false});
   const client=new Client({name:'engine-contract-test',version:'1'});
   t.after(async()=>{await client.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});});
   await client.connect(new StreamableHTTPClientTransport(new URL(http.runtime.url+'/mcp'),{requestInit:{headers:{authorization:`Bearer ${http.runtime.token}`}}}));

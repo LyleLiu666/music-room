@@ -1,3 +1,4 @@
+import {testResources} from '../src/service/resources/testing.ts';
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile,mkdir} from 'node:fs/promises';
@@ -9,7 +10,7 @@ import {MusicService} from '../src/service/service.ts';
 import {processRenderer} from '../src/service/render/process.ts';
 import {serveHttp} from '../src/server/http.ts';
 let root,service,http,browser;
-before(async()=>{root=await mkdtemp(join(tmpdir(),'yue2-ui-'));service=await MusicService.open(root,processRenderer(),p=>readFile(resolve('dist',p)));http=await serveHttp(service,{read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false});browser=await chromium.launch({channel:'chrome',headless:true});});
+before(async()=>{root=await mkdtemp(join(tmpdir(),'yue2-ui-'));service=await MusicService.open(root,processRenderer(),p=>readFile(resolve('dist',p)),undefined,undefined,undefined,undefined,testResources());http=await serveHttp(service,{read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false});browser=await chromium.launch({channel:'chrome',headless:true});});
 after(async()=>{await browser?.close();await http?.close();await service?.close();if(root)await rm(root,{recursive:true,force:true});});
 test('ordinary user chooses one directory and starts complete installation; polling preserves edited paths',async t=>{
   const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));t.after(async()=>{await page.close();assert.deepEqual(errors,[]);});

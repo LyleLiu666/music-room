@@ -1,3 +1,4 @@
+import {testResources} from '../src/service/resources/testing.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
@@ -14,7 +15,7 @@ test('emotion tiers persist as drafts and versions after reload/restart; editing
  const root=await mkdtemp(join(tmpdir(),'studio-emotion-ui-')),received=[];
  const driver={installed:()=>true,prepare:async()=>{},generate:async(_,req)=>{received.push(structuredClone(req));await writeFile(req.outputPath,wav);}};
  const assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
- const open=()=>MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,driver);
+ const open=()=>MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,driver,undefined,testResources());
  let service=await open(),http=await serveHttp(service,assets);
  const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  const waitVersion=async(id)=>{for(let i=0;i<100&&service.speech.job(id).state!=='succeeded';i++)await new Promise(r=>setTimeout(r,10));assert.equal(service.speech.job(id).state,'succeeded');};

@@ -1,3 +1,4 @@
+import {testResources} from '../service/resources/testing.ts';
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
@@ -15,7 +16,7 @@ const rootAssets=new URL('../../dist/',import.meta.url);
 const assets={read:(path:string)=>readFile(new URL(path,rootAssets)),has:()=>true,embedded:false};
 async function wait(client:Client,id:string){for(let i=0;i<150;i++){const x=await client.callTool({name:'get_job',arguments:{jobId:id}});const value=JSON.parse((x.content as any)[0].text);if(!['queued','running'].includes(value.state))return value;await new Promise(r=>setTimeout(r,30));}throw new Error('timeout');}
 test('official HTTP MCP client authors, renders, reads artifacts/resources and rejects bad calls',async t=>{
-  const root=await mkdtemp(join(tmpdir(),'music-http-'));const service=await MusicService.open(root,processRenderer(),assets.read,false),http=await serveHttp(service,assets);
+  const root=await mkdtemp(join(tmpdir(),'music-http-'));const service=await MusicService.open(root,processRenderer(),assets.read,false,undefined,undefined,undefined,testResources()),http=await serveHttp(service,assets);
   const client=new Client({name:'integration',version:'1'});t.after(async()=>{await client.close();await service.jobs.close();await http.close();await service.store.close();await rm(root,{recursive:true,force:true});});
   await client.connect(new StreamableHTTPClientTransport(new URL(http.runtime.url+'/mcp'),{requestInit:{headers:{authorization:`Bearer ${http.runtime.token}`}}}));
   assert.ok((await client.listTools()).tools.some(x=>x.name==='render_revision'));

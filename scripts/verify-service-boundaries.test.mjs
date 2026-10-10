@@ -1,3 +1,4 @@
+import {testResources} from '../src/service/resources/testing.ts';
 import {test,before,after} from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile} from 'node:fs/promises';
@@ -12,7 +13,7 @@ import {serveHttp} from '../src/server/http.ts';
 let root,service,http,browser;
 before(async()=>{
   root=await mkdtemp(join(tmpdir(),'music-ui-boundaries-'));
-  service=await MusicService.open(root,processRenderer(),p=>readFile(resolve('dist',p)));
+  service=await MusicService.open(root,processRenderer(),p=>readFile(resolve('dist',p)),undefined,undefined,undefined,undefined,testResources());
   await service.call('import_revision',{compositionJson:await readFile('src/music/authoring/example.json','utf8')});
   http=await serveHttp(service,{read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false});
   browser=await chromium.launch({channel:'chrome',headless:true});

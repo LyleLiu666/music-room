@@ -55,7 +55,7 @@ export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
     if(owned){
       const file=owned.service.store.path('.music-room.runtime.json');
       if(existsSync(file)&&JSON.parse(readFileSync(file,'utf8')).token===owned.http.runtime.token)unlinkSync(file);
-      await owned.service.conversion.close();await owned.service.studio.close();await owned.service.speech.close();await owned.service.yue2.close();await owned.service.jobs.close();await owned.http.close();await owned.service.store.close();
+      try{await owned.service.close();}finally{await owned.http.close();}
     }
   };
   if(!runtime && (opt.mode==='serve'||opt.mode==='mcp')) {

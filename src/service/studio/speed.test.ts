@@ -1,3 +1,4 @@
+import {testResources} from '../resources/testing.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile,writeFile,readdir} from 'node:fs/promises';
@@ -12,7 +13,7 @@ import {serveHttp} from '../../server/http.ts';
 const wav=new Uint8Array(encodeWav([Float32Array.from({length:24000*2},(_,i)=>.3*Math.sin(2*Math.PI*440*i/24000))],24000));
 const music={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
 const speech={installed:()=>true,prepare:async()=>{},generate:async(_:string,r:{outputPath:string})=>writeFile(r.outputPath,wav)};
-const open=(root:string)=>MusicService.open(root,()=>{throw Error('unused');},async()=>new Uint8Array(),false,music,speech);
+const open=(root:string)=>MusicService.open(root,()=>{throw Error('unused');},async()=>new Uint8Array(),false,music,speech,undefined,testResources());
 
 test('saving 0.8 speed makes durable independent audio, preserves pitch and original, and supports version lifecycle',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-speed-'));let service=await open(root);

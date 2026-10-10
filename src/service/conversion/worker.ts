@@ -1,7 +1,9 @@
+import {signalWorkload} from '../resources/processes.ts';
 import { spawn, execFile } from 'node:child_process';
 import { appendFile } from 'node:fs/promises';
 import { createInterface } from 'node:readline';
 import { isAbsolute } from 'node:path';
+import {ResourceLease} from '../resources/lease.ts';
 export function footprintGiB(text: string): number {
   let peak = 0;
   for (const match of text.matchAll(/Physical footprint(?: \(peak\))?:\s*([\d.]+)([KMGT])/g)) peak = Math.max(peak, Number(match[1]) * ({ K: 2 ** -20, M: 2 ** -10, G: 1, T: 1024 }[match[2]] ?? 0));
@@ -9,15 +11,15 @@ export function footprintGiB(text: string): number {
 }
 function aborted(signal: AbortSignal) { if (signal.aborted) throw new Error('转换已取消'); }
 /** One owned process per operation. Cancellation waits for the actual process to exit. */
-export async function runCommandOwned(command: string, args: string[], log: string, signal: AbortSignal, timeoutMs = 20 * 60_000): Promise<void> {
+export async function runCommandOwned(command: string, args: string[], log: string, signal: AbortSignal, timeoutMs = 20 * 60_000,resourceLease?:{directory:string;owner:string}): Promise<void> {
   aborted(signal);
   await appendFile(log, `${JSON.stringify({ command, args, startedAt: new Date().toISOString() })}\n`);
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    const child = spawn(command, args, { detached: !resourceLease, stdio: ['ignore', 'pipe', 'pipe'] });
     let failure: Error | undefined, killTimer: ReturnType<typeof setTimeout> | undefined;
     let pending = Promise.resolve();
     const record = (chunk: Buffer) => { pending = pending.then(() => appendFile(log, chunk)).catch(error => { stop(new Error(`无法保存推理日志：${String(error)}`)); }); };
-    const killGroup = (signal: NodeJS.Signals) => { try { if (child.pid) process.kill(-child.pid, signal); } catch {} };
+    const killGroup = (signal: NodeJS.Signals) => { try { signalWorkload(child.pid,!!resourceLease,signal); } catch {} };
     const stop = (error: Error) => { if (failure) return; failure = error; killGroup('SIGTERM'); killTimer = setTimeout(() => killGroup('SIGKILL'), 3000); killTimer.unref(); };
     const cancel = () => stop(new Error('转换已取消'));
     const timeout = setTimeout(() => stop(new Error('原生音频处理超时')), timeoutMs); timeout.unref();
@@ -41,10 +43,11 @@ export async function runCommandOwned(command: string, args: string[], log: stri
     child.once('error', error => { failure = error; });
     child.once('close', async code => {
       finished = true; memoryProbe?.kill(); clearInterval(memoryTimer); clearTimeout(timeout); if (killTimer) clearTimeout(killTimer); signal.removeEventListener('abort', cancel);
-      if (failure) killGroup('SIGKILL'); // Also reap descendants after the group leader exits.
+      killGroup('SIGKILL'); // Reap descendants even after a successful group leader exit.
       await pending;
       if (failure) reject(failure); else if (code !== 0) reject(new Error(`原生音频处理失败（退出码 ${code}），请查看转换日志`)); else resolve();
     });
+    try{if(child.pid)ResourceLease.trackWorker(resourceLease,child.pid);}catch(error){stop(new Error(`无法登记所属进程：${String(error)}`));}
   });
 }
 
@@ -56,18 +59,19 @@ export async function runConversionWorker(): Promise<void> {
   process.once('SIGTERM', stop); process.once('SIGINT', stop); lines.once('close', stop);
   process.stdout.on('error', () => {});
   try {
-    const task = await new Promise<{ command: string; args: string[]; log: string; timeoutMs: number }>((resolve, reject) => {
+    const task = await new Promise<{ command: string; args: string[]; log: string; timeoutMs: number;resourceLease?:{directory:string;owner:string} }>((resolve, reject) => {
       lines.once('line', line => {
         try {
           if (line.length > 65536) throw new Error('转换监管参数过大');
           const t = JSON.parse(line);
           if (!t || !isAbsolute(t.command) || !isAbsolute(t.log) || !Array.isArray(t.args) || t.args.some((a: unknown) => typeof a !== 'string') || !Number.isInteger(t.timeoutMs) || t.timeoutMs < 1 || t.timeoutMs > 20 * 60_000) throw new Error('转换监管参数无效');
+          if(t.resourceLease&&(!isAbsolute(t.resourceLease.directory)||typeof t.resourceLease.owner!=='string'))throw new Error('资源租约参数无效');
           resolve(t);
         } catch (error) { reject(error); }
       });
       lines.once('close', () => reject(new Error('未收到转换监管参数')));
     });
-    await runCommandOwned(task.command, task.args, task.log, controller.signal, task.timeoutMs);
+    await runCommandOwned(task.command, task.args, task.log, controller.signal, task.timeoutMs,task.resourceLease);
     if (controller.signal.aborted) throw new Error('转换已取消');
     process.stdout.write(JSON.stringify({ ok: true }) + '\n');
   } catch (error) {

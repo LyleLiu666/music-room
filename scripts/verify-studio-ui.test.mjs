@@ -1,3 +1,4 @@
+import {testResources} from '../src/service/resources/testing.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile,writeFile,mkdir} from 'node:fs/promises';
@@ -15,7 +16,7 @@ const unused={unsupported:()=>undefined,installed:()=>false,chooseDirectory:asyn
 test('unified production UI: mixed project, real routes, versions, playback, drafts, comparison, trash, MIDI and responsive hierarchy',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-ui-'));const driver={installed:()=>true,prepare:async()=>{},cleanReference:async(_,req)=>{await writeFile(req.outputPath,wav);},generate:async(_,req,ctx)=>{await new Promise((resolve,reject)=>{const timer=setTimeout(resolve,2300);ctx.signal.addEventListener('abort',()=>{clearTimeout(timer);reject(Error('cancelled'));},{once:true});});await writeFile(req.outputPath,wav);}};
  const renderer=({composition})=>{const pcm=Float32Array.from({length:Math.round(composition.score.duration*44100)},(_,i)=>Math.sin(i*.1)*.2);return {result:Promise.resolve({wav:new Uint8Array(encodeWav([pcm,pcm],44100)),peak:.2,rms:.1,attenuation:1,engine:'test-pcm'}),cancel:()=>{}};};
- const service=await MusicService.open(root,renderer,p=>readFile(resolve('dist',p)),false,unused,driver),http=await serveHttp(service,{read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false});
+ const service=await MusicService.open(root,renderer,p=>readFile(resolve('dist',p)),false,unused,driver,undefined,testResources()),http=await serveHttp(service,{read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false});
  const musicJobs=[];service.yue2.status=async()=>({phase:'running',canGenerate:true,installed:true,modelsReady:true,message:'就绪',logs:[],autoStart:true,defaultDirectory:'/tmp/unused'});
  service.yue2Client.list=async()=>({jobs:musicJobs});service.yue2Client.generate=async args=>{const job={id:crypto.randomUUID().replaceAll('-',''),status:'running',kind:'create',title:args.title};musicJobs.push(job);setTimeout(()=>{job.status='done';},1000);return {job};};service.yue2Client.audio=async()=>wav;
  const browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required']}),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(r.status()>=400)console.log(r.url(),await r.text());});
@@ -55,7 +56,7 @@ test('reference voices are cleaned in the existing backend, previewed, favourite
  const root=await mkdtemp(join(tmpdir(),'studio-voices-ui-')),cleaned=new Uint8Array(encodeWav([Float32Array.from({length:22050},(_,i)=>Math.sin(i*.15)*.2)],22050));
  let release=()=>{},fail=false,cleaningCalls=0;const gate=new Promise(r=>release=r);
  const driver={installed:()=>true,prepare:async()=>{},cleanReference:async(_,req,ctx)=>{cleaningCalls++;ctx.stage('正在去除混响');await gate;if(fail)throw Error('测试清理失败');await writeFile(req.outputPath,cleaned);},generate:async(_,req)=>{assert.deepEqual(new Uint8Array(await readFile(req.referencePath)),cleaned);await writeFile(req.outputPath,wav);}};
- const service=await MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('dist',p)),false,unused,driver),http=await serveHttp(service,{read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false});
+ const service=await MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('dist',p)),false,unused,driver,undefined,testResources()),http=await serveHttp(service,{read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false});
  const browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required']}),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  try{
   for(const id of ['first','second']){await service.call('create_project',{projectId:id,title:id});await service.call('studio_create_sound',{projectId:id,title:'旁白',kind:'speech'});}
@@ -83,7 +84,7 @@ test('version selection deletes failed and cancelled attempts in batches, preser
   if(['进行中','取消'].includes(req.text))await new Promise((_,reject)=>ctx.signal.addEventListener('abort',()=>reject(Error('cancelled')),{once:true}));
   await writeFile(req.outputPath,wav);
  }};
- const service=await MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('dist',p)),false,unused,driver);
+ const service=await MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('dist',p)),false,unused,driver,undefined,testResources());
  const http=await serveHttp(service,{read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false});
  const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
@@ -141,7 +142,7 @@ test('version selection deletes failed and cancelled attempts in batches, preser
 test('day/night themes and the global voice library work without a project and preserve speech drafts',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-library-ui-'));
  const driver={installed:()=>true,prepare:async()=>{},cleanReference:async(_,req)=>writeFile(req.outputPath,wav),generate:async(_,req)=>writeFile(req.outputPath,wav)};
- const service=await MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('dist',p)),false,unused,driver);
+ const service=await MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('dist',p)),false,unused,driver,undefined,testResources());
  const http=await serveHttp(service,{read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false});
  const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1000},colorScheme:'dark'}),errors=[];
  page.on('pageerror',e=>errors.push(e.message));
@@ -181,7 +182,7 @@ test('five built-in dry voices are visible and playable in day and night themes 
  const root=await mkdtemp(join(tmpdir(),'studio-presets-'));
  const read=p=>readFile(resolve('dist',p));
  const driver={installed:()=>true,prepare:async()=>{},generate:async()=>{},builtinVoices:()=>readBuiltinVoices(read)};
- const service=await MusicService.open(root,()=>{throw Error('unused');},read,false,unused,driver);
+ const service=await MusicService.open(root,()=>{throw Error('unused');},read,false,unused,driver,undefined,testResources());
  const http=await serveHttp(service,{read,has:p=>existsSync(resolve('dist',p)),embedded:false});
  const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1000}});
  try{
@@ -207,7 +208,7 @@ test('five built-in dry voices are visible and playable in day and night themes 
 test('hierarchy trash, permanent deletion and historical voice labels work through the production UI',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'studio-hierarchy-ui-')),read=p=>readFile(resolve('dist',p));
  const driver={installed:()=>true,prepare:async()=>{},generate:async(_,r)=>writeFile(r.outputPath,wav)};
- const service=await MusicService.open(dir,()=>{throw Error('unused');},read,false,unused,driver),http=await serveHttp(service,{read,has:p=>existsSync(resolve('dist',p)),embedded:false});
+ const service=await MusicService.open(dir,()=>{throw Error('unused');},read,false,unused,driver,undefined,testResources()),http=await serveHttp(service,{read,has:p=>existsSync(resolve('dist',p)),embedded:false});
  const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  try{
   await service.call('create_project',{projectId:'film',title:'删除功能验收'});const sound=await service.call('studio_create_sound',{projectId:'film',title:'测试片段',kind:'speech'});await service.call('studio_create_sound',{projectId:'film',title:'保留片段',kind:'clip'});

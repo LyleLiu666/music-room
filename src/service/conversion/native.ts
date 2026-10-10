@@ -9,6 +9,7 @@ import { encodeWav } from '../../wav.ts';
 import { SR, fitLength, gate, mix, mono, plan, rms, weights } from './audio.ts';
 import type { ConversionDriver } from './conversion.ts';
 import {shiftBackingStem} from './pitch.ts';
+import type {ResourceExecution} from '../resources/contracts.ts';
 
 const models = [
   { file: 'seed-vc-f16.gguf', size: 3629186560, sha256: '03740be5b4b55ae677c34d63514ff879aaedd6a77fd31773938166fb84debf93' },
@@ -26,18 +27,18 @@ export type ConversionWorker = { command: string; args: string[] };
 const defaultWorker: ConversionWorker = { command: process.execPath, args: [fileURLToPath(new URL('../../server/dev.ts', import.meta.url)), 'conversion-native-worker'] };
 function aborted(signal: AbortSignal) { if (signal.aborted) throw new Error('转换已取消'); }
 /** Keep stdin open until completion; parent death closes it and the supervisor stops its process group. */
-export async function runCommand(command: string, args: string[], log: string, signal: AbortSignal, timeoutMs = 20 * 60_000, worker = defaultWorker): Promise<void> {
+export async function runCommand(command: string, args: string[], log: string, signal: AbortSignal, timeoutMs = 20 * 60_000, worker = defaultWorker, execution?:ResourceExecution): Promise<void> {
   aborted(signal);
   return new Promise((resolve, reject) => {
-    const child = spawn(worker.command, worker.args, { stdio: ['pipe', 'pipe', 'pipe'] });
-    let output = '', diagnostics = '', launchError: Error | undefined;
+    const child = spawn(worker.command, worker.args, {detached:!!execution?.lease, stdio: ['pipe', 'pipe', 'pipe'] });
+    let output = '', diagnostics = '', launchError: Error | undefined;let stopTimer:ReturnType<typeof setTimeout>|undefined,forceTimer:ReturnType<typeof setTimeout>|undefined;
     child.stdin.on('error', () => {});
-    const cancel = () => child.stdin.end();
+    const cancel = () => {child.stdin.end();if(stopTimer)return;stopTimer=setTimeout(()=>child.kill('SIGTERM'),7000);stopTimer.unref();forceTimer=setTimeout(()=>{try{if(execution?.lease&&child.pid)process.kill(-child.pid,'SIGKILL');else child.kill('SIGKILL');}catch{}},14000);forceTimer.unref();};
     signal.addEventListener('abort', cancel, { once: true });
     child.stdout.on('data', chunk => { output = (output + chunk.toString()).slice(-65536); });
     child.stderr.on('data', chunk => { diagnostics = (diagnostics + chunk.toString()).slice(-4000); });
     child.once('error', error => { launchError = error; });
-    child.once('close', code => {
+    child.once('close', code => {if(stopTimer)clearTimeout(stopTimer);if(forceTimer)clearTimeout(forceTimer);
       signal.removeEventListener('abort', cancel);
       if (signal.aborted) { reject(new Error('转换已取消')); return; }
       if (launchError) { reject(launchError); return; }
@@ -47,7 +48,8 @@ export async function runCommand(command: string, args: string[], log: string, s
         resolve();
       } catch (error) { reject(output.trim() ? error : new Error(diagnostics || '转换监管进程意外退出')); }
     });
-    child.stdin.write(JSON.stringify({ command, args, log, timeoutMs }) + '\n');
+    try{if(child.pid)execution?.trackProcess(child.pid);child.stdin.write(JSON.stringify({ command, args, log, timeoutMs,resourceLease:execution?.lease }) + '\n');}
+    catch(error){cancel();reject(error);}
     if (signal.aborted) cancel();
   });
 }
@@ -78,7 +80,6 @@ async function verifyModels(directory: string, signal: AbortSignal) {
 export function createNativeConversionDriver(engineDirectory: string, worker: ConversionWorker = defaultWorker): ConversionDriver {
   const cli = join(engineDirectory, 'audiocpp_cli');
   const details = { model: 'Seed-VC · F16 · v1_svc', backend: 'Metal', separationModel: 'HTDemucs · F16', directory: engineDirectory };
-  const execute = (command: string, args: string[], log: string, signal: AbortSignal, timeoutMs = 20 * 60_000) => runCommand(command, args, log, signal, timeoutMs, worker);
   return {
     status: () => {
       try {
@@ -88,7 +89,8 @@ export function createNativeConversionDriver(engineDirectory: string, worker: Co
         return { ...details, ready: true, message: '已就绪 · 在本机处理，无需为新音色训练' };
       } catch { return { ...details, ready: false, message: '音色转换模型不可用' }; }
     },
-    run: async (directory, progress, signal) => {
+    run: async (directory, progress, signal,execution) => {
+      const execute = (command: string, args: string[], log: string, signal: AbortSignal, timeoutMs = 20 * 60_000) => runCommand(command, args, log, signal, timeoutMs, worker,execution);
       const started = Date.now(), log = join(directory, 'native.log');
       progress('preparing', '校验模型与原始音频', 0);
       await verifyModels(engineDirectory, signal);

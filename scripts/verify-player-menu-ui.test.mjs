@@ -1,3 +1,4 @@
+import {testResources} from '../src/service/resources/testing.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,readFile,writeFile} from 'node:fs/promises';
@@ -15,7 +16,7 @@ test('native playback menus and playback survive library refreshes; changing ver
  const unused={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
  const driver={installed:()=>true,prepare:async()=>{},generate:async(_,req)=>writeFile(req.outputPath,wav)};
  const read=p=>readFile(resolve('dist',p));
- const service=await MusicService.open(root,()=>{throw Error('unused');},read,false,unused,driver);
+ const service=await MusicService.open(root,()=>{throw Error('unused');},read,false,unused,driver,undefined,testResources());
  const http=await serveHttp(service,{read,has:p=>existsSync(resolve('dist',p)),embedded:false});
  const browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required','--lang=en-US']});
  const page=await browser.newPage({viewport:{width:1440,height:1000},locale:'en-US'}),errors=[];

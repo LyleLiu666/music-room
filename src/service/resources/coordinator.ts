@@ -1,6 +1,7 @@
 import {ResourceError, type ResourceAdapter, type ResourceRequest, type ResourcePolicy,
   type HardwareSnapshot, type ResourceTaskState, type ResourceStage} from './contracts.ts';
 import {admit, validPolicy} from './policy.ts';
+import type {ResourceLease} from './lease.ts';
 
 type Entry = {
   request: ResourceRequest<unknown>; state: ResourceTaskState; controller: AbortController;
@@ -11,6 +12,8 @@ export type CoordinatorOptions = {
   probe: () => Promise<HardwareSnapshot>;
   policy: ResourcePolicy;
   now?: () => number;
+  lease?: ResourceLease;
+  estimate?: (engine: string, input: unknown) => import('./contracts.ts').ResourceDemand;
 };
 /** Transient execution rights; business services own durable inputs and results. */
 export class ResourceCoordinator {
@@ -30,6 +33,9 @@ export class ResourceCoordinator {
     this.options = {...options, policy: structuredClone(options.policy)};
   }
   private now() {return this.options.now?.() ?? Date.now();}
+  estimate(engine: string, input: unknown) {
+    return this.options.estimate?.(engine, input) ?? {verified: false, peak: {memory: 0}};
+  }
   register(engine: string, adapter: ResourceAdapter) {
     if (this.closed || this.adapters.has(engine)) throw new Error('引擎重复注册或协调器已关闭');
     this.adapters.set(engine, adapter);
@@ -104,15 +110,24 @@ export class ResourceCoordinator {
       const entry = this.queue.shift()!; this.active = entry;
       const adapter = this.adapters.get(entry.request.engine)!;
       let executed = false;
+      let leased = false;
       try {
         if (this.fault) throw this.fault;
         entry.controller.signal.throwIfAborted();
-        for (const [engine, other] of this.adapters) {
-          if (engine !== entry.request.engine && other.resident()) await this.unload(engine, other);
-        }
         const waitStarted = this.now();
         for (;;) {
           entry.controller.signal.throwIfAborted();
+          if (this.options.lease && !leased) {
+            leased = this.options.lease.acquire();
+            if (!leased) {
+              const error = new ResourceError('WAITING_FOR_WORKSPACE', '另一个工作区正在使用模型资源');
+              if (this.now() - waitStarted >= this.options.policy.maxWaitMs) throw error;
+              this.emit(entry, 'waiting_resources', error); await this.wait(this.options.policy.retryMs); continue;
+            }
+          }
+          for (const [engine, other] of this.adapters) {
+            if (engine !== entry.request.engine && other.resident()) await this.unload(engine, other);
+          }
           let hardware: HardwareSnapshot;
           try {hardware = await this.options.probe();}
           catch {throw new ResourceError('RESOURCE_TELEMETRY_UNAVAILABLE', '无法读取电脑资源，请稍后重试');}
@@ -123,6 +138,7 @@ export class ResourceCoordinator {
           if (!decision.retry || this.now() - waitStarted >= this.options.policy.maxWaitMs) throw error;
           this.emit(entry, 'waiting_resources', error);
           if (adapter.resident()) await this.unload(entry.request.engine, adapter);
+          if (leased) {this.options.lease!.release(); leased = false;}
           await this.wait(this.options.policy.retryMs);
         }
         entry.controller.signal.throwIfAborted();
@@ -130,8 +146,12 @@ export class ResourceCoordinator {
         entry.controller.signal.throwIfAborted();
         executed = true;
         const value = await entry.request.execute({signal: entry.controller.signal, budgets: {...this.reservations},
-          running: () => {entry.controller.signal.throwIfAborted(); this.emit(entry, 'running');}});
+          running: () => {entry.controller.signal.throwIfAborted(); this.emit(entry, 'running');},
+          trackProcess: pid => this.options.lease?.track(pid),
+          lease: leased ? this.options.lease!.capability() : undefined});
         entry.controller.signal.throwIfAborted();
+        // First release policy is conservative: a user-wide lease always reaps after each task.
+        if (leased) {await this.unload(entry.request.engine, adapter); this.options.lease!.release(); leased = false;}
         this.emit(entry, 'succeeded'); entry.resolve(value);
       } catch (error) {
         // A failed/cancelled load may have left a resident. Reap before settling or advancing.
@@ -139,6 +159,10 @@ export class ResourceCoordinator {
         catch (cleanup) {
           this.fault ??= new ResourceError('UNLOAD_FAILED', `无法确认模型释放：${String(cleanup)}`);
           error = this.fault;
+        }
+        if (leased && !this.fault) {
+          try {this.options.lease!.release(); leased = false;}
+          catch (cleanup) {this.fault = new ResourceError('UNLOAD_FAILED', `所属进程未释放：${String(cleanup)}`); error = this.fault;}
         }
         const cause = error instanceof ResourceError ? error : undefined;
         const stage = this.fault ? 'failed' : entry.controller.signal.aborted ? 'cancelled' : cause ? 'blocked' : 'failed';

@@ -1,17 +1,19 @@
+import type {ResourceCoordinator} from '../resources/coordinator.ts';
+import type {ResourceExecution,ResourceTaskState} from '../resources/contracts.ts';
 import {mkdirSync,existsSync,readFileSync,writeFileSync,rmSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
 import {extname} from 'node:path';
 import {ProjectStore,ServiceError,hash,identity} from '../projects/store.ts';
 import {wavInfo} from '../tts/speech.ts';
 export type ConversionPhase='preparing'|'separation'|'conversion'|'mixing'|'complete';
-export type ConversionDriver={status:()=>{ready:boolean;message:string;model?:string;backend?:string;separationModel?:string;directory?:string};run:(directory:string,progress:(phase:ConversionPhase,stage:string,progress:number)=>void,signal:AbortSignal)=>Promise<{duration:number}>};
+export type ConversionDriver={status:()=>{ready:boolean;message:string;model?:string;backend?:string;separationModel?:string;directory?:string};run:(directory:string,progress:(phase:ConversionPhase,stage:string,progress:number)=>void,signal:AbortSignal,execution?:ResourceExecution)=>Promise<{duration:number}>};
 export type ConversionPageOptions={page?:number;pageSize?:number};
 export type ConversionPagination={page:number;pageSize:number;total:number;totalPages:number};
 export type ConversionSnapshot={status:ReturnType<ConversionDriver['status']>;jobs:ConversionJob[];pagination?:ConversionPagination};
 type AudioKind='original'|'source'|'converted'|'vocals';
 type Artifact={sha256:string;bytes:number};
 export type ConversionOwner={projectId:string;soundId:string;parentId?:string};
-export type ConversionJob={pitchShiftSemitones?:number;projectId?:string;soundId?:string;parentId?:string;purged?:boolean;id:string;requestId:string;name:string;extension:string;voiceId:string;voiceName:string;sourceSha256:string;referenceSha256:string;state:'queued'|'running'|'succeeded'|'failed'|'cancelled'|'interrupted';phase:ConversionPhase;stage:string;progress:number;createdAt:string;duration?:number;error?:string;artifacts?:Partial<Record<AudioKind,Artifact>>};
+export type ConversionJob={resource?:ResourceTaskState;pitchShiftSemitones?:number;projectId?:string;soundId?:string;parentId?:string;purged?:boolean;id:string;requestId:string;name:string;extension:string;voiceId:string;voiceName:string;sourceSha256:string;referenceSha256:string;state:'queued'|'running'|'succeeded'|'failed'|'cancelled'|'interrupted';phase:ConversionPhase;stage:string;progress:number;createdAt:string;duration?:number;error?:string;artifacts?:Partial<Record<AudioKind,Artifact>>};
 type Data={format:'music-room-conversion';version:1;jobs:ConversionJob[]};
 export const conversionUploadLimit=200*1024*1024;
 const extensions=new Set(['.wav','.mp3','.m4a','.flac','.aif','.aiff','.aac']);
@@ -19,13 +21,14 @@ const extensions=new Set(['.wav','.mp3','.m4a','.flac','.aif','.aiff','.aac']);
 export class ConversionService {
  private store:ProjectStore;private driver:ConversionDriver;private data:Data;private otherEngineBusy:()=>boolean;
  private constructor(store:ProjectStore,driver:ConversionDriver,data:Data,otherEngineBusy:()=>boolean){this.store=store;this.driver=driver;this.data=data;this.otherEngineBusy=otherEngineBusy;}
+ private resources?:ResourceCoordinator;private scheduled=new Map<string,{id:string;controller:AbortController;done:Promise<void>}>();
  private active?:{id:string;controller:AbortController;done:Promise<void>};private closing=false;private timer?:ReturnType<typeof setTimeout>;
- static open(store:ProjectStore,driver:ConversionDriver,otherEngineBusy=()=>false){
+ static open(store:ProjectStore,driver:ConversionDriver,otherEngineBusy=()=>false,resources?:ResourceCoordinator){
   mkdirSync(store.path('conversion'),{recursive:true});const file=store.path('conversion','library.json');
   const data:Data=existsSync(file)?JSON.parse(readFileSync(file,'utf8')):{format:'music-room-conversion',version:1,jobs:[]};
   if(data.format!=='music-room-conversion'||data.version!==1||!Array.isArray(data.jobs))throw new ServiceError('CORRUPT_CONVERSION','音色转换记录损坏');
   for(const job of data.jobs){job.pitchShiftSemitones??=0;if(!Number.isInteger(job.pitchShiftSemitones)||job.pitchShiftSemitones < -12||job.pitchShiftSemitones > 12)throw new ServiceError('CORRUPT_CONVERSION','移调记录无效');identity(job.id);if(!extensions.has(job.extension))throw new ServiceError('CORRUPT_CONVERSION','音色转换文件记录无效');if(['queued','running'].includes(job.state)){job.state='interrupted';job.stage='服务上次已停止，可以重试';}}
-  const service=new ConversionService(store,driver,data,otherEngineBusy);
+  const service=new ConversionService(store,driver,data,otherEngineBusy);service.resources=resources;resources?.register('conversion',{resident:()=>undefined,unload:async()=>{}});
   for(const job of data.jobs)if(job.state==='succeeded'){try{for(const kind of ['source','converted','vocals'] as const){if(!job.artifacts?.[kind])throw Error('缺少音频校验记录');service.audio(job.id,kind);}}catch{job.state='failed';job.stage='保存的音频不可用，可以重试';job.error='保存的音频缺失或发生外部修改，请重试';}}
   service.persist();return service;
  }
@@ -73,22 +76,36 @@ export class ConversionService {
   const bytes=new Uint8Array(readFileSync(file)),expected=kind==='original'?job.sourceSha256:job.artifacts?.[kind]?.sha256;
   if(expected&&hash(bytes)!==expected)throw new ServiceError('SOURCE_CHANGED','保存的音频已发生变化');return bytes;
  }
- async cancel(id:string){const job=this.record(id);if(this.active?.id===id){const active=this.active;active.controller.abort(new Error('用户取消转换'));await active.done;}else if(job.state==='queued')this.change(()=>{job.state='cancelled';job.stage='已取消，原音保留';});return this.get(id);}
+ async cancel(id:string){const job=this.record(id);if(this.scheduled.has(id)){const active=this.scheduled.get(id)!;active.controller.abort(new Error('用户取消转换'));await active.done;}else if(job.state==='queued')this.change(()=>{job.state='cancelled';job.stage='已取消，原音保留';});return this.get(id);}
  private pump(){
-  if(this.closing||this.active)return;const next=this.data.jobs.find(j=>j.state==='queued');if(!next)return;
-  if(this.otherEngineBusy()){if(next.stage!=='等待其他音频任务完成')this.change(()=>{next.stage='等待其他音频任务完成';});this.timer=setTimeout(()=>this.pump(),1000);this.timer.unref();return;}
-  const controller=new AbortController(),id=next.id,active={id,controller,done:Promise.resolve()};this.active=active;
-  active.done=Promise.resolve().then(async()=>{
+  if(this.closing||this.active&&!this.resources)return;const next=this.data.jobs.find(j=>j.state==='queued'&&!this.scheduled.has(j.id));if(!next)return;
+  if(!this.resources&&this.otherEngineBusy()){if(next.stage!=='等待其他音频任务完成')this.change(()=>{next.stage='等待其他音频任务完成';});this.timer=setTimeout(()=>this.pump(),1000);this.timer.unref();return;}
+  const controller=new AbortController(),id=next.id,active={id,controller,done:Promise.resolve()};this.active=active;this.scheduled.set(id,active);
+  const execute=async(execution?:ResourceExecution)=>{
    controller.signal.throwIfAborted();if(this.record(id).state!=='queued')return;this.change(()=>{const j=this.record(id);j.state='running';j.stage='读取完整音频';});this.audio(id,'original');this.reference(id);
-   const result=await this.driver.run(this.directory(id),(phase,stage,progress)=>{controller.signal.throwIfAborted();if(!Number.isFinite(progress)||progress<0||progress>1)throw Error('转换进度无效');this.change(()=>Object.assign(this.record(id),{phase,stage,progress}));},controller.signal);
+   const result=await this.driver.run(this.directory(id),(phase,stage,progress)=>{controller.signal.throwIfAborted();if(!Number.isFinite(progress)||progress<0||progress>1)throw Error('转换进度无效');this.change(()=>Object.assign(this.record(id),{phase,stage,progress}));},controller.signal,execution);
    controller.signal.throwIfAborted();const artifacts:Partial<Record<AudioKind,Artifact>>={};let duration=0;
    for(const name of ['source','converted','vocals'] as const){const bytes=new Uint8Array(readFileSync(this.path(id,name+'.wav'))),info=wavInfo(bytes);if(name==='source')duration=info.duration;else if(Math.abs(info.duration-duration)>1/44100)throw Error('输出长度与原音不一致，未发布不完整结果');artifacts[name]={sha256:hash(bytes),bytes:bytes.length};}
    if(!Number.isFinite(result.duration)||Math.abs(duration-result.duration)>1/44100)throw Error('转换时长验证失败');
    this.change(()=>Object.assign(this.record(id),{state:'succeeded',phase:'complete',stage:'完整音频已保存',progress:1,duration,artifacts}));
-  }).catch(error=>{
+  };
+  const run=()=>this.resources?this.resources.run({
+   id,engine:'conversion',demand:this.resources.estimate('conversion',this.record(id)),signal:controller.signal,
+   execute:async execution=>{
+    const abort=()=>controller.abort(execution.signal.reason);
+    execution.signal.addEventListener('abort',abort,{once:true});
+    try{execution.signal.throwIfAborted();execution.running();await execute(execution);}
+    finally{execution.signal.removeEventListener('abort',abort);}
+   },
+   onState:resource=>this.change(()=>{
+    const j=this.record(id);j.resource=resource;
+    if(resource.stage==='waiting_resources')j.stage=resource.message??'等待资源';
+   }),
+  }):execute();
+  active.done=Promise.resolve().then(run).catch(error=>{
    const fail=()=>Object.assign(this.record(id),{state:this.closing?'interrupted':controller.signal.aborted?'cancelled':'failed',stage:this.closing?'服务已停止，可以重试':controller.signal.aborted?'已取消，原音保留':'转换失败，原音保留',error:controller.signal.aborted?undefined:String(error?.message??error)});
    try{this.change(fail);}catch{fail();}
-  }).finally(()=>{if(this.active===active)this.active=undefined;this.pump();});
+  }).finally(()=>{this.scheduled.delete(id);if(this.active===active)this.active=undefined;this.pump();});if(this.resources)this.pump();
  }
- async close(){this.closing=true;if(this.timer)clearTimeout(this.timer);this.active?.controller.abort(new Error('服务关闭'));await this.active?.done;this.change(()=>{for(const j of this.data.jobs)if(j.state==='queued'){j.state='interrupted';j.stage='服务已停止，可以重试';}});}
+ async close(){this.closing=true;if(this.timer)clearTimeout(this.timer);const tasks=[...this.scheduled.values()];for(const a of tasks)a.controller.abort(new Error('服务关闭'));await Promise.all(tasks.map(a=>a.done));this.change(()=>{for(const j of this.data.jobs)if(j.state==='queued'){j.state='interrupted';j.stage='服务已停止，可以重试';}});}
 }
