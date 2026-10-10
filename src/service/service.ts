@@ -1,3 +1,5 @@
+import {ConversionService,type ConversionDriver} from './conversion/conversion.ts';
+import {createNativeConversionDriver} from './conversion/native.ts';
 import {StudioService} from './studio/studio.ts';
 import {SpeechService,type SpeechDriver} from './tts/speech.ts';
 import {createSpeechDriver} from './tts/runtime.ts';
@@ -14,14 +16,14 @@ import {YuE2Client} from './yue2/client.ts';
 import {parseOperation,type Operation,type OperationInput,type OperationArgs,type OperationResults,type OperationHandlers,type ServiceCaller} from './operations.ts';
 export type {ServiceCaller} from './operations.ts';
 export class MusicService {
-  store:ProjectStore; jobs:JobManager; read:AssetReader;yue2:YuE2Engine;yue2Client:YuE2Client;speech:SpeechService;studio:StudioService;
-  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService) {this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2);this.studio=new StudioService(this);}
-  static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver()) {
+  store:ProjectStore; jobs:JobManager; read:AssetReader;yue2:YuE2Engine;yue2Client:YuE2Client;speech:SpeechService;studio:StudioService;conversion:ConversionService;
+  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService) {this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2);this.studio=new StudioService(this);}
+  static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver) {
     const store=await ProjectStore.open(root);
-    let jobs:JobManager|undefined,yue2:YuE2Engine|undefined,speech:SpeechService|undefined;
+    let jobs:JobManager|undefined,yue2:YuE2Engine|undefined,speech:SpeechService|undefined,conversion:ConversionService|undefined;
     try {
       jobs=await JobManager.open(store,renderer);yue2=await YuE2Engine.open(store,driver);
-      speech=await SpeechService.open(store,speechDriver);const service=new MusicService(store,jobs,read,yue2,speech);
+      speech=await SpeechService.open(store,speechDriver,()=>conversion?.isBusy()??false);conversion=ConversionService.open(store,conversionDriver??createNativeConversionDriver(store.path('engines','voice-conversion')),()=>speech!.isBusy());const service=new MusicService(store,jobs,read,yue2,speech,conversion);
       if(seed) {
         const existing=await store.documents(),records=await store.projects(true);
         for(const song of SONGS) if(!existing.some(d=>d.revision.id===song.id)&&!records.some(p=>p.id===song.workId&&(p.deleted||p.purged||p.removedRevisionIds?.includes(song.id)))) {
@@ -29,10 +31,12 @@ export class MusicService {
         }
       }
       return service;
-    } catch(error){await speech?.close();await yue2?.close();await jobs?.close();await store.close();throw error;}
+    } catch(error){await conversion?.close();await speech?.close();await yue2?.close();await jobs?.close();await store.close();throw error;}
   }
   private handlers:OperationHandlers = {
+    svc_library:async()=>({...this.conversion.snapshot(),voices:this.speech.conversionVoices()}),svc_cancel:async args=>this.conversion.cancel(args.jobId),svc_retry:async args=>this.conversion.retry(args.jobId),
     studio_update_project:async args=>this.studio.updateProject(args),studio_update_sound:async args=>this.studio.updateSound(args),studio_purge:async args=>this.studio.purge(args),
+    studio_save_speed:async args=>this.studio.saveSpeed(args),
     studio_import_score:async args=>this.studio.importScore(args),
     studio_library:async()=>this.studio.snapshot(),studio_create_sound:async args=>this.studio.createSound(args),studio_generate:async args=>this.studio.generate(args),studio_update_version:async args=>this.studio.update(args),studio_cancel:async args=>this.studio.cancel(args.versionId),studio_render:async args=>this.studio.render(args.versionId),
     tts_status:async()=>this.speech.status(),tts_prepare:async args=>this.speech.prepare(args.directory),tts_cancel_preparation:async()=>this.speech.cancelPreparation(),
@@ -74,5 +78,5 @@ export class MusicService {
     const handler=this.handlers[name] as (args:OperationArgs<K>)=>Promise<OperationResults[K]>;
     return handler(parseOperation(name,args));
   };
-  async close() {await this.studio.close();await this.speech.close();await this.yue2.close();await this.jobs.close();await this.store.close();}
+  async close() {await this.conversion.close();await this.studio.close();await this.speech.close();await this.yue2.close();await this.jobs.close();await this.store.close();}
 }

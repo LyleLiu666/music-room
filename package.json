@@ -30,11 +30,14 @@
     "verify:yue2:real": "node scripts/verify-yue2-real.mjs",
     "verify:speech": "node --test scripts/verify-speech-ui.test.mjs",
     "verify:tts:real": "node scripts/verify-tts-real.mjs && node scripts/verify-tts-default-real.mjs",
-    "verify:studio": "node --test scripts/verify-studio-ui.test.mjs scripts/verify-emotion-strength-ui.test.mjs"
+    "verify:studio": "node --test scripts/verify-studio-ui.test.mjs scripts/verify-emotion-strength-ui.test.mjs scripts/verify-player-menu-ui.test.mjs scripts/verify-speed-ui.test.mjs"
+    ,"perf:studio-scroll": "node scripts/perf-studio-scroll.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "1.32.1",
+    "@soundtouchjs/core": "2.1.1",
     "@tonejs/midi": "^2.0.28",
+    "@wasm-audio-decoders/flac": "0.2.10",
     "mpg123-decoder": "1.0.3",
     "wav-decoder": "1.3.0",
     "zod": "4.3.6"

@@ -6,3 +6,6 @@ public/authoring-kit/
 public/music-authoring-kit.zip
 build/
 release/
+
+# UI review scratch
+.ui-review/

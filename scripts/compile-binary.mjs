@@ -5,12 +5,18 @@ import {dirname} from 'node:path';
 const result=await Bun.build({
   entrypoints:[process.argv[2]],
   compile:{outfile:process.argv[3],autoloadDotenv:false,autoloadBunfig:false,autoloadTsconfig:false,autoloadPackageJson:false},
-  plugins:[{name:'mpg123-synchronous-entry',setup(build){
+  plugins:[{name:'audio-decoder-synchronous-entries',setup(build){
     build.onLoad({filter:/\/mpg123-decoder\/index\.js$/},({path})=>({
       loader:'js',resolveDir:dirname(path),contents:`import MPEGDecoder from './src/MPEGDecoder.js';
 import { assignNames } from '@wasm-audio-decoders/common';
 assignNames(MPEGDecoder, 'MPEGDecoder');
 export { MPEGDecoder };`,
+    }));
+    build.onLoad({filter:/\/@wasm-audio-decoders\/flac\/index\.js$/},({path})=>({
+      loader:'js',resolveDir:dirname(path),contents:`import FLACDecoder from './src/FLACDecoder.js';
+import { assignNames } from '@wasm-audio-decoders/common';
+assignNames(FLACDecoder, 'FLACDecoder');
+export { FLACDecoder };`,
     }));
   }}],
 });

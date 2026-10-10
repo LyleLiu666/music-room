@@ -1,3 +1,4 @@
+import type {ConversionService,ConversionJob} from './conversion/conversion.ts';
 import type {StudioService,StudioSound,StudioVersion} from './studio/studio.ts';
 import {z} from 'zod';
 import {emotionStrengths} from './tts/emotion.ts';
@@ -12,6 +13,9 @@ const jobId=z.string().regex(/^[a-z0-9][a-z0-9-]{0,79}$/);
 const ref={projectId:id,revisionId:id};
 const text=z.string().min(1).max(8000);
 export const operations = {
+  svc_library:{description:'读取音色转换引擎状态和持久化任务。原音、参考音色与完整转换结果独立保存。',schema:z.object({}).strict()},
+  svc_cancel:{description:'取消指定音色转换任务，保留原音。',schema:z.object({jobId}).strict()},
+  svc_retry:{description:'用原任务保存的音频和参考音色新建重试任务，不覆盖历史结果。',schema:z.object({jobId}).strict()},
   studio_library:{description:'统一读取项目、声音和版本。',schema:z.object({}).strict()},
   studio_create_sound:{description:'在项目内创建音乐片段、完整音乐或语音。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120),kind:z.enum(['clip','music','speech'])}).strict()},
   studio_update_project:{description:'项目重命名或移入/恢复回收站；整个层级保持原状态，生成中拒绝删除。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
@@ -21,6 +25,7 @@ export const operations = {
   studio_update_version:{description:'保留灵感、选成品、可恢复删除版本。',schema:z.object({versionId:id,kept:z.boolean().optional(),deleted:z.boolean().optional(),final:z.boolean().optional()}).strict()},
   studio_cancel:{description:'取消指定声音版本的生成任务。',schema:z.object({versionId:id}).strict()},
   studio_import_score:{description:'将 Agent 交付的 JSON 乐谱导入指定声音，新版保留来源，不覆盖旧版。',schema:z.object({soundId:id,compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
+  studio_save_speed:{description:'将已完成音频按指定速度保存为独立新版本，保持音调并保留原版。requestId 用于安全重试。',schema:z.object({versionId:id,rate:z.number().min(.5).max(2).refine(n=>n!==1),requestId:z.string().min(1).max(120)}).strict()},
   studio_render:{description:'把已有乐谱合成为试听文件。',schema:z.object({versionId:id}).strict()},
   tts_status:{description:'查看固定的 IndexTTS 2.0 环境、模型准备状态和日志。',schema:z.object({}).strict()},
   tts_prepare:{description:'在专用目录准备 IndexTTS 2.0 推理引擎和固定模型；Apple Silicon 默认使用 audio.cpp F16；后台准备，通过 tts_status 查询。',schema:z.object({directory:z.string().min(1).max(4096).optional()}).strict()},
@@ -28,7 +33,7 @@ export const operations = {
   tts_library:{description:'读取持久化的参考声音、项目语音及所有语音版本。',schema:z.object({}).strict()},
   tts_add_voice:{description:'保存 0.3–15 秒、16 位 PCM WAV 参考素材，默认在后台提取人声、降噪、去混响；轮询 tts_library 的 voices[].processing，succeeded 后才能生成。已干净素材可 cleanup=false。音色跨项目复用，原音保留。',schema:z.object({name:z.string().min(1).max(120),audioBase64:z.string().min(1).max(4*1024*1024),cleanup:z.boolean().default(true)}).strict()},
   tts_clean_voice:{description:'清理已有音色，旧音色另存清理版以免改变历史版本；失败或中断的清理可重试。轮询 tts_library 查看处理状态。',schema:z.object({voiceId:id}).strict()},
-  tts_update_voice:{description:'给已保存音色改名、标记常用或移入/恢复回收站，所有项目共用同一个音色库。',schema:z.object({voiceId:id,name:z.string().trim().min(1).max(120).optional(),favorite:z.boolean().optional(),deleted:z.boolean().optional()}).strict()},
+  tts_update_voice:{description:'给已保存音色改名、标记常用或移入/恢复回收站，所有项目共用同一个音色库。',schema:z.object({voiceId:id,name:z.string().trim().min(1).max(120).optional(),favorite:z.boolean().optional(),deleted:z.boolean().optional(),usage:z.enum(['all','conversion']).optional()}).strict()},
   tts_create_sound:{description:'在已有项目中创建一个语音，如片头旁白；后续生成均属于此声音。',schema:z.object({projectId:id,title:z.string().min(1).max(120)}).strict()},
   tts_generate:{description:'使用 IndexTTS 2.0 根据参考人声、正文和可选情绪生成新版本；立即返回版本 id，后台继续执行。',schema:z.object({soundId:id,voiceId:id,text:z.string().trim().min(1).max(8000),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),parentId:id.optional(),seed:z.number().int().min(0).max(0xffffffff).optional()}).strict()},
   tts_get_version:{description:'查询语音版本的真实状态、创作输入和音频校验信息。',schema:z.object({versionId:id}).strict()},
@@ -65,8 +70,9 @@ export type RevisionDocument = Awaited<ReturnType<ProjectStore['revision']>>;
 export type LibrarySnapshot = {projects:Project[];documents:Composition[];jobs:Job[]};
 export type AuthoringContext = {project?:Project;revision?:RevisionDocument;feedback:Feedback[];guide:string;example:Composition;prompt:string;rules:string;workflow:Operation[];tracks:string};
 export type OperationResults = {
+  svc_library:ReturnType<ConversionService['snapshot']>&{voices:SpeechVoice[]};svc_cancel:ConversionJob;svc_retry:ConversionJob;
   studio_update_project:Project;studio_update_sound:StudioSound;studio_purge:{purged:true};
-  studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_generate:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_import_score:StudioVersion;
+  studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_generate:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_save_speed:StudioVersion;studio_import_score:StudioVersion;
   tts_status:SpeechStatus;tts_prepare:SpeechStatus;tts_cancel_preparation:SpeechStatus;
   tts_library:ReturnType<SpeechService['snapshot']>;tts_add_voice:SpeechVoice;tts_clean_voice:SpeechVoice;tts_update_voice:SpeechVoice;tts_create_sound:SpeechSound;
   tts_generate:SpeechVersion;tts_get_version:SpeechVersion;tts_cancel:SpeechVersion;tts_update_version:SpeechVersion;

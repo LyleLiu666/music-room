@@ -1,0 +1,13 @@
+diff --git a/external/ggml/src/ggml-metal/ggml-metal-device.m b/external/ggml/src/ggml-metal/ggml-metal-device.m
+index e4cc0475..3ff0829b 100644
+--- a/external/ggml/src/ggml-metal/ggml-metal-device.m
++++ b/external/ggml/src/ggml-metal/ggml-metal-device.m
+@@ -1574,7 +1574,7 @@ ggml_metal_buffer_t ggml_metal_buffer_init(ggml_metal_device_t dev, size_t size,
+ 
+     ggml_metal_device_rsets_add(dev, res->rset);
+ 
+-    //ggml_metal_log_allocated_size(device, size_aligned);
++    ggml_metal_log_allocated_size(res->dev->mtl_device, size_aligned);
+ 
+     return res;
+ }

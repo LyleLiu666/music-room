@@ -10,6 +10,14 @@
 
 启动脚本仅执行相邻的 `music-room serve`；也可直接运行二进制。终端打印网页 URL，在浏览器打开即可。省略 `--port` 会选择空闲端口；省略 `--workspace` 使用 `~/Music/MusicRoom`。Ctrl+C 停止后台并中断未完成任务；再次启动恢复项目和已完成音频。
 
+本机稳定版可独立安装到 `~/Applications/MusicRoom/`，避免依赖源码目录的构建产物。升级前等待任务结束，停止旧服务，再复制新二进制及启动脚本；原工作目录及模型继续复用。
+
+```sh
+mkdir -p "$HOME/Applications/MusicRoom"
+cp release/music-room release/start.sh "$HOME/Applications/MusicRoom/"
+"$HOME/Applications/MusicRoom/start.sh" --workspace "$HOME/Music/MusicRoom" --port 5174
+```
+
 没有 `.app`、安装器、桌面外壳、Developer ID 或公证流程。macOS 可执行文件本身的本地有效性由构建工具处理，不要求用户申请 Apple 开发者账号。
 
 项目在 `projects/<项目 ID>/` 下；版本原件为 `revisions/<版本 ID>/score.json`，后台音频为对应目录中的 `job-….wav`。清理浏览器不会删除项目。停止服务后复制整个工作目录可备份或迁移，模型/运行时无需复制到每个项目。

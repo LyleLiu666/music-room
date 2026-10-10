@@ -1,0 +1,23 @@
+diff --git a/src/models/seed_vc/session.cpp b/src/models/seed_vc/session.cpp
+index 15723eb8..6563d925 100644
+--- a/src/models/seed_vc/session.cpp
++++ b/src/models/seed_vc/session.cpp
+@@ -822,13 +822,16 @@ runtime::TaskResult run_v1_singing_voice_conversion(
+     }
+     const auto & mel_config = v1_mel_config_for_path(assets, plan.path);
+     const auto & dit_config = v1_dit_config_for_path(assets, plan.path);
+-    constexpr int64_t kDitMaxContextSeconds = 30;
++    // The DiT generation window is independent of Whisper's per-input 30s limit.
++    constexpr int64_t kDitMaxContextSeconds = 45;
++    // Keep reference conditioning identical to the 30s-window baseline.
++    constexpr int64_t kTargetMaxSeconds = 25;
+     constexpr int64_t kOverlapFrameLen = 16;
+     auto timing_start = std::chrono::steady_clock::now();
+     const auto & source_audio = require_source_audio(request);
+     const auto & target_audio = require_target_audio(request);
+     const int64_t target_limit_samples =
+-        static_cast<int64_t>(mel_config.sample_rate) * (kDitMaxContextSeconds - 5);
++        static_cast<int64_t>(mel_config.sample_rate) * kTargetMaxSeconds;
+     const auto source_prepared = seed_vc_prepare_audio_for_sample_rate(
+         source_audio.samples,
+         source_audio.sample_rate,

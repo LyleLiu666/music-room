@@ -57,6 +57,13 @@ try {
   let done;for(let i=0;i<200;i++){done=await tool('get_job',{jobId:render.id});if(!['queued','running'].includes(done.state))break;await new Promise(r=>setTimeout(r,30));}
   assert.equal(done.state,'succeeded',done.error??'');const wav=await readFile(join(workspace,'projects',example.work.id,done.artifact.path));
   assert.equal(wav.length,44+40*44100*4);assert.equal(createHash('sha256').update(wav).digest('hex'),done.artifact.sha256);results.push('standalone backend worker uses embedded samples; real 40 second WAV/hash');
+  const source=(await tool('studio_library')).versions.find(v=>v.source.kind==='score'&&v.source.id===long.revision.id);
+  const speed=await tool('studio_save_speed',{versionId:source.id,rate:.8,requestId:'binary-speed'});
+  assert.ok(Math.abs(speed.duration-50)<.002);assert.equal(speed.source.kind,'audio');
+  const speedResponse=await fetch(runtime.url+speed.audioPath,{headers:{authorization:`Bearer ${runtime.token}`}});
+  assert.equal(speedResponse.status,200);const speedBytes=new Uint8Array(await speedResponse.arrayBuffer());
+  assert.equal(speedBytes.length,44+50*44100*4);
+  results.push('standalone pitch-preserving speed save produces an independent 50 second WAV from a 40 second score');
   await tool('add_feedback',{projectId:example.work.id,revisionId:long.revision.id,text:'主题保留，下一版加一点变化。'});
   httpClient=new Client({name:'binary-http-agent',version:'1'});await httpClient.connect(new StreamableHTTPClientTransport(new URL(runtime.url+'/mcp'),{requestInit:{headers:{authorization:`Bearer ${runtime.token}`}}}));
   assert.ok((await httpClient.listTools()).tools.some(t=>t.name==='render_revision'));results.push('embedded HTTP MCP interoperates with official client');

@@ -41,6 +41,11 @@ test('unified production UI: mixed project, real routes, versions, playback, dra
   await mkdir('test-results/studio',{recursive:true});await page.screenshot({path:'test-results/studio/desktop.png',fullPage:true});
   for(const width of [1440,1024,768,390]){await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`overflow ${width}`);}
   await page.screenshot({path:'test-results/studio/mobile.png',fullPage:true});await page.click('[data-action="compose"]');assert.ok(await page.evaluate(()=>document.querySelector('dialog').getBoundingClientRect().right<=innerWidth));await page.screenshot({path:'test-results/studio/mobile-compose.png',fullPage:true});
+  // Scroll-performance guard: `background-attachment: local` on a scroller forces a full repaint
+  // every scroll frame (measured 60fps -> 8.8fps), and a full-viewport backdrop blur is a
+  // per-frame compositor pass. See scripts/perf-studio-scroll.mjs (LEGACY=local reproduces it).
+  const dialogPaint=await page.evaluate(()=>{const el=document.querySelector('dialog .dialog-body');return {attachment:getComputedStyle(el).backgroundAttachment,backdrop:getComputedStyle(document.querySelector('dialog'),'::backdrop').backdropFilter||getComputedStyle(document.querySelector('dialog'),'::backdrop').webkitBackdropFilter};});
+  assert.ok(!dialogPaint.attachment.includes('local'),`dialog scroller must not use local-attachment backgrounds (got: ${dialogPaint.attachment})`);assert.equal(dialogPaint.backdrop,'none','dialog backdrop must not use backdrop-filter');
   assert.deepEqual(errors,[]);console.log('Unified UI integration passed; model drivers are fixtures, no claim of new model inference.');
  }catch(e){console.log(await page.locator('#toast').textContent());console.log(await page.locator('#workspace').innerText());throw e;}finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
@@ -142,9 +147,9 @@ test('day/night themes and the global voice library work without a project and p
  try{
   await page.goto(http.runtime.url);await page.locator('[data-action="voice-library"]').waitFor({timeout:5000});
   assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
-  await page.getByRole('button',{name:'日间',exact:true}).click();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor),'rgb(247, 248, 244)');assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--muted')),'#6e7865');assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--line')),'#e0e5db');
+  await page.getByRole('button',{name:'日间',exact:true}).click();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor),'rgb(244, 245, 241)');assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--muted')),'#5f6a5d');assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--line')),'#e3e7e0');
   await page.reload();await page.locator('[data-action="voice-library"]').waitFor();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
-  await page.getByRole('button',{name:'夜间',exact:true}).click();assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor),'rgb(24, 29, 25)');
+  await page.getByRole('button',{name:'夜间',exact:true}).click();assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor),'rgb(18, 22, 19)');
   await page.click('[data-action="voice-library"]');await page.getByRole('heading',{name:'音色库',exact:true}).waitFor();
   assert.match(await page.locator('#voice-list').innerText(),/还没有音色/);
   await page.locator('.reference-upload summary').click();await page.fill('#voice-name','温暖旁白');await page.locator('#voice-cleanup').uncheck();await page.locator('#voice-file').setInputFiles({name:'voice.wav',mimeType:'audio/wav',buffer:wav});await page.click('[data-action="upload-voice"]');

@@ -1,0 +1,73 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,rm,readFile,writeFile,mkdir} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
+import {join,resolve} from 'node:path';
+import {tmpdir} from 'node:os';
+import {chromium} from 'playwright';
+import {MusicService} from '../src/service/service.ts';
+import {serveHttp} from '../src/server/http.ts';
+import {encodeWav} from '../src/wav.ts';
+import {wavInfo} from '../src/service/tts/speech.ts';
+
+test('speed preview, precise adjustment, safe retry, save, download and reload use independent audio',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-speed-ui-'));
+ const wav=new Uint8Array(encodeWav([Float32Array.from({length:24000*3},(_,i)=>Math.sin(i*.1)*.2)],24000));
+ const music={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
+ const driver={installed:()=>true,prepare:async()=>{},generate:async(_,req)=>writeFile(req.outputPath,wav)};
+ const read=p=>readFile(resolve('dist',p));
+ const service=await MusicService.open(root,()=>{throw Error('unused');},read,false,music,driver);
+ const http=await serveHttp(service,{read,has:p=>existsSync(resolve('dist',p)),embedded:false});
+ const browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required']}),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];
+ page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await service.call('create_project',{projectId:'speed',title:'语速试听'});
+  const sound=await service.call('studio_create_sound',{projectId:'speed',title:'开场旁白',kind:'speech'});
+  const voice=await service.call('tts_add_voice',{cleanup:false,name:'参考声音',audioBase64:Buffer.from(wav).toString('base64')});
+  const original=await service.call('studio_generate',{soundId:sound.id,voiceId:voice.id,text:'听一听，找到更自然的表达速度。'});
+  for(let i=0;i<100&&service.speech.job(original.id).state!=='succeeded';i++)await new Promise(r=>setTimeout(r,10));
+  let polls=0;
+  await page.route('**/api/studio_library',async route=>{const response=await route.fetch(),json=await response.json();json.engines.music.message=`更新 ${++polls}`;await route.fulfill({response,json});});
+  await page.goto(http.runtime.url);await page.waitForFunction(()=>document.querySelector('#version-audio')?.readyState>=1);
+  assert.equal(await page.locator('#save-speed').isDisabled(),true);
+  await page.getByRole('button',{name:'0.8 倍',exact:true}).click();
+  assert.equal(await page.locator('#version-audio').evaluate(a=>a.playbackRate),.8);
+  assert.equal(await page.locator('#version-audio').evaluate(a=>a.preservesPitch),true);
+  await page.locator('#playback-speed').focus();await page.keyboard.press('ArrowRight');
+  assert.equal(await page.locator('#version-audio').evaluate(a=>a.playbackRate),.81);
+  await page.waitForTimeout(4000);assert.equal(await page.inputValue('#playback-speed'),'0.81');
+  assert.equal(await page.locator('#playback-speed').evaluate(e=>e===document.activeElement),true,'polling preserves focus for keyboard adjustment');
+  await page.getByRole('button',{name:'0.8 倍',exact:true}).click();
+  assert.match(await page.locator('#speed-note').innerText(),/3.8 秒/);
+  await mkdir('test-results/speed',{recursive:true});await page.screenshot({path:'test-results/speed/desktop.png',fullPage:true});
+  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'test-results/speed/mobile.png',fullPage:true});
+  await page.setViewportSize({width:1440,height:1000});
+  const requests=[];let loseResponse=true;
+  await page.route('**/api/studio_save_speed',async route=>{
+   requests.push(route.request().postDataJSON());const response=await route.fetch();
+   if(loseResponse){loseResponse=false;await route.fulfill({status:503,contentType:'application/json',body:JSON.stringify({message:'模拟保存成功后的网络中断'})});}
+   else await route.fulfill({response});
+  });
+  await page.locator('#save-speed').click();await page.locator('#speed-error:not([hidden])').waitFor();
+  assert.equal(await page.locator('#save-speed').isEnabled(),true);
+  assert.equal((await service.call('studio_library',{})).versions.length,2);
+  await page.locator('#save-speed').click();
+  await page.waitForFunction(id=>document.querySelector('#version-audio')?.dataset.version!==id&&document.querySelector('#version-audio')?.readyState>=1,original.id);
+  assert.equal(requests.length,2);assert.equal(requests[0].requestId,requests[1].requestId);
+  assert.equal(await page.locator('#version-audio').evaluate(a=>a.playbackRate),1);
+  assert.equal(await page.locator('#save-speed').isDisabled(),true);
+  const library=await service.call('studio_library',{}),saved=library.versions.find(v=>v.id!==original.id);
+  assert.equal(library.versions.length,2);assert.ok(Math.abs(saved.duration-3.75)<.002);
+  assert.match(await page.locator('.listening-top').innerText(),/0.8 倍调速版/);
+  const download=page.waitForEvent('download');await page.locator('[data-action="download"]').click();
+  const file=await download;assert.match(file.suggestedFilename(),/V2\.wav$/);
+  assert.ok(Math.abs(wavInfo(await readFile(await file.path())).duration-3.75)<.002);
+  await page.reload();await page.waitForFunction(()=>document.querySelector('#version-audio')?.readyState>=1);
+  assert.equal(await page.locator('#version-audio').getAttribute('data-version'),saved.id);
+  assert.equal(await page.locator('#version-audio').evaluate(a=>a.playbackRate),1);
+  await page.locator(`[data-action="version"][data-id="${original.id}"]`).click();
+  await page.waitForFunction(()=>document.querySelector('#version-audio')?.readyState>=1);
+  assert.equal(await page.locator('#version-audio').evaluate(a=>a.duration),3);
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});

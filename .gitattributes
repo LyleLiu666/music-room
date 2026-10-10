@@ -1,0 +1,3 @@
+
+# Preserve upstream patch line endings and unified-diff blank context markers.
+native/seed-vc/*.patch -text whitespace=-blank-at-eol,cr-at-eol

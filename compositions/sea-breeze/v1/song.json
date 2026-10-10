@@ -1,0 +1,1267 @@
+{
+  "format": "music-room-score",
+  "version": 1,
+  "work": {
+    "id": "sea-breeze-f692a4e5",
+    "title": "海风留白"
+  },
+  "revision": {
+    "id": "sea-breeze-v1-12c88a17",
+    "label": "v1 · 八小节主题试写",
+    "summary": "钢琴两小节 riff、下行回答、抬高再现与长音收束；96 BPM，4/4，20 秒。",
+    "description": "原创器乐短句。以明亮而略带惆怅的和声、轻切分与呼吸感回应听众的夏日音乐偏好。第1—2小节陈述主题，第3—4小节回答，第5—6小节保留主题节奏并抬高旋律，第7—8小节经挂留和弦回到D。钢琴主旋律与中低音和弦、贝斯、轻鼓；无其他音色、无示例旋律复用。尚未实际试听，需用 Music Room 本机音色验收。",
+    "key": "D 大调",
+    "englishTitle": "Room for the Sea Breeze"
+  },
+  "comparisonSections": {
+    "theme": 0
+  },
+  "score": {
+    "title": "海风留白",
+    "bpm": 96,
+    "duration": 20,
+    "sections": [
+      {
+        "name": "主题试写",
+        "midiName": "Theme",
+        "subtitle": "两小节 riff → 回答 → 抬高再现 → 收束",
+        "startBar": 0,
+        "bars": 8,
+        "color": "#7eaaa5"
+      }
+    ],
+    "bars": [
+      {
+        "chord": "Dmaj9",
+        "section": 0
+      },
+      {
+        "chord": "A(add9)/C#",
+        "section": 0
+      },
+      {
+        "chord": "Bm7",
+        "section": 0
+      },
+      {
+        "chord": "Gmaj9",
+        "section": 0
+      },
+      {
+        "chord": "Dmaj9/F#",
+        "section": 0
+      },
+      {
+        "chord": "Em7",
+        "section": 0
+      },
+      {
+        "chord": "Asus4 → A(add9)",
+        "section": 0
+      },
+      {
+        "chord": "D6/9",
+        "section": 0
+      }
+    ],
+    "notes": [
+      {
+        "track": "bass",
+        "pitch": 38,
+        "beat": 0,
+        "duration": 1.4,
+        "velocity": 0.55
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 0,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 0,
+        "duration": 0.15,
+        "velocity": 0.52
+      },
+      {
+        "track": "piano",
+        "pitch": 54,
+        "beat": 0,
+        "duration": 1.6,
+        "velocity": 0.4
+      },
+      {
+        "track": "piano",
+        "pitch": 57,
+        "beat": 0,
+        "duration": 1.6,
+        "velocity": 0.388
+      },
+      {
+        "track": "piano",
+        "pitch": 61,
+        "beat": 0,
+        "duration": 1.6,
+        "velocity": 0.376
+      },
+      {
+        "track": "piano",
+        "pitch": 64,
+        "beat": 0,
+        "duration": 1.6,
+        "velocity": 0.364
+      },
+      {
+        "track": "melody",
+        "pitch": 66,
+        "beat": 0.5,
+        "duration": 0.45,
+        "velocity": 0.72
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 0.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 1,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "melody",
+        "pitch": 69,
+        "beat": 1,
+        "duration": 0.8,
+        "velocity": 0.79
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 1.025,
+        "duration": 0.12,
+        "velocity": 0.34
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 1.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "bass",
+        "pitch": 45,
+        "beat": 1.75,
+        "duration": 0.55,
+        "velocity": 0.43
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 2,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "piano",
+        "pitch": 54,
+        "beat": 2.25,
+        "duration": 1.2,
+        "velocity": 0.35
+      },
+      {
+        "track": "piano",
+        "pitch": 57,
+        "beat": 2.25,
+        "duration": 1.2,
+        "velocity": 0.338
+      },
+      {
+        "track": "piano",
+        "pitch": 61,
+        "beat": 2.25,
+        "duration": 1.2,
+        "velocity": 0.326
+      },
+      {
+        "track": "piano",
+        "pitch": 64,
+        "beat": 2.25,
+        "duration": 1.2,
+        "velocity": 0.314
+      },
+      {
+        "track": "bass",
+        "pitch": 38,
+        "beat": 2.5,
+        "duration": 0.95,
+        "velocity": 0.5
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 2.5,
+        "duration": 0.15,
+        "velocity": 0.43
+      },
+      {
+        "track": "melody",
+        "pitch": 76,
+        "beat": 2.5,
+        "duration": 1.25,
+        "velocity": 0.76
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 2.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 3,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 3.025,
+        "duration": 0.12,
+        "velocity": 0.37
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 3.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "bass",
+        "pitch": 37,
+        "beat": 4,
+        "duration": 1.65,
+        "velocity": 0.53
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 4,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 4,
+        "duration": 0.15,
+        "velocity": 0.49
+      },
+      {
+        "track": "melody",
+        "pitch": 74,
+        "beat": 4,
+        "duration": 1.45,
+        "velocity": 0.72
+      },
+      {
+        "track": "piano",
+        "pitch": 57,
+        "beat": 4,
+        "duration": 1.65,
+        "velocity": 0.38
+      },
+      {
+        "track": "piano",
+        "pitch": 59,
+        "beat": 4,
+        "duration": 1.65,
+        "velocity": 0.368
+      },
+      {
+        "track": "piano",
+        "pitch": 64,
+        "beat": 4,
+        "duration": 1.65,
+        "velocity": 0.356
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 4.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 5,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 5.025,
+        "duration": 0.12,
+        "velocity": 0.33
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 5.75,
+        "duration": 0.15,
+        "velocity": 0.38
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 6,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "melody",
+        "pitch": 69,
+        "beat": 6,
+        "duration": 0.45,
+        "velocity": 0.66
+      },
+      {
+        "track": "bass",
+        "pitch": 40,
+        "beat": 6.5,
+        "duration": 0.7,
+        "velocity": 0.45
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 6.5,
+        "duration": 0.15,
+        "velocity": 0.42
+      },
+      {
+        "track": "melody",
+        "pitch": 66,
+        "beat": 6.5,
+        "duration": 0.95,
+        "velocity": 0.69
+      },
+      {
+        "track": "piano",
+        "pitch": 57,
+        "beat": 6.5,
+        "duration": 0.95,
+        "velocity": 0.34
+      },
+      {
+        "track": "piano",
+        "pitch": 59,
+        "beat": 6.5,
+        "duration": 0.95,
+        "velocity": 0.328
+      },
+      {
+        "track": "piano",
+        "pitch": 64,
+        "beat": 6.5,
+        "duration": 0.95,
+        "velocity": 0.316
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 6.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 7,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 7.025,
+        "duration": 0.12,
+        "velocity": 0.36
+      },
+      {
+        "track": "bass",
+        "pitch": 37,
+        "beat": 7.5,
+        "duration": 0.35,
+        "velocity": 0.46
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 7.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "bass",
+        "pitch": 35,
+        "beat": 8,
+        "duration": 1.4,
+        "velocity": 0.54
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 8,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 8,
+        "duration": 0.15,
+        "velocity": 0.5
+      },
+      {
+        "track": "piano",
+        "pitch": 57,
+        "beat": 8,
+        "duration": 1.7,
+        "velocity": 0.39
+      },
+      {
+        "track": "piano",
+        "pitch": 62,
+        "beat": 8,
+        "duration": 1.7,
+        "velocity": 0.378
+      },
+      {
+        "track": "piano",
+        "pitch": 66,
+        "beat": 8,
+        "duration": 1.7,
+        "velocity": 0.366
+      },
+      {
+        "track": "melody",
+        "pitch": 71,
+        "beat": 8.5,
+        "duration": 0.9,
+        "velocity": 0.71
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 8.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 9,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 9.025,
+        "duration": 0.12,
+        "velocity": 0.32
+      },
+      {
+        "track": "melody",
+        "pitch": 74,
+        "beat": 9.5,
+        "duration": 0.4,
+        "velocity": 0.74
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 9.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "bass",
+        "pitch": 42,
+        "beat": 9.75,
+        "duration": 0.55,
+        "velocity": 0.44
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 10,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "melody",
+        "pitch": 73,
+        "beat": 10,
+        "duration": 1.5,
+        "velocity": 0.69
+      },
+      {
+        "track": "bass",
+        "pitch": 35,
+        "beat": 10.5,
+        "duration": 0.95,
+        "velocity": 0.49
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 10.5,
+        "duration": 0.15,
+        "velocity": 0.4
+      },
+      {
+        "track": "piano",
+        "pitch": 57,
+        "beat": 10.5,
+        "duration": 0.95,
+        "velocity": 0.35
+      },
+      {
+        "track": "piano",
+        "pitch": 62,
+        "beat": 10.5,
+        "duration": 0.95,
+        "velocity": 0.338
+      },
+      {
+        "track": "piano",
+        "pitch": 66,
+        "beat": 10.5,
+        "duration": 0.95,
+        "velocity": 0.326
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 10.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 11,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 11.025,
+        "duration": 0.12,
+        "velocity": 0.35
+      },
+      {
+        "track": "bass",
+        "pitch": 43,
+        "beat": 12,
+        "duration": 2.9,
+        "velocity": 0.51
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 12,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 12,
+        "duration": 0.15,
+        "velocity": 0.46
+      },
+      {
+        "track": "melody",
+        "pitch": 71,
+        "beat": 12,
+        "duration": 0.95,
+        "velocity": 0.67
+      },
+      {
+        "track": "piano",
+        "pitch": 54,
+        "beat": 12,
+        "duration": 2.9,
+        "velocity": 0.37
+      },
+      {
+        "track": "piano",
+        "pitch": 57,
+        "beat": 12,
+        "duration": 2.9,
+        "velocity": 0.358
+      },
+      {
+        "track": "piano",
+        "pitch": 59,
+        "beat": 12,
+        "duration": 2.9,
+        "velocity": 0.346
+      },
+      {
+        "track": "piano",
+        "pitch": 62,
+        "beat": 12,
+        "duration": 2.9,
+        "velocity": 0.334
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 12.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 13,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 13.025,
+        "duration": 0.12,
+        "velocity": 0.3
+      },
+      {
+        "track": "melody",
+        "pitch": 69,
+        "beat": 13.5,
+        "duration": 0.45,
+        "velocity": 0.63
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 14,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 14,
+        "duration": 0.15,
+        "velocity": 0.36
+      },
+      {
+        "track": "melody",
+        "pitch": 67,
+        "beat": 14,
+        "duration": 1.45,
+        "velocity": 0.65
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 14.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 15.025,
+        "duration": 0.12,
+        "velocity": 0.31
+      },
+      {
+        "track": "bass",
+        "pitch": 42,
+        "beat": 16,
+        "duration": 1.4,
+        "velocity": 0.56
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 16,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 16,
+        "duration": 0.15,
+        "velocity": 0.54
+      },
+      {
+        "track": "piano",
+        "pitch": 57,
+        "beat": 16,
+        "duration": 1.6,
+        "velocity": 0.42
+      },
+      {
+        "track": "piano",
+        "pitch": 61,
+        "beat": 16,
+        "duration": 1.6,
+        "velocity": 0.408
+      },
+      {
+        "track": "piano",
+        "pitch": 64,
+        "beat": 16,
+        "duration": 1.6,
+        "velocity": 0.396
+      },
+      {
+        "track": "melody",
+        "pitch": 66,
+        "beat": 16.5,
+        "duration": 0.45,
+        "velocity": 0.74
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 16.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 17,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "melody",
+        "pitch": 69,
+        "beat": 17,
+        "duration": 0.8,
+        "velocity": 0.8
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 17.025,
+        "duration": 0.12,
+        "velocity": 0.36
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 17.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "bass",
+        "pitch": 45,
+        "beat": 17.75,
+        "duration": 0.55,
+        "velocity": 0.45
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 18,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "piano",
+        "pitch": 57,
+        "beat": 18.25,
+        "duration": 1.2,
+        "velocity": 0.37
+      },
+      {
+        "track": "piano",
+        "pitch": 61,
+        "beat": 18.25,
+        "duration": 1.2,
+        "velocity": 0.358
+      },
+      {
+        "track": "piano",
+        "pitch": 64,
+        "beat": 18.25,
+        "duration": 1.2,
+        "velocity": 0.346
+      },
+      {
+        "track": "bass",
+        "pitch": 42,
+        "beat": 18.5,
+        "duration": 0.95,
+        "velocity": 0.52
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 18.5,
+        "duration": 0.15,
+        "velocity": 0.45
+      },
+      {
+        "track": "melody",
+        "pitch": 78,
+        "beat": 18.5,
+        "duration": 1.25,
+        "velocity": 0.82
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 18.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 19,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 19.025,
+        "duration": 0.12,
+        "velocity": 0.39
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 19.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "bass",
+        "pitch": 40,
+        "beat": 20,
+        "duration": 1.65,
+        "velocity": 0.53
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 20,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 20,
+        "duration": 0.15,
+        "velocity": 0.51
+      },
+      {
+        "track": "melody",
+        "pitch": 76,
+        "beat": 20,
+        "duration": 1.45,
+        "velocity": 0.76
+      },
+      {
+        "track": "piano",
+        "pitch": 55,
+        "beat": 20,
+        "duration": 1.65,
+        "velocity": 0.39
+      },
+      {
+        "track": "piano",
+        "pitch": 59,
+        "beat": 20,
+        "duration": 1.65,
+        "velocity": 0.378
+      },
+      {
+        "track": "piano",
+        "pitch": 62,
+        "beat": 20,
+        "duration": 1.65,
+        "velocity": 0.366
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 20.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 21,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 21.025,
+        "duration": 0.12,
+        "velocity": 0.34
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 21.75,
+        "duration": 0.15,
+        "velocity": 0.39
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 22,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "melody",
+        "pitch": 71,
+        "beat": 22,
+        "duration": 0.45,
+        "velocity": 0.69
+      },
+      {
+        "track": "bass",
+        "pitch": 47,
+        "beat": 22.5,
+        "duration": 0.7,
+        "velocity": 0.44
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 22.5,
+        "duration": 0.15,
+        "velocity": 0.43
+      },
+      {
+        "track": "melody",
+        "pitch": 67,
+        "beat": 22.5,
+        "duration": 0.95,
+        "velocity": 0.7
+      },
+      {
+        "track": "piano",
+        "pitch": 55,
+        "beat": 22.5,
+        "duration": 0.95,
+        "velocity": 0.35
+      },
+      {
+        "track": "piano",
+        "pitch": 59,
+        "beat": 22.5,
+        "duration": 0.95,
+        "velocity": 0.338
+      },
+      {
+        "track": "piano",
+        "pitch": 62,
+        "beat": 22.5,
+        "duration": 0.95,
+        "velocity": 0.326
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 22.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 23,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 23.025,
+        "duration": 0.12,
+        "velocity": 0.37
+      },
+      {
+        "track": "bass",
+        "pitch": 40,
+        "beat": 23.5,
+        "duration": 0.35,
+        "velocity": 0.46
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 23.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "bass",
+        "pitch": 33,
+        "beat": 24,
+        "duration": 1.5,
+        "velocity": 0.53
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 24,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 24,
+        "duration": 0.15,
+        "velocity": 0.48
+      },
+      {
+        "track": "piano",
+        "pitch": 57,
+        "beat": 24,
+        "duration": 1.75,
+        "velocity": 0.38
+      },
+      {
+        "track": "piano",
+        "pitch": 62,
+        "beat": 24,
+        "duration": 1.75,
+        "velocity": 0.368
+      },
+      {
+        "track": "piano",
+        "pitch": 64,
+        "beat": 24,
+        "duration": 1.75,
+        "velocity": 0.356
+      },
+      {
+        "track": "melody",
+        "pitch": 74,
+        "beat": 24.5,
+        "duration": 0.9,
+        "velocity": 0.7
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 24.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 25,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 25.025,
+        "duration": 0.12,
+        "velocity": 0.33
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 25.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "bass",
+        "pitch": 40,
+        "beat": 26,
+        "duration": 0.7,
+        "velocity": 0.44
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 26,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 26,
+        "duration": 0.15,
+        "velocity": 0.4
+      },
+      {
+        "track": "melody",
+        "pitch": 73,
+        "beat": 26,
+        "duration": 1.7,
+        "velocity": 0.67
+      },
+      {
+        "track": "piano",
+        "pitch": 57,
+        "beat": 26,
+        "duration": 1.5,
+        "velocity": 0.35
+      },
+      {
+        "track": "piano",
+        "pitch": 59,
+        "beat": 26,
+        "duration": 1.5,
+        "velocity": 0.338
+      },
+      {
+        "track": "piano",
+        "pitch": 61,
+        "beat": 26,
+        "duration": 1.5,
+        "velocity": 0.326
+      },
+      {
+        "track": "piano",
+        "pitch": 64,
+        "beat": 26,
+        "duration": 1.5,
+        "velocity": 0.314
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 26.518,
+        "duration": 0.075,
+        "velocity": 0.16
+      },
+      {
+        "track": "bass",
+        "pitch": 33,
+        "beat": 27,
+        "duration": 0.65,
+        "velocity": 0.47
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 27,
+        "duration": 0.075,
+        "velocity": 0.24
+      },
+      {
+        "track": "snare",
+        "pitch": 38,
+        "beat": 27.025,
+        "duration": 0.12,
+        "velocity": 0.32
+      },
+      {
+        "track": "bass",
+        "pitch": 38,
+        "beat": 28,
+        "duration": 3.25,
+        "velocity": 0.54
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 28,
+        "duration": 0.075,
+        "velocity": 0.2
+      },
+      {
+        "track": "kick",
+        "pitch": 36,
+        "beat": 28,
+        "duration": 0.15,
+        "velocity": 0.44
+      },
+      {
+        "track": "melody",
+        "pitch": 76,
+        "beat": 28,
+        "duration": 0.45,
+        "velocity": 0.65
+      },
+      {
+        "track": "piano",
+        "pitch": 54,
+        "beat": 28,
+        "duration": 3.25,
+        "velocity": 0.4
+      },
+      {
+        "track": "piano",
+        "pitch": 57,
+        "beat": 28,
+        "duration": 3.25,
+        "velocity": 0.388
+      },
+      {
+        "track": "piano",
+        "pitch": 59,
+        "beat": 28,
+        "duration": 3.25,
+        "velocity": 0.376
+      },
+      {
+        "track": "piano",
+        "pitch": 64,
+        "beat": 28,
+        "duration": 3.25,
+        "velocity": 0.364
+      },
+      {
+        "track": "melody",
+        "pitch": 74,
+        "beat": 28.5,
+        "duration": 2.75,
+        "velocity": 0.71
+      },
+      {
+        "track": "hat",
+        "pitch": 42,
+        "beat": 28.518,
+        "duration": 0.075,
+        "velocity": 0.13
+      }
+    ]
+  }
+}
