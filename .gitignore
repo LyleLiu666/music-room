@@ -2,6 +2,8 @@ node_modules/
 dist/
 .DS_Store
 test-results/
+output/
+compositions/**/*.log
 public/authoring-kit/
 public/music-authoring-kit.zip
 public/speed-native/
