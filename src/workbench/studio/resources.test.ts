@@ -22,3 +22,7 @@ test('telemetry failures explain a monitoring problem and expose escaped diagnos
 test('resource panel distinguishes capacity, estimates, task samples and absent telemetry',async()=>{
  const c=testResources();let s=c.snapshot();assert.match(resourcePanel(s),/暂时无法读取/);s=await c.status();const html=resourcePanel(s);assert.match(html,/16.0 GiB/);assert.match(html,/应用上限 12.0 GiB/);assert.match(html,/可用估计/);assert.match(html,/当前没有重型任务/);c.pause();assert.match(resourcePanel(c.snapshot()),/恢复后续任务/);await c.close();
 });
+test('unverified input failures show preflight advice and an obvious retry instead of implying model execution failed',()=>{
+ const html=resourceFailure({reason:'RESOURCE_PROFILE_UNVERIFIED',message:'此模型配置的资源需求尚未验证'},false);
+ assert.match(html,/生成前检查未通过/);assert.match(html,/8000 字/);assert.match(html,/长稿会自动分段/);assert.match(html,/<button class="primary" data-action="retry-generation">重试生成/);assert.doesNotMatch(html,/关闭暂时不用的应用/);
+});

@@ -102,3 +102,27 @@ test('managed native execution registers the whole group and reaps it before han
   const engine=Number(readFileSync(join(f.folder,'starts'),'utf8').trim());assert.throws(()=>process.kill(engine,0));
  }finally{await c.close();await f.close();}
 });
+
+test('long speech uses bounded sequential requests and publishes one complete PCM wave',async()=>{
+ const f=await fixture();try{
+  await f.driver.prepare(f.root,context());const text=('第一句话。第二句话！\n').repeat(170),outputPath=join(f.folder,'long.wav');
+  await f.driver.generate(f.root,{text,seed:42,emotionStrength:'flat',referencePath:join(f.folder,'reference.wav'),outputPath},context());
+  const requests=readFileSync(join(f.folder,'requests'),'utf8').trim().split('\n').map(l=>JSON.parse(l));
+  assert.ok(requests.length>1);assert.equal(requests.map(r=>r.input).join(''),text);assert.ok(requests.every(r=>r.input.length<=140));assert.ok(requests.every(r=>r.options.seed===42&&r.options.emotion_alpha===.3));
+  const bytes=readFileSync(outputPath);assert.equal(bytes.readUInt32LE(40),requests.length*2);assert.equal(bytes.length,44+requests.length*2);
+ }finally{await f.close();}
+});
+
+test('a later segment failure does not publish incomplete speech',async()=>{
+ const f=await fixture();try{await f.driver.prepare(f.root,context());const outputPath=join(f.folder,'failed.wav');
+  await assert.rejects(f.driver.generate(f.root,{text:'文'.repeat(140)+'fail',referencePath:join(f.folder,'reference.wav'),outputPath},context()),/deliberate failure/);assert.equal(existsSync(outputPath),false);
+ }finally{await f.close();}
+});
+
+test('cancelling between long speech segments never publishes partial output',async()=>{
+ const f=await fixture();try{await f.driver.prepare(f.root,context());const controller=new AbortController(),outputPath=join(f.folder,'cancelled.wav');
+  const ctx={...context(),signal:controller.signal,stage:(message:string)=>{if(message.includes('2/2'))controller.abort();}};
+  await assert.rejects(f.driver.generate(f.root,{text:'文'.repeat(140)+'后半句',referencePath:join(f.folder,'reference.wav'),outputPath},ctx));assert.equal(existsSync(outputPath),false);
+  const requests=readFileSync(join(f.folder,'requests'),'utf8').trim().split('\n');assert.equal(requests.length,1);
+ }finally{await f.close();}
+});

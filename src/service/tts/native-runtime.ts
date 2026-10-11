@@ -6,6 +6,7 @@ import {randomUUID} from 'node:crypto';
 import type {AssetReader} from '../render/renderer.ts';
 import {wavInfo,type SpeechDriver,type SpeechContext} from './speech.ts';
 import {checkedDirectory,lock} from './python-runtime.ts';
+import {speechSegments,joinSpeechWaves} from './segments.ts';
 import {emotionAlpha} from './emotion.ts';
 import {readBuiltinVoices} from './presets.ts';
 import {nativeDistribution,nativeInstalled,installNative,type NativeDistribution} from './native-install.ts';
@@ -37,8 +38,11 @@ export function createNativeSpeechDriver(command:string,args:string[],read?:Asse
    const root=checkedDirectory(directory);if(!nativeInstalled(root,distribution))throw new Error('请先准备 audio.cpp F16 语音环境');const r=await ready(root,context);r.context=context;
    const abort=()=>{void stop(r);};context.signal.addEventListener('abort',abort,{once:true});
    try{context.signal.throwIfAborted();context.stage('正在合成语音');const emotion=request.emotion?.trim();
-    const response=await fetch(r.endpoint+'/v1/audio/speech',{method:'POST',headers:{'content-type':'application/json'},signal:context.signal,body:JSON.stringify({model:r.modelId,input:request.text,voice_ref:request.referencePath,response_format:'wav',options:{num_beams:1,seed:request.seed,use_emotion_text:Boolean(emotion),emotion_text:emotion??'',emotion_alpha:emotionAlpha(emotion,request.emotionStrength),use_reference_emotion_strength:!emotion&&request.emotionStrength!==undefined,use_random_emotion:false}})});
-    if(!response.ok)throw new Error(`audio.cpp 生成失败：${(await response.text()).slice(-1800)}`);const bytes=new Uint8Array(await response.arrayBuffer());wavInfo(bytes);context.signal.throwIfAborted();context.stage('保存语音文件');writeFileSync(request.outputPath,bytes,{mode:0o600});
+    const segments=speechSegments(request.text),waves:Uint8Array[]=[];let outputBytes=0;
+    for(const [index,text] of segments.entries()){if(!text.trim())continue;context.signal.throwIfAborted();r.context={...context,stage:message=>context.stage(`${message} · ${index+1}/${segments.length} 段`)};context.stage(`正在合成语音 ${index+1}/${segments.length} 段`);
+    const response=await fetch(r.endpoint+'/v1/audio/speech',{method:'POST',headers:{'content-type':'application/json'},signal:context.signal,body:JSON.stringify({model:r.modelId,input:text,voice_ref:request.referencePath,response_format:'wav',options:{num_beams:1,seed:request.seed,use_emotion_text:Boolean(emotion),emotion_text:emotion??'',emotion_alpha:emotionAlpha(emotion,request.emotionStrength),use_reference_emotion_strength:!emotion&&request.emotionStrength!==undefined,use_random_emotion:false}})});
+    if(!response.ok)throw new Error(`audio.cpp 生成失败：${(await response.text()).slice(-1800)}`);const bytes=new Uint8Array(await response.arrayBuffer());const info=wavInfo(bytes);if(info.peak<.0001)throw new Error(`第 ${index+1} 段未生成可听见的语音`);outputBytes+=bytes.length;if(outputBytes>256*2**20)throw new Error('生成音频超过大小上限，请分成多个片段');waves.push(bytes);}
+    context.signal.throwIfAborted();context.stage('保存语音文件');writeFileSync(request.outputPath,joinSpeechWaves(waves),{mode:0o600});
    }catch(error){if(context.signal.aborted||r.exited)await stop(r);throw error;}finally{r.context=undefined;context.signal.removeEventListener('abort',abort);}
   },
  };

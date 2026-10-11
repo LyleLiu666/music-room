@@ -21,7 +21,7 @@ Music Room 用同一个服务管理 IndexTTS 2.0、YuE2、Seed-VC、参考清理
 
 | 任务 | 当前固定配置 / 输入范围 | 任务预约 |
 | --- | --- | --- |
-| 语音 | audio.cpp F16 tail2；正文最多 140 字 | 6 GiB |
+| 语音 | audio.cpp F16 tail2；正文最多 8000 字，串行分段，每段最多 140 字 | 6 GiB |
 | 参考清理 | 固定 UVR 模型，CPU；0.3–15 秒 PCM WAV | 8 GiB |
 | 音色转换 | 固定 Seed-VC / HTDemucs F16；最多 200 MiB、20 分钟 | 10 GiB |
 | 音乐 | 固定 YuE2 MLX 低内存；fast / quality；风格 1000 字、歌词 2000 字 | 14 GiB |

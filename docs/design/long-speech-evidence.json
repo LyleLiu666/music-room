@@ -1,0 +1,74 @@
+{
+  "date": "2026-10-11",
+  "device": "Apple M4 / 32 GiB / macOS",
+  "backend": "audio.cpp F16 tail2",
+  "profile": "tts-native-f16-sequential140-v1",
+  "originalFailure": {
+    "identicalText": true,
+    "versions": [
+      {
+        "id": "speech-v-3c623e99-b4fe-4ee4-849f-9d534589d50f",
+        "number": 18,
+        "textLength": 1800,
+        "reason": "RESOURCE_PROFILE_UNVERIFIED",
+        "emotionStrength": "normal"
+      },
+      {
+        "id": "speech-v-ae9c89ae-9e1e-494f-8f53-eef3a8df6984",
+        "number": 19,
+        "textLength": 1800,
+        "reason": "RESOURCE_PROFILE_UNVERIFIED",
+        "emotionStrength": "flat"
+      }
+    ]
+  },
+  "versionId": "speech-v-8d4f2a5b-ee42-41cc-b52f-1fa3075adbf0",
+  "parentId": "speech-v-ae9c89ae-9e1e-494f-8f53-eef3a8df6984",
+  "number": 20,
+  "textLength": 1800,
+  "emotionStrength": "flat",
+  "sha256": "3f3e1f44b1f8924f5cabd8078403459e0f8dc05a751890e83186eeedab680f88",
+  "bytes": 12594826,
+  "analysis": {
+    "duration": 285.5959637188209,
+    "sampleRate": 22050,
+    "peak": 0.999969482421875
+  },
+  "resource": {
+    "id": "speech-v-8d4f2a5b-ee42-41cc-b52f-1fa3075adbf0",
+    "engine": "tts",
+    "stage": "succeeded",
+    "submittedAt": 1791698379980,
+    "peak": {
+      "memory": 4639544792
+    }
+  },
+  "checks": [
+    "original 1800 character text retained",
+    "sequential real native inference",
+    "complete audible WAV",
+    "matching artifact hash and length"
+  ],
+  "segments": 14,
+  "reservationBytes": 6442450944,
+  "limits": {
+    "text": 8000,
+    "segment": 140,
+    "accumulatedOutputBytes": 268435456
+  },
+  "browserPlayback": {
+    "at": "2026-10-11T06:13:46.500Z",
+    "versionId": "speech-v-8d4f2a5b-ee42-41cc-b52f-1fa3075adbf0",
+    "duration": 285.595964,
+    "currentTime": 0.442528,
+    "checks": [
+      "installed real long-speech WAV plays",
+      "sound navigation keeps position advancing",
+      "visible pause/resume and keyboard seek work",
+      "project and voice library keep playing",
+      "same connected player returns with volume and speed intact",
+      "mobile dock stays within viewport"
+    ],
+    "errors": []
+  }
+}
