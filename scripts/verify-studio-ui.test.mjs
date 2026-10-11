@@ -1,3 +1,4 @@
+import {ResourceError} from '../src/service/resources/contracts.ts';
 import {testResources} from '../src/service/resources/testing.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -13,6 +14,84 @@ import {wavInfo} from '../src/service/tts/speech.ts';
 import {readBuiltinVoices} from '../src/service/tts/presets.ts';
 const wav=Buffer.from(encodeWav([Float32Array.from({length:22050*4},(_,i)=>Math.sin(i*.1)*.2)],22050));
 const unused={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
+for(const memoryFailure of [false,true])test(`failed speech retry restores requirements and submits an edited new version from the player (memory=${memoryFailure})`,async()=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-retry-ui-'));
+ const driver={installed:()=>true,prepare:async()=>{},generate:async(_,req)=>{
+  if(req.text==='原来的正文')throw memoryFailure?new ResourceError('PRESSURE_PROTECTION','系统交换空间增长超过安全阈值，已停止任务'):Error('此模型配置的资源需求尚未验证');
+  await writeFile(req.outputPath,wav);
+ }};
+ const assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,driver,undefined,testResources());
+ const http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true});
+ const page=await browser.newPage(),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await service.call('create_project',{projectId:'retry',title:'失败重试'});
+  const sound=await service.call('studio_create_sound',{projectId:'retry',title:'旁白',kind:'speech'});
+  const voice=await service.call('tts_add_voice',{cleanup:false,name:'参考声音',audioBase64:wav.toString('base64')});
+  const original=await service.call('studio_generate',{soundId:sound.id,voiceId:voice.id,text:'原来的正文',emotion:'平静',emotionStrength:'strong'});
+  await page.goto(http.runtime.url);
+  if(memoryFailure){
+   await page.getByRole('button',{name:'查看内存状态',exact:true}).click();
+   await page.locator('#resource-status').filter({hasText:'应用上限'}).waitFor();
+   await page.click('[data-action="close"]');
+   await page.setViewportSize({width:390,height:844});
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+   await mkdir('test-results/studio',{recursive:true});
+   await page.screenshot({path:'test-results/studio/memory-failure.png',fullPage:true});
+  }
+  await page.getByRole('button',{name:memoryFailure?'重新尝试':'修改后重试',exact:true}).click();
+  assert.equal(await page.inputValue('#creation-text'),'原来的正文');
+  assert.equal(await page.inputValue('#voice'),voice.id);
+  assert.equal(await page.inputValue('#emotion'),'平静');
+  assert.equal(await page.inputValue('#emotion-strength'),'strong');
+  await page.fill('#creation-text','修改后的正文');await page.click('#generate');
+  await page.locator('#version-audio').waitFor();
+  const versions=(await service.call('studio_library',{})).versions;
+  assert.equal(versions.length,2);
+  const retry=versions.find(v=>v.id!==original.id);
+  assert.equal(retry.state,'succeeded');assert.equal(retry.parentId,original.id);
+  assert.equal(retry.input.text,'修改后的正文');assert.equal(retry.input.emotionStrength,'strong');
+  assert.equal(versions.find(v=>v.id===original.id).state,'failed');
+  await page.reload();await page.locator('#version-audio').waitFor();
+  assert.equal(await page.locator('.version-row').count(),2);assert.deepEqual(errors,[]);
+ }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});
+test('music pressure failure preserves quality requirements and submits a fast retry with history intact',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-music-retry-ui-'));
+ const assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources());
+ const jobs=[],requests=[];
+ service.yue2.status=async()=>({phase:'running',canGenerate:true,installed:true,modelsReady:true,message:'就绪',logs:[],autoStart:true,defaultDirectory:'/tmp/unused'});
+ service.yue2Client.list=async()=>({jobs});
+ service.yue2Client.generate=async args=>{
+  requests.push(structuredClone(args));
+  const job={id:crypto.randomUUID().replaceAll('-',''),status:args.preset==='quality'?'failed':'done',kind:'create',title:args.title};
+  if(job.status==='failed')Object.assign(job,{error:'系统交换空间增长超过安全阈值，已停止任务',stage:'系统交换空间增长超过安全阈值，已停止任务',resource:{id:job.id,engine:'yue2',stage:'blocked',submittedAt:Date.now(),reason:'PRESSURE_PROTECTION',message:'系统交换空间增长超过安全阈值，已停止任务'}});
+  jobs.push(job);return {job};
+ };
+ service.yue2Client.audio=async()=>wav;
+ const http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage();
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await service.call('create_project',{projectId:'music-retry',title:'音乐重试'});
+  const sound=await service.call('studio_create_sound',{projectId:'music-retry',title:'片段',kind:'music'});
+  const original=await service.call('studio_generate',{soundId:sound.id,text:'快乐的小提琴',lyrics:'[instrumental]',instrumental:true,preset:'quality'});
+  await page.goto(http.runtime.url);
+  await page.getByRole('button',{name:'查看内存状态',exact:true}).click();
+  await page.locator('#resource-status').filter({hasText:'应用上限'}).waitFor();await page.click('[data-action="close"]');
+  await page.getByRole('button',{name:'重新尝试',exact:true}).click();
+  assert.equal(await page.inputValue('#creation-text'),'快乐的小提琴');assert.equal(await page.inputValue('#preset'),'quality');
+  assert.equal(await page.inputValue('#lyrics'),'[instrumental]');assert.equal(await page.locator('[name="instrumental"][value="true"]').isChecked(),true);
+  await page.locator('details.advanced summary').click();await page.selectOption('#preset','fast');await page.click('#generate');
+  await page.locator('#version-audio').waitFor();
+  assert.deepEqual(requests.map(r=>r.preset),['quality','fast']);
+  const versions=(await service.call('studio_library',{})).versions,child=versions.find(v=>v.id!==original.id);
+  assert.equal(versions.length,2);assert.equal(child.parentId,original.id);assert.equal(child.state,'succeeded');
+  assert.equal(child.input.preset,'fast');assert.equal(child.input.text,original.input.text);
+  assert.equal(versions.find(v=>v.id===original.id).state,'failed');assert.equal(versions.find(v=>v.id===original.id).input.preset,'quality');
+  await page.reload();await page.locator('#version-audio').waitFor();assert.equal(await page.locator('.version-row').count(),2);assert.deepEqual(errors,[]);
+ }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});
 test('unified production UI: mixed project, real routes, versions, playback, drafts, comparison, trash, MIDI and responsive hierarchy',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-ui-'));const driver={installed:()=>true,prepare:async()=>{},cleanReference:async(_,req)=>{await writeFile(req.outputPath,wav);},generate:async(_,req,ctx)=>{await new Promise((resolve,reject)=>{const timer=setTimeout(resolve,2300);ctx.signal.addEventListener('abort',()=>{clearTimeout(timer);reject(Error('cancelled'));},{once:true});});await writeFile(req.outputPath,wav);}};
  const renderer=({composition})=>{const pcm=Float32Array.from({length:Math.round(composition.score.duration*44100)},(_,i)=>Math.sin(i*.1)*.2);return {result:Promise.resolve({wav:new Uint8Array(encodeWav([pcm,pcm],44100)),peak:.2,rms:.1,attenuation:1,engine:'test-pcm'}),cancel:()=>{}};};

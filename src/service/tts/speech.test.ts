@@ -10,6 +10,34 @@ const reference=new Uint8Array(encodeWav([Float32Array.from({length:22050},(_,i)
 const waitFor=async(check:()=>boolean)=>{for(let i=0;i<100&&!check();i++)await new Promise(r=>setTimeout(r,10));assert.ok(check());};
 async function fixture(driver:SpeechDriver){const root=await mkdtemp(join(tmpdir(),'music-speech-')),store=await ProjectStore.open(root);await store.createProject('film','短片');const speech=await SpeechService.open(store,driver);return {root,store,speech,close:async()=>{await speech.close();await store.close();await rm(root,{recursive:true,force:true});}};}
 const driver:SpeechDriver={installed:()=>true,prepare:async()=>{},generate:async(_dir,request)=>{await writeFile(request.outputPath,reference);}};
+test('failed, cancelled and interrupted speech can be retried without losing history or ownership checks',async()=>{
+ const f=await fixture({...driver,generate:async()=>{throw Error('原任务失败');}});
+ let reopened:SpeechService|undefined;
+ try{
+  const voice=f.speech.addVoice('参考',reference),sound=await f.speech.createSound('film','旁白');
+  const original=f.speech.generate({soundId:sound.id,voiceId:voice.id,text:'保留的正文',emotion:'平静',emotionStrength:'strong'});
+  await waitFor(()=>f.speech.job(original.id).state==='failed');
+  await f.speech.close();
+  const path=join(f.root,'speech','library.json'),data=JSON.parse(await readFile(path,'utf8'));
+  // A running record on disk represents a process that stopped before settling the task.
+  for(const state of ['cancelled','running'])data.versions.push({...data.versions[0],id:`speech-v-${state}`,number:data.versions.length+1,state});
+  await writeFile(path,JSON.stringify(data));
+  reopened=await SpeechService.open(f.store,driver);
+  const other=await reopened.createSound('film','另一个声音');
+  const sources=reopened.snapshot().versions;
+  assert.deepEqual(sources.map(v=>v.state),['failed','cancelled','interrupted']);
+  for(const source of sources){
+   const request={soundId:sound.id,voiceId:voice.id,text:'修改后的正文',emotion:source.emotion,emotionStrength:source.emotionStrength,parentId:source.id};
+   assert.throws(()=>reopened!.generate({...request,soundId:other.id}),{code:'INVALID_PARENT'});
+   const retried=reopened.generate(request);
+   await waitFor(()=>reopened!.job(retried.id).state==='succeeded');
+   assert.equal(retried.parentId,source.id);assert.notEqual(retried.id,source.id);
+   assert.equal(retried.emotionStrength,'strong');assert.deepEqual(reopened.job(source.id),source);
+   reopened.updateVersion(source.id,{deleted:true});
+   assert.throws(()=>reopened!.generate(request),{code:'INVALID_PARENT'});
+  }
+ }finally{await reopened?.close();await f.close();}
+});
 test('a generated seed is persisted, forwarded, and can replay a version after reopening',async()=>{
  const received:Array<number|undefined>=[];
  const traced:SpeechDriver={...driver,generate:async(_,request)=>{received.push(request.seed);await writeFile(request.outputPath,reference);}};
