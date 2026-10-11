@@ -39,7 +39,7 @@ for(const memoryFailure of [false,true])test(`failed speech retry restores requi
    await mkdir('test-results/studio',{recursive:true});
    await page.screenshot({path:'test-results/studio/memory-failure.png',fullPage:true});
   }
-  await page.getByRole('button',{name:memoryFailure?'重新尝试':'修改后重试',exact:true}).click();
+  await page.getByRole('button',{name:memoryFailure?'修改要求':'修改后重试',exact:true}).click();
   assert.equal(await page.inputValue('#creation-text'),'原来的正文');
   assert.equal(await page.inputValue('#voice'),voice.id);
   assert.equal(await page.inputValue('#emotion'),'平静');
@@ -56,6 +56,31 @@ for(const memoryFailure of [false,true])test(`failed speech retry restores requi
   assert.equal(await page.locator('.version-row').count(),2);assert.deepEqual(errors,[]);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
+test('music settings reflect enablement, show pending feedback and can enable again after stopping',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-music-enable-ui-'));
+ const assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources());
+ let enabled=false,fail=false,calls=0,release;const gate=new Promise(r=>release=r);
+ service.yue2.status=async()=>({phase:'stopped',canGenerate:enabled,installed:true,modelsReady:true,autoStart:enabled,message:enabled?'YuE2 已启用，生成时按需加载':'YuE2 尚未启用',logs:[],defaultDirectory:'/tmp/unused'});
+ service.yue2.start=async()=>{calls++;await gate;if(fail)throw Error('测试启用失败');enabled=true;return service.yue2.status();};
+ service.yue2.stop=async()=>{enabled=false;return service.yue2.status();};
+ const http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage();
+ try{
+  await page.goto(http.runtime.url);await page.click('[data-action="settings"]');
+  const button=page.locator('[data-action="start-music"]');assert.equal(await button.innerText(),'启用');
+  await button.click();await page.getByRole('button',{name:'启用中…',exact:true}).waitFor();assert.equal(await button.isDisabled(),true);
+  await page.waitForTimeout(1500);assert.equal(await button.isDisabled(),true);assert.equal(calls,1);
+  release();await page.getByRole('button',{name:'已启用',exact:true}).waitFor();assert.equal(await button.isDisabled(),true);
+  assert.match(await page.locator('#music-enable-help').innerText(),/创作窗口/);
+  await page.click('[data-action="close"]');await page.reload();await page.click('[data-action="settings"]');
+  assert.equal(await button.innerText(),'已启用');assert.equal(await button.isDisabled(),true);
+  await page.locator('details.advanced summary').click();await page.click('[data-action="stop-music"]');
+  await page.getByRole('button',{name:'启用',exact:true}).waitFor();assert.equal(await button.isEnabled(),true);
+  fail=true;await button.click();await page.locator('#toast').filter({hasText:'测试启用失败'}).waitFor();
+  assert.equal(await button.isEnabled(),true);assert.equal(await button.innerText(),'启用');
+  fail=false;await button.click();await page.getByRole('button',{name:'已启用',exact:true}).waitFor();assert.equal(calls,3);
+ }finally{release();await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});
 test('music pressure failure preserves quality requirements and submits a fast retry with history intact',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-music-retry-ui-'));
  const assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
@@ -65,7 +90,7 @@ test('music pressure failure preserves quality requirements and submits a fast r
  service.yue2Client.list=async()=>({jobs});
  service.yue2Client.generate=async args=>{
   requests.push(structuredClone(args));
-  const job={id:crypto.randomUUID().replaceAll('-',''),status:args.preset==='quality'?'failed':'done',kind:'create',title:args.title};
+  const job={id:crypto.randomUUID().replaceAll('-',''),status:requests.length===1?'failed':'done',kind:'create',title:args.title};
   if(job.status==='failed')Object.assign(job,{error:'系统交换空间增长超过安全阈值，已停止任务',stage:'系统交换空间增长超过安全阈值，已停止任务',resource:{id:job.id,engine:'yue2',stage:'blocked',submittedAt:Date.now(),reason:'PRESSURE_PROTECTION',message:'系统交换空间增长超过安全阈值，已停止任务'}});
   jobs.push(job);return {job};
  };
@@ -79,7 +104,7 @@ test('music pressure failure preserves quality requirements and submits a fast r
   await page.goto(http.runtime.url);
   await page.getByRole('button',{name:'查看内存状态',exact:true}).click();
   await page.locator('#resource-status').filter({hasText:'应用上限'}).waitFor();await page.click('[data-action="close"]');
-  await page.getByRole('button',{name:'重新尝试',exact:true}).click();
+  await page.getByRole('button',{name:'修改要求',exact:true}).click();
   assert.equal(await page.inputValue('#creation-text'),'快乐的小提琴');assert.equal(await page.inputValue('#preset'),'quality');
   assert.equal(await page.inputValue('#lyrics'),'[instrumental]');assert.equal(await page.locator('[name="instrumental"][value="true"]').isChecked(),true);
   await page.locator('details.advanced summary').click();await page.selectOption('#preset','fast');await page.click('#generate');
@@ -89,7 +114,20 @@ test('music pressure failure preserves quality requirements and submits a fast r
   assert.equal(versions.length,2);assert.equal(child.parentId,original.id);assert.equal(child.state,'succeeded');
   assert.equal(child.input.preset,'fast');assert.equal(child.input.text,original.input.text);
   assert.equal(versions.find(v=>v.id===original.id).state,'failed');assert.equal(versions.find(v=>v.id===original.id).input.preset,'quality');
-  await page.reload();await page.locator('#version-audio').waitFor();assert.equal(await page.locator('.version-row').count(),2);assert.deepEqual(errors,[]);
+  await page.locator(`[data-action="version"][data-id="${original.id}"]`).click();
+  const retry=page.getByRole('button',{name:'重试生成',exact:true});assert.match(await retry.getAttribute('class'),/primary/);
+  for(const width of [1440,390]){
+   await page.setViewportSize({width,height:1000});
+   const rect=await retry.boundingBox();assert.ok(rect.height>=44);assert.ok(rect.x>=0&&rect.x+rect.width<=width);
+   assert.equal(await page.locator('.failure-actions button').first().innerText(),'重试生成');
+   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  }
+  await page.setViewportSize({width:1440,height:1000});await mkdir('test-results/studio',{recursive:true});await page.screenshot({path:'test-results/studio/retry-actions-desktop.png',fullPage:true});
+  await retry.click();await page.locator('#version-audio').waitFor();assert.equal(await page.locator('dialog').evaluate(d=>d.open),false);
+  assert.deepEqual(requests.map(r=>r.preset),['quality','fast','quality']);
+  const repeated=(await service.call('studio_library',{})).versions.find(v=>v.id!==original.id&&v.id!==child.id);
+  assert.equal(repeated.parentId,original.id);assert.deepEqual(repeated.input,{...original.input,parentId:original.id});
+  await page.reload();await page.locator('#version-audio').waitFor();assert.equal(await page.locator('.version-row').count(),3);assert.deepEqual(errors,[]);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
 test('unified production UI: mixed project, real routes, versions, playback, drafts, comparison, trash, MIDI and responsive hierarchy',async()=>{

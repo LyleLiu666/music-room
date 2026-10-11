@@ -44,6 +44,11 @@ try {
   assert.equal(createHash('sha256').update(nativeBytes).digest('hex'),nativeProgramManifest.archiveSha256);
   results.push('patched native TTS package is embedded and matches the pinned archive SHA-256');
   if(process.platform==='darwin'){
+    const footprintManifestResponse=await fetch(runtime.url+'/resource-native/manifest.json');assert.equal(footprintManifestResponse.status,200);
+    const footprintManifest=await footprintManifestResponse.json();
+    const footprintResponse=await fetch(runtime.url+'/resource-native/'+footprintManifest.program);assert.equal(footprintResponse.status,200);
+    assert.equal(createHash('sha256').update(new Uint8Array(await footprintResponse.arrayBuffer())).digest('hex'),footprintManifest.programSha256);
+    results.push('kernel footprint sampler is embedded and matches its manifest hash');
     const speedManifestResponse=await fetch(runtime.url+'/speed-native/manifest.json');assert.equal(speedManifestResponse.status,200);
     const manifest=await speedManifestResponse.json();assert.equal(manifest.engine,'Rubber Band R3');assert.equal(manifest.revision,'1d95888bec3ae0a17c0c4af791810d5a63f6bc35');
     for(const [path,sha] of [[manifest.program,manifest.programSha256],[manifest.source,manifest.sourceSha256]]){

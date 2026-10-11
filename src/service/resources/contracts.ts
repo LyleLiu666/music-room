@@ -38,7 +38,7 @@ export type ResourceStage = 'queued' | 'waiting_resources' | 'loading' | 'runnin
   'succeeded' | 'failed' | 'cancelled' | 'blocked';
 export type ResourceTaskState = {
   id: string; engine: string; stage: ResourceStage; submittedAt: number;
-  reason?: ResourceReason; message?: string;peak?:Record<string,number>;
+  reason?: ResourceReason; message?: string;diagnostic?:string;peak?:Record<string,number>;
 };
 export type ResidentModel = {engine: string; loaded:boolean; estimatedBytes?:Record<string, number>};
 export type ResourceAdapter = {

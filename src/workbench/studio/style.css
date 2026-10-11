@@ -2678,3 +2678,8 @@ pre {
 dialog[data-mode="score-tools"] { width:min(1220px,calc(100vw - 32px)); max-width:calc(100vw - 32px); }
 dialog[data-mode="score-tools"] .dialog-body { padding:20px; }
 @media(max-width:600px){dialog[data-mode="score-tools"] .dialog-body{padding:12px}dialog[data-mode="score-tools"] .dialog-heading h2{font-size:16px;line-height:1.5}}
+
+.failure-actions { display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin-top:16px; }
+.failure-actions button { min-height:44px; }
+.failure-details { margin-top:16px; color:var(--muted); }
+@media (max-width:600px) { .failure-actions .primary { flex-basis:100%; } }

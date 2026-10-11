@@ -13,15 +13,15 @@ export function parsePressure(capacity:number,free:string,level:string):Hardware
 export function parseFootprint(text:string){const match=text.match(/^Physical footprint:\s*([\d.]+)([KMGT])/m);if(!match)throw new Error('无法读取进程物理占用');const bytes=Math.ceil(Number(match[1])*({K:1024,M:2**20,G:2**30,T:2**40}[match[2]]??NaN));if(!Number.isSafeInteger(bytes)||bytes<0)throw new Error('进程占用指标无效');return bytes;}
 export function parseSwap(text:string){const match=text.match(/used\s*=\s*([\d.]+)([KMGT])/),bytes=Math.ceil(Number(match?.[1])*({K:1024,M:2**20,G:2**30,T:2**40}[match?.[2]??'']??NaN));if(!Number.isSafeInteger(bytes)||bytes<0)throw Error('交换空间指标无效');return bytes;}
 export async function physicalBytes(pid:number){return parseFootprint(await commandOutput('/usr/bin/vmmap',['-summary',String(pid)]));}
-export async function probeHardware():Promise<HardwareSnapshot>{
+export async function probeHardware(measure:(pid:number)=>Promise<number>=physicalBytes):Promise<HardwareSnapshot>{
  if(process.platform!=='darwin'||process.arch!=='arm64'){const capacity=totalmem(),available=freemem();return {supported:true,topology:'cpu',sampledAt:Date.now(),pressure:available<Math.max(2**30,capacity*.1)?'critical':'normal',pools:[{id:'memory',capacity,available,owned:process.memoryUsage().rss}]};}
- const [free,level,owned,swap]=await Promise.all([commandOutput('/usr/bin/memory_pressure',['-Q']),commandOutput('/usr/sbin/sysctl',['-n','kern.memorystatus_vm_pressure_level']),physicalBytes(process.pid),commandOutput('/usr/sbin/sysctl',['vm.swapusage'])]);
+ const [free,level,owned,swap]=await Promise.all([commandOutput('/usr/bin/memory_pressure',['-Q']),commandOutput('/usr/sbin/sysctl',['-n','kern.memorystatus_vm_pressure_level']),measure(process.pid),commandOutput('/usr/sbin/sysctl',['vm.swapusage'])]);
  const snapshot=parsePressure(totalmem(),free,level);snapshot.pools[0].owned=owned;snapshot.swapUsed=parseSwap(swap);return snapshot;
 }
 
-export async function observeProcesses(groups:number[],baseline:HardwareSnapshot){
+export async function observeProcesses(groups:number[],baseline:HardwareSnapshot,measure:(pid:number)=>Promise<number>=physicalBytes){
  const pids=new Set<number>([process.pid]);for(const group of groups)for(const pid of groupMembers(group))pids.add(pid);
- const values=await Promise.all([...pids].map(async pid=>{const identity=processIdentity(pid);if(!identity)return 0;try{return await physicalBytes(pid);}catch(error){if(!processIdentity(pid))return 0;throw error;}}));
+ const values=await Promise.all([...pids].map(async pid=>{const identity=processIdentity(pid);if(!identity)return 0;try{return await measure(pid);}catch(error){if(!processIdentity(pid))return 0;throw error;}}));
  const [free,level,swap]=await Promise.all([commandOutput('/usr/bin/memory_pressure',['-Q']),commandOutput('/usr/sbin/sysctl',['-n','kern.memorystatus_vm_pressure_level']),commandOutput('/usr/sbin/sysctl',['vm.swapusage'])]);
  const current=parsePressure(totalmem(),free,level);return {usage:{memory:Math.max(0,values.reduce((a,b)=>a+b,0)-(baseline.pools.find(p=>p.id==='memory')?.owned??0))},swapUsed:parseSwap(swap),pressure:current.pressure};
 }

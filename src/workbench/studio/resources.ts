@@ -3,11 +3,11 @@ import type {ResourceTaskState} from '../../service/resources/contracts.ts';
 export const resourceEngineNames:Record<string,string>={tts:'语音',reference:'参考清理',conversion:'音色转换',yue2:'音乐',render:'乐谱合成',speed:'调速',installation:'安装准备',import:'音频导入'};
 const escape=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 /** Recovery follows the backend reason code, never guesses from an error's wording. */
-export function resourceFailure(resource:Pick<ResourceTaskState,'reason'|'message'>|undefined,music:boolean){
- if(!resource?.reason||!['PRESSURE_PROTECTION','PEAK_EXCEEDED','INSUFFICIENT_CAPACITY'].includes(resource.reason))return '';
- const title=resource.reason==='INSUFFICIENT_CAPACITY'?'当前内存额度不足以运行此模型':'为保护电脑，生成已停止';
- const advice=resource.reason==='INSUFFICIENT_CAPACITY'?'请查看本机内存与应用上限，确认是否满足模型需求。':resource.reason==='PEAK_EXCEEDED'?'任务占用超过已验证的内存预算。请尝试减少生成内容；如果仍然失败，需要核查模型的内存预算。':'运行时触发了内存保护。请先关闭暂时不用的应用，查看内存状态，待压力恢复正常后再尝试。';
- return `<div class="empty-player"><span>◌</span><div><strong>${title}</strong><p>${advice}${music?'也可在生成偏好中改用“较快尝试”，但仍需满足内存要求。':''}创作要求已保留，无需重写。</p>${resource.message?`<details><summary>技术详情</summary><p>${escape(resource.message)}</p></details>`:''}<button class="quiet" data-action="iterate">重新尝试</button></div><button class="secondary" data-action="settings">查看内存状态</button></div>`;
+export function resourceFailure(resource:Pick<ResourceTaskState,'reason'|'message'|'diagnostic'>|undefined,music:boolean,canRetry=true){
+ if(!resource?.reason||!['PRESSURE_PROTECTION','PEAK_EXCEEDED','INSUFFICIENT_CAPACITY','RESOURCE_TELEMETRY_UNAVAILABLE'].includes(resource.reason))return '';
+ const title=resource.reason==='RESOURCE_TELEMETRY_UNAVAILABLE'?'内存监测失败，生成已停止':resource.reason==='INSUFFICIENT_CAPACITY'?'当前内存额度不足以运行此模型':'为保护电脑，生成已停止';
+ const advice=resource.reason==='RESOURCE_TELEMETRY_UNAVAILABLE'?'程序未能可靠读取内存数据，已停止任务。无需修改创作内容；请查看技术详情中的监测错误。':resource.reason==='INSUFFICIENT_CAPACITY'?'请查看本机内存与应用上限，确认是否满足模型需求。':resource.reason==='PEAK_EXCEEDED'?'任务占用超过已验证的内存预算。请尝试减少生成内容；如果仍然失败，需要核查模型的内存预算。':'运行时触发了内存保护。请先关闭暂时不用的应用，查看内存状态，待压力恢复正常后再尝试。';
+ return `<div class="empty-player"><span>◌</span><div><strong>${title}</strong><p>${advice}${music&&resource.reason!=='RESOURCE_TELEMETRY_UNAVAILABLE'?'也可在“修改要求”中改用“较快尝试”，但仍需满足内存要求。':''}创作要求已保留，无需重写。</p><div class="failure-actions">${canRetry?'<button class="primary" data-action="retry-generation">重试生成</button><button class="secondary" data-action="iterate">修改要求</button>':'<button class="primary" data-action="iterate">修改后重试</button>'}<button class="quiet" data-action="settings">查看内存状态</button></div>${resource.message?`<details class="failure-details"><summary>技术详情</summary><p>${escape(resource.message)}${resource.diagnostic?`<br>${escape(resource.diagnostic)}`:''}</p></details>`:''}</div></div>`;
 }
 const gib=(bytes:number)=>`${(bytes/2**30).toFixed(1)} GiB`;
 const stages:Record<string,string>={queued:'排队中',waiting_resources:'等待资源',loading:'加载中',running:'处理中',cancelling:'正在取消',succeeded:'完成',blocked:'已阻止',failed:'失败',cancelled:'已取消'};

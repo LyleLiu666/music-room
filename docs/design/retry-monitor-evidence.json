@@ -1,0 +1,51 @@
+{
+  "date": "2026-10-11",
+  "hardware": "Apple M4, 32 GiB unified memory, macOS",
+  "reproduction": {
+    "preset": "quality",
+    "style": "快乐的，灵动的，有小提琴的，大草原辽阔感的",
+    "phase": "semantic",
+    "reason": "RESOURCE_TELEMETRY_UNAVAILABLE",
+    "samplingCommand": "Command failed: /usr/bin/vmmap -summary 83586",
+    "elapsedMs": 3399,
+    "killed": true,
+    "code": 255
+  },
+  "fixed": {
+    "binarySha256": "551524b45a31aeccbbcb9e7ddd3689985bc0d128b8786bba28ce19a89c7b5f26",
+    "versionId": "version-06a41602-6619-42a4-8e1e-9a78268e73c1",
+    "sourceId": "c325591357c8459b86deec3dfa71ec84",
+    "parentId": "version-597b7f97-65d4-423c-9478-23d8e8a7305d",
+    "input": {
+      "soundId": "sound-83d431d8-4485-43e2-81da-e2b71321f683",
+      "text": "快乐的，灵动的，有小提琴的，大草原辽阔感的",
+      "voiceId": "voice-e4a71115-e247-4bf2-a826-289d39386c72",
+      "lyrics": "",
+      "instrumental": true,
+      "preset": "quality",
+      "parentId": "version-597b7f97-65d4-423c-9478-23d8e8a7305d"
+    },
+    "peak": {
+      "memory": 7208489544
+    },
+    "analysis": {
+      "seconds": 135.55866666666665,
+      "sampleRate": 48000,
+      "channels": 2,
+      "peak": 1,
+      "rms": 0.23839015937332655,
+      "finite": true
+    },
+    "bytes": 25851534,
+    "checks": [
+      "installed binary",
+      "actual saved input quality retry",
+      "primary retry button desktop and mobile",
+      "enabled settings state",
+      "all real inference stages",
+      "finite non-silent FLAC",
+      "browser playback"
+    ],
+    "errors": []
+  }
+}

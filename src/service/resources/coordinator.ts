@@ -13,6 +13,7 @@ export type CoordinatorOptions = {
   policy: ResourcePolicy;
   now?: () => number;
   monitorMs?:number;
+  dispose?:()=>Promise<void>;
   observe?:(pids:number[],baseline:HardwareSnapshot)=>Promise<{usage:Record<string,number>;swapUsed?:number;pressure:HardwareSnapshot['pressure']}>;
   lease?: ResourceLease;
   estimate?: (engine: string, input: unknown) => import('./contracts.ts').ResourceDemand;
@@ -122,9 +123,9 @@ export class ResourceCoordinator {
     let stopped=false,timer:ReturnType<typeof setTimeout>|undefined,pending=Promise.resolve();
     const tick=()=>{pending=(async()=>{if(!this.options.observe||stopped)return;try{const result=await this.options.observe([...pids],baseline);if(stopped)return;this.observation=result;for(const pool of Object.keys(this.reservations))if(!Number.isFinite(result.usage[pool]))throw new Error('缺少占用指标');
       for(const [pool,bytes] of Object.entries(result.usage)){if(!Number.isFinite(bytes)||bytes<0)throw new Error('占用指标无效');entry.state.peak??={};entry.state.peak[pool]=Math.max(entry.state.peak[pool]??0,bytes);if(bytes>(this.reservations[pool]??0))throw new ResourceError('PEAK_EXCEEDED','任务实际占用超过内存预算，已停止');}
-      if(baseline.swapUsed!==undefined){if(!Number.isFinite(result.swapUsed))throw new Error('缺少交换空间指标');if(result.swapUsed!-baseline.swapUsed>=512*2**20)throw new ResourceError('PRESSURE_PROTECTION','系统交换空间增长超过安全阈值，已停止任务');}
+      if(baseline.swapUsed!==undefined){if(!Number.isFinite(result.swapUsed))throw new Error('缺少交换空间指标');if(result.swapUsed!-baseline.swapUsed>=512*2**20&&result.pressure!=='normal')throw new ResourceError('PRESSURE_PROTECTION','系统交换空间增长超过安全阈值，已停止任务');}
       if(result.pressure==='critical')throw new ResourceError('PRESSURE_PROTECTION','系统内存压力过高，已停止任务');if(result.pressure==='unknown')throw new Error('压力指标无效');
-    }catch(error){if(!stopped&&!entry.controller.signal.aborted)entry.controller.abort(error instanceof ResourceError?error:new ResourceError('RESOURCE_TELEMETRY_UNAVAILABLE','运行期间无法确认内存占用，已停止任务'));}
+    }catch(error){if(!stopped&&!entry.controller.signal.aborted){if(!(error instanceof ResourceError))entry.state.diagnostic=(error instanceof Error?error.message:String(error)).slice(0,2000);entry.controller.abort(error instanceof ResourceError?error:new ResourceError('RESOURCE_TELEMETRY_UNAVAILABLE','运行期间无法确认内存占用，已停止任务'));}}
     finally{if(!stopped)timer=setTimeout(tick,this.options.monitorMs??1000);}})();};
     if(this.options.observe)tick();return async()=>{stopped=true;if(timer)clearTimeout(timer);await pending;};
   }
@@ -217,6 +218,7 @@ export class ResourceCoordinator {
       for (const [engine, a] of this.adapters) {
         try {if (a.resident()) await this.unload(engine, a);} catch (error) {failure ??= error;}
       }
+      try{await this.options.dispose?.();}catch(error){failure??=error;}
       if (failure) throw failure;
     })();
     return this.closing;

@@ -10,3 +10,5 @@ release/
 
 # UI review scratch
 .ui-review/
+
+public/resource-native/
