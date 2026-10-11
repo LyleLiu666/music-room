@@ -24,7 +24,7 @@ file.addEventListener('change',resetRequest);select.addEventListener('change',re
 function button(label:string,action:()=>Promise<void>){const b=document.createElement('button');b.type='button';b.textContent=label;b.addEventListener('click',()=>{b.disabled=true;clearError();void action().catch(report).finally(()=>{b.disabled=false;});});return b;}
 async function audio(job:Job,kind:'original'|'converted'|'vocals',download:boolean){
  if(!backend)return;const sequence=download?0:++audioSequence;
- const response=await fetch(`/conversion/audio/${encodeURIComponent(job.id)}/${kind}`,{headers:{authorization:`Bearer ${backend.bootstrap.token}`}});
+ const response=await backend.request(`/conversion/audio/${encodeURIComponent(job.id)}/${kind}`,{});
  if(!response.ok)throw Error('音频暂时无法读取，请稍后重试');const blob=await response.blob();if(!download&&sequence!==audioSequence)return;const url=URL.createObjectURL(blob);
  const label={original:'原始音频',converted:'转换结果',vocals:'转换人声'}[kind];
  if(download){const a=document.createElement('a');a.href=url;a.download=kind==='original'?job.name:`${job.name.replace(/\.[^.]+$/,'')}-${label}.wav`;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);return;}
@@ -55,6 +55,6 @@ async function refresh(){
  }catch(e){ready=false;status.textContent='暂时无法连接本地服务，正在重试。已提交的任务由后台保留。';}finally{polling=false;updateSubmit();updatePages();if(revision!==pageRevision)void refresh();}
 }
 document.querySelector('form')!.addEventListener('submit',event=>{event.preventDefault();void (async()=>{if(!backend||uploading)return;const source=file.files?.[0];if(!source||!select.value)return;if(source.size>200*1024*1024)throw Error('音频超过 200 MB，请选择较小的文件');if(!/\.(wav|mp3|m4a|flac|aiff|aif)$/i.test(source.name))throw Error('请选择 WAV、MP3、M4A、FLAC 或 AIFF 音频');uploading=true;updateSubmit();submit.textContent='正在上传…';clearError();
- try{const query=new URLSearchParams({name:source.name,voiceId:select.value,requestId});const response=await fetch(`/conversion/upload?${query}`,{method:'POST',headers:{authorization:`Bearer ${backend.bootstrap.token}`,'content-type':'application/octet-stream'},body:source});const result=await response.json();if(!response.ok)throw Error(result.message??'上传失败，请重试');requestId=crypto.randomUUID();file.value='';await changePage(1);}finally{uploading=false;submit.textContent='开始转换';updateSubmit();}})().catch(report);});
+ try{const query=new URLSearchParams({name:source.name,voiceId:select.value,requestId});const response=await backend.request(`/conversion/upload?${query}`,{method:'POST',headers:{'content-type':'application/octet-stream'},body:source});const result=await response.json();if(!response.ok)throw Error(result.message??'上传失败，请重试');requestId=crypto.randomUUID();file.value='';await changePage(1);}finally{uploading=false;submit.textContent='开始转换';updateSubmit();}})().catch(report);});
 if(backend){void refresh();setInterval(()=>void refresh(),1500);}else{status.textContent='请通过 Music Room 本地服务打开此页面。';}
 window.addEventListener('pagehide',()=>{audioSequence++;if(audioUrl)URL.revokeObjectURL(audioUrl);});

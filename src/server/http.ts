@@ -28,6 +28,10 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
         const candidate=Buffer.from(req.headers.authorization??''),expected=Buffer.from(`Bearer ${token}`);
         if(candidate.length!==expected.length || !timingSafeEqual(candidate,expected)){json(res,401,{code:'UNAUTHORIZED',message:'需要本地访问令牌'});return;}
       }
+      if(path==='/local-session') {
+        if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
+        json(res,200,{token,url:runtime.url,workspace:runtime.workspace,mcp:{mcpServers:{'music-room':{command:runtime.command,args:[...runtime.args,'mcp','--workspace',runtime.workspace]}}}});return;
+      }
       if(path==='/mcp') {
         if(req.method!=='POST'){res.writeHead(405,{allow:'POST'});res.end();return;}
         const body=await readJSON();
