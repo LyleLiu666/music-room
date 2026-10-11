@@ -16,7 +16,7 @@ test('music player keeps desktop controls in one row and mobile controls reachab
  const assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
  const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources());
  const jobs=[];
- service.yue2.status=async()=>({phase:'running',canGenerate:true,installed:true,modelsReady:true,message:'就绪',logs:[],autoStart:true,defaultDirectory:'/tmp/unused'});
+ service.yue2.inspectInput=async()=>({prefixTokens:200,planningTokens:4098,semanticTokens:9000,contextTokens:24576,requiredTokens:13298,remainingTokens:11278});service.yue2.status=async()=>({phase:'running',canGenerate:true,installed:true,modelsReady:true,message:'就绪',logs:[],autoStart:true,defaultDirectory:'/tmp/unused'});
  service.yue2Client.list=async()=>({jobs});
  service.yue2Client.generate=async args=>{const job={id:crypto.randomUUID().replaceAll('-',''),status:'done',kind:'create',title:args.title,truncated:{abc:false,semantic:false}};jobs.push(job);return {job};};
  service.yue2Client.audio=async()=>Buffer.from(encodeWav([Float32Array.from({length:22050*20},(_,i)=>Math.sin(i*.1)*.05)],22050));

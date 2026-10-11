@@ -139,3 +139,35 @@ test('purged imported music stays gone when the engine reports it again; later n
   jobs.push({id:'b'.repeat(32),status:'done',kind:'create',title:'新配乐'});await svc.close();svc=await open(root);connect();d=await svc.call('studio_library',{});assert.equal(d.projects.length,1);assert.equal(d.versions.length,1);assert.equal(d.versions[0].source.id,jobs[1].id);assert.notEqual(d.projects[0].id,p.id);assert.equal(d.projects[0].deleted,undefined);
  }finally{await svc.close();await rm(root,{recursive:true,force:true});}
 });
+
+test('music creation preserves independent structure, actual seed and ABC through versions and restart',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-music-controls-'));let svc=await open(root);const calls:any[]=[];
+ try{
+  svc.yue2.status=async()=>({canGenerate:true}) as any;
+  svc.yue2Client.generate=async input=>{calls.push(input);return {job:{id:'a'.repeat(32),status:'queued',kind:'create'}};};
+  await svc.call('create_project',{projectId:'film',title:'短片'});const s=await svc.call('studio_create_sound',{projectId:'film',title:'音乐',kind:'music'});
+  const input={soundId:s.id,text:'piano',structure:'[Intro]\n[Verse]\n[Outro]',lyrics:'旧歌词不能被唱出',instrumental:true,seed:0,abc:'X:1\nM:4/4\nL:1/4\nK:C\nC D E F|'};
+  const v=await svc.call('studio_generate',input);
+  assert.equal(calls[0].lyrics,input.structure);assert.equal(calls[0].seed,0);assert.equal(calls[0].abc,input.abc);assert.equal(v.input?.structure,input.structure);
+  await svc.call('studio_generate',{...input,instrumental:false,seed:undefined,abc:undefined});
+  assert.equal(calls[1].lyrics,input.lyrics);assert.ok(Number.isInteger(calls[1].seed));
+  const draft=(await svc.call('studio_library',{})).versions.at(-1)!.input!;assert.equal(draft.seed,calls[1].seed);
+  await svc.close();svc=await open(root);const restored=(await svc.call('studio_library',{})).versions.find(x=>x.id===v.id)!;assert.equal(restored.input?.seed,0);assert.equal(restored.input?.abc,input.abc);
+ }finally{await svc.close();await rm(root,{recursive:true,force:true});}
+});
+
+test('music phase progress reaches both selected versions and global background tasks',async t=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-music-progress-'));const svc=await open(root);let now=Date.parse('2026-10-11T14:52:30Z');
+ t.mock.method(Date,'now',()=>now);
+ try{
+  const job={id:'a'.repeat(32),kind:'create',status:'running' as const,started_at:'2026-10-11T14:40:59Z',checkedAt:now,progress:{type:'stage',stage:'synthesize',completed:12,total:32,unit:'steps',seconds:333.312,ts:'2026-10-11T14:52:28Z'}};
+  svc.yue2.status=async()=>({canGenerate:true}) as any;
+  let submitted=false;svc.yue2Client.generate=async()=>{submitted=true;return {job};};svc.yue2Client.list=async()=>({jobs:submitted?[job]:[]});
+  await svc.call('create_project',{projectId:'film',title:'短片'});const sound=await svc.call('studio_create_sound',{projectId:'film',title:'音乐',kind:'music'});
+  const version=await svc.call('studio_generate',{soundId:sound.id,text:'piano'});now+=3000;
+  const library=await svc.call('studio_library',{});
+  assert.equal(library.versions.find(v=>v.id===version.id)?.musicProgress?.completed,12);
+  assert.equal(library.backgroundVersions.find(v=>v.id===version.id)?.musicProgress?.startedAt,Date.parse(job.started_at));
+  job.status='done' as any;now+=3000;const done=await svc.call('studio_library',{});assert.equal(done.versions.find(v=>v.id===version.id)?.musicProgress,undefined);assert.equal(done.backgroundVersions.length,0);
+ }finally{await svc.close();await rm(root,{recursive:true,force:true});}
+});

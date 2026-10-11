@@ -11,15 +11,15 @@ import {testResources} from '../resources/testing.ts';
 const delay=()=>new Promise(r=>setTimeout(r,5));
 async function fixture(t:any){
  const root=await mkdtemp(join(tmpdir(),'managed-yue-')),directory=join(root,'engine');
- let launches=0,stops=0,submits=0,done=false;
+ let launches=0,stops=0,submits=0,done=false,progress:Record<string,unknown>|undefined;
  const upstream='a'.repeat(32),resources=testResources(),store=await ProjectStore.open(join(root,'workspace'));
- const server=createServer(async(req,res)=>{let body='';for await(const p of req)body+=p;res.setHeader('content-type','application/json');if(req.url==='/api/jobs'&&req.method==='POST')submits++;res.end(JSON.stringify({job:{id:upstream,kind:'create',status:done?'done':'running'}}));});
+ const server=createServer(async(req,res)=>{let body='';for await(const p of req)body+=p;res.setHeader('content-type','application/json');if(req.url==='/api/jobs'&&req.method==='POST')submits++;res.end(JSON.stringify({job:{id:upstream,kind:'create',status:done?'done':'running',progress}}));});
  await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
  const driver={unsupported:()=>undefined,installed:()=>true,modelsReady:()=>true,chooseDirectory:async()=>directory,prepare:async()=>{},launch:async()=>{launches++;let end!:(n:number)=>void;return {url:`http://127.0.0.1:${(server.address() as any).port}`,exited:new Promise<number>(r=>end=r),status:async()=>({modelsPresent:true,fake:false}),stop:async()=>{stops++;end(0);}};}};
  const engine=await YuE2Engine.open(store,driver,resources);await engine.prepare(directory,true);for(let i=0;i<100&&(await engine.status()).phase==='preparing';i++)await delay();
  const client=new YuE2Client(engine,store,resources);
  t.after(async()=>{await client.close();await resources.close();await engine.close();await store.close();await new Promise<void>(r=>server.close(()=>r()));await rm(root,{recursive:true,force:true});});
- return {root,directory,engine,client,resources,store,counts:()=>({launches,stops,submits}),complete:async(truncated?:{abc:boolean;semantic:boolean})=>{await mkdir(join(directory,'data/songs',upstream,'song'),{recursive:true});await writeFile(join(directory,'data/songs',upstream,'song/audio.flac'),'fLaC test');if(truncated)await writeFile(join(directory,'data/songs',upstream,'summary.json'),JSON.stringify({truncated}));done=true;}};
+ return {root,directory,engine,client,resources,store,setProgress:(value:Record<string,unknown>)=>{progress=value;},counts:()=>({launches,stops,submits}),complete:async(truncated?:{abc:boolean;semantic:boolean})=>{await mkdir(join(directory,'data/songs',upstream,'song'),{recursive:true});await writeFile(join(directory,'data/songs',upstream,'song/audio.flac'),'fLaC test');if(truncated)await writeFile(join(directory,'data/songs',upstream,'summary.json'),JSON.stringify({truncated}));done=true;}};
 }
 test('managed music is lazy, serialized, and reads completed audio after unloading',async t=>{
  const f=await fixture(t);assert.equal((await f.engine.status()).canGenerate,true);await f.engine.start();assert.equal(f.counts().launches,0);
@@ -61,4 +61,29 @@ test('resource admission counts the full ending guidance rather than only the or
  assert.ok(measured.style.length>1000);assert.match(measured.lyrics,/\[outro\]/);
  for(let i=0;i<100&&(await f.client.job(result.job.id)).job.status==='queued';i++)await delay();
  assert.equal(f.counts().submits,0);
+});
+
+test('model context overflow is rejected before loading or creating an upstream job',async t=>{
+ const f=await fixture(t);
+ f.engine.inspectInput=async()=>({prefixTokens:12000,planningTokens:4098,semanticTokens:9000,contextTokens:24576,requiredTokens:25098,remainingTokens:-522,issue:'创作内容超过模型上下文容量'});
+ await assert.rejects(f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true}),/上下文/);
+ assert.equal(f.counts().launches,0);assert.equal(f.counts().submits,0);
+});
+
+test('saved ABC is read as a copy and rejects symbolic-link artifacts',async t=>{
+ const f=await fixture(t);const result=await f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true});
+ await f.complete();for(let i=0;i<200&&(await f.client.job(result.job.id)).job.status!=='done';i++)await delay();
+ const path=join(f.directory,'data/songs','a'.repeat(32),'song/score.abc'),abc='X:1\nM:4/4\nK:C\nC D E F|';await writeFile(path,abc);
+ assert.equal(await f.client.score(result.job.id),abc);
+ const {symlink}=await import('node:fs/promises');await rm(path);await symlink(join(f.directory,'installed.json'),path);
+ await assert.rejects(f.client.score(result.job.id));assert.equal(f.counts().submits,1);
+});
+
+test('engine responses refresh independently of actual model progress',async t=>{
+ const f=await fixture(t);const progress={type:'stage',stage:'synthesize',completed:12,total:32,unit:'steps',seconds:333.312,ts:'2026-10-11T14:52:28Z'};f.setProgress(progress);
+ const result=await f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true});
+ let first=await f.client.job(result.job.id);for(let i=0;i<100&&!first.job.checkedAt;i++){await delay();first=await f.client.job(result.job.id);}
+ assert.ok(first.job.checkedAt);assert.equal(first.job.progress?.ts,progress.ts);
+ await new Promise(r=>setTimeout(r,350));const next=await f.client.job(result.job.id);assert.ok(next.job.checkedAt!>first.job.checkedAt!);assert.deepEqual(next.job.progress,first.job.progress);
+ assert.equal((await f.client.list()).jobs.find(j=>j.id===result.job.id)?.checkedAt,next.job.checkedAt);
 });

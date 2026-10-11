@@ -19,7 +19,14 @@ export function estimateResources(engine:string,input:any):ResourceDemand{
  if(engine==='speed'){const seconds=input?.duration,rate=input?.rate;if(Number.isFinite(seconds)&&seconds>0&&seconds<=600&&Number.isFinite(rate)&&rate>=.5&&rate<=2){peak=Math.ceil(512*2**20+seconds*96000*2*(12+10/rate));verified=true;}}
  if(engine==='tts'&&match(input?.resourceProfile,ttsProfile)&&typeof input?.text==='string'&&input.text.trim().length>0&&input.text.length<=8000){peak=6*2**30;verified=true;}
  // Fixed runtime measurements and bounded input contracts: see docs/design/model-resource-evidence.json.
- if(engine==='yue2'&&match(input?.resourceProfile,yueProfile)&&['fast','quality'].includes(input?.preset)&&typeof input?.instrumental==='boolean'&&typeof input?.style==='string'&&input.style.length<=1000&&typeof input?.lyrics==='string'&&input.lyrics.length<=2000){peak=14*2**30;verified=true;}
+ if(engine==='yue2'&&match(input?.resourceProfile,yueProfile)&&['fast','quality'].includes(input?.preset)&&typeof input?.instrumental==='boolean'){
+  const c=input?.context;
+  if(c&&c.contextTokens===24576&&Number.isSafeInteger(c.prefixTokens)&&c.prefixTokens>=0&&Number.isSafeInteger(c.planningTokens)&&c.planningTokens>=0&&c.semanticTokens===9000&&c.prefixTokens+c.planningTokens+c.semanticTokens<=c.contextTokens){
+   // Fixed-runtime baseline plus worst-case BF16 K/V cache for both CFG branches:
+   // 28 layers × 8 KV heads × 128 dimensions × K/V × 2 bytes × 2 branches.
+   peak=14*2**30+c.prefixTokens*229376;verified=true;
+  }
+ }
  if(engine==='reference'&&match(input?.resourceProfile,referenceProfile)&&Number.isFinite(input?.duration)&&input.duration>=.3&&input.duration<=15.1){peak=8*2**30;verified=true;}
  if(engine==='conversion'&&match(input?.resourceProfile,conversionProfile)){peak=10*2**30;verified=true;}
  return {verified,peak:{memory:peak}};

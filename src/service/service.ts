@@ -61,6 +61,7 @@ export class MusicService {
     tts_get_version:async args=>this.speech.job(args.versionId),tts_cancel:async args=>this.speech.cancel(args.versionId),tts_update_version:async args=>this.speech.updateVersion(args.versionId,args),
     yue2_status:async()=>this.yue2.status(),yue2_choose_directory:async()=>this.yue2.chooseDirectory(),
     prepare_yue2:async args=>this.yue2.prepare(args.directory,args.downloadModels),start_yue2:async()=>this.yue2.start(),stop_yue2:async()=>{await this.yue2Client.stop();return this.yue2.stop();},
+    yue2_inspect_input:async args=>({context:await this.yue2.inspectInput({...args,preset:'fast'})??null}),yue2_score:async args=>({abc:await this.yue2Client.score(args.jobId)}),
     yue2_generate:async args=>this.yue2Client.generate(args),yue2_get_job:async args=>this.yue2Client.job(args.jobId),yue2_cancel_job:async args=>this.yue2Client.cancel(args.jobId),yue2_list_jobs:async()=>this.yue2Client.list(),
     status:async()=>({name:'Music Room',version:'1.0.0',workspace:this.store.root,engines:[{id:'sample-pcm-v1',available:true},{id:'indextts-2.0',available:this.speech.status().canGenerate},{id:'transcription',available:false},{id:'yue2',available:(await this.yue2.status()).canGenerate}]}),
     list_projects:async()=>({projects:await this.store.projects()}),

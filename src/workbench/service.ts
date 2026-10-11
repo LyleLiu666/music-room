@@ -44,8 +44,16 @@ export class WorkbenchService {
     return response;
   }
   async call<K extends Operation>(name:K,args:OperationInput<K>):Promise<OperationResults[K]> {
-    const response=await this.request(`/api/${name}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(args)});
-    const value:unknown=await response.json();if(!response.ok)throw new Error((value as {message?:string}).message??'本地服务请求失败');return value as OperationResults[K];
+    // Bound background reads, including response-body consumption. Mutations may
+    // legitimately take minutes and must never be replayed after an ambiguous timeout.
+    const signal=name==='studio_library'||name==='resource_status'||name==='yue2_inspect_input'||name==='yue2_score'?AbortSignal.timeout(10000):undefined;
+    try{
+      const response=await this.request(`/api/${name}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(args),signal});
+      const value:unknown=await response.json();if(!response.ok)throw new Error((value as {message?:string}).message??'本地服务请求失败');return value as OperationResults[K];
+    }catch(error){
+      if(signal?.aborted)throw new Error(name==='yue2_inspect_input'?'输入容量检查超时，请重试':name==='yue2_score'?'读取乐谱超时，请重试':'状态查询超时');
+      throw error;
+    }
   }
   async artifact(job:Job) {
     const response=await this.request(`/artifacts/${job.request.projectId}/${job.request.revisionId}/${job.id}`);

@@ -60,3 +60,44 @@ test('failed renewal pauses rejected polling then recovers on the next attempt',
  now+=10001;available=true;assert.deepEqual(await api.call('list_projects',{}),{projects:[]});
  assert.equal(requests,3);assert.equal(renewals,2);
 });
+
+for(const operation of ['studio_library','resource_status'] as const)test(`${operation} has a deadline through body consumption and recovers after timeout`,async t=>{
+ const deadline=new AbortController();let attempts=0;
+ t.mock.method(AbortSignal,'timeout',(ms:number)=>{assert.equal(ms,10000);return deadline.signal.aborted?new AbortController().signal:deadline.signal;});
+ t.mock.method(globalThis,'fetch',async(_path:string,init?:RequestInit)=>{
+  attempts++;assert.ok(init?.signal,'status requests must be bounded');
+  if(attempts>1)return Response.json({projects:[]});
+  return {ok:true,status:200,json:()=>new Promise((_resolve,reject)=>{
+   init.signal!.addEventListener('abort',()=>reject(init.signal!.reason),{once:true});
+   deadline.abort(new DOMException('Timed out','TimeoutError'));
+  })} as Response;
+ });
+ const api=new WorkbenchService({...bootstrap});
+ await assert.rejects(api.call(operation,{}),/超时/);
+ assert.equal(attempts,1,'a timeout must not replay a request implicitly');
+ assert.deepEqual(await api.call(operation,{}),{projects:[]});
+});
+
+test('long running save operations do not inherit the status query deadline',async t=>{
+ t.mock.method(AbortSignal,'timeout',()=>{throw Error('unexpected status deadline');});
+ t.mock.method(globalThis,'fetch',async()=>Response.json({id:'saved'}));
+ assert.deepEqual(await new WorkbenchService({...bootstrap}).call('studio_save_speed',{versionId:'v',rate:1.2,requestId:'r'}),{id:'saved'});
+});
+
+for(const operation of ['yue2_inspect_input','yue2_score'] as const)test(`${operation} times out without replaying and permits a later retry`,async t=>{
+ const deadline=new AbortController();let attempts=0;
+ t.mock.method(AbortSignal,'timeout',(ms:number)=>{assert.equal(ms,10000);return deadline.signal.aborted?new AbortController().signal:deadline.signal;});
+ t.mock.method(globalThis,'fetch',async(_path:string,init?:RequestInit)=>{
+  attempts++;assert.ok(init?.signal,'music inspection reads must be bounded');
+  if(attempts>1)return Response.json({});
+  return {ok:true,status:200,json:()=>new Promise((_resolve,reject)=>{
+   init.signal!.addEventListener('abort',()=>reject(init.signal!.reason),{once:true});
+   deadline.abort(new DOMException('Timed out','TimeoutError'));
+  })} as Response;
+ });
+ const api=new WorkbenchService({...bootstrap});
+ const args=operation==='yue2_score'?{jobId:'a'.repeat(32)}:{style:'piano',lyrics:'[instrumental]',instrumental:true};
+ await assert.rejects(api.call(operation,args),/超时/);
+ assert.equal(attempts,1);
+ assert.deepEqual(await api.call(operation,args),{});
+});

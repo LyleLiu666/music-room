@@ -1,0 +1,95 @@
+{
+  "date": "2026-10-11",
+  "runtime": "pinned YuE2 MLX f696147a985081848d4b0310cbe9b10b16259be6",
+  "context": {
+    "source": "installed yue2.protocol.GenerationConfig and checkpoint-native qwen.tiktoken",
+    "capacity": 24576,
+    "automaticPlanningReserve": 4098,
+    "semanticReserve": 9000,
+    "tokenizerSha256": "b2b1b8dfb5cc5f024bafc373121c6aba3f66f9a5a0269e243470a1de16a33186"
+  },
+  "originalPrompt": {
+    "styleCharacters": 3937,
+    "lyricCharacters": 689,
+    "prefixTokens": 1357,
+    "planningTokens": 4098,
+    "semanticTokens": 9000,
+    "contextTokens": 24576,
+    "requiredTokens": 14455,
+    "remainingTokens": 10121,
+    "modelInputPreserved": true,
+    "styleLength": 4311,
+    "lyricsLength": 689,
+    "abcTokens": 2300,
+    "abcTruncated": false
+  },
+  "overContext": {
+    "prefixTokens": 16864,
+    "planningTokens": 4098,
+    "semanticTokens": 9000,
+    "contextTokens": 24576,
+    "requiredTokens": 29962,
+    "remainingTokens": -5386,
+    "issue": "创作内容与生成预算共需 29962 个 token，超过模型 24576 个 token 的上下文容量。请缩短风格、歌词或乐谱后再试。"
+  },
+  "externalABC": {
+    "prefixTokens": 124,
+    "planningTokens": 0,
+    "semanticTokens": 9000,
+    "contextTokens": 24576,
+    "requiredTokens": 9124,
+    "remainingTokens": 15452
+  },
+  "validation": {
+    "unitAndService": 91,
+    "browserScenarios": 14,
+    "standaloneBinary": true,
+    "installedOriginalDraft": true,
+    "rawReports": [
+      "test-results/yue2-input-calibration/binary.json",
+      "test-results/yue2-input-calibration/installed-ui.json"
+    ],
+    "boundedReadTests": 11,
+    "installedVersionsPreserved": 81
+  },
+  "memoryEstimate": {
+    "baseBytes": 15032385536,
+    "perPrefixTokenBytes": 229376,
+    "basis": "28 layers x 8 KV heads x 128 dimensions x K/V x 2 BF16 bytes x 2 CFG branches",
+    "scope": "Conservative reservation with runtime monitoring, not a claim that all context-boundary inputs have been measured."
+  },
+  "realGeneration": {
+    "status": "done",
+    "report": "test-results/yue2-input-calibration/result.json",
+    "audioValidation": "test-results/yue2-input-calibration/audio-validation.json",
+    "durationSeconds": 247.27866666666668,
+    "sampleRate": 48000,
+    "channels": 2,
+    "truncated": {
+      "abc": false,
+      "semantic": false
+    },
+    "seed": 42,
+    "observedPeakBytes": 6580548403,
+    "started": "2026-10-11T14:05:39.275Z",
+    "finished": "2026-10-11T14:36:48.016Z",
+    "isolatedWorkspace": true
+  },
+  "abcRegeneration": {
+    "status": "done",
+    "report": "test-results/yue2-abc-calibration/result.json",
+    "audioValidation": "test-results/yue2-abc-calibration/audio-validation.json",
+    "durationSeconds": 37.59866666666667,
+    "scoreExactlyPreserved": true,
+    "suppliedABCCharacters": 658,
+    "truncated": {
+      "abc": false,
+      "semantic": false
+    },
+    "seed": 42,
+    "observedPeakBytes": 4358615860,
+    "started": "2026-10-11T14:16:18.561Z",
+    "finished": "2026-10-11T14:38:16.470Z",
+    "isolatedWorkspace": true
+  }
+}

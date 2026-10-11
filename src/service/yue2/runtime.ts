@@ -1,3 +1,4 @@
+import {inspectMusicContext} from './context.ts';
 import {yueServeProgramHash} from './worker.ts';
 import {yueProfile} from '../resources/profiles.ts';
 import {ownedCommand} from '../resources/commands.ts';
@@ -80,6 +81,7 @@ export function createYuE2Driver(read:AssetReader,command=process.execPath,args=
       const text=await new Promise<string>((resolve,reject)=>execFile(join(root,'.venv/bin/python'),['-c',script,path],{timeout:10000,maxBuffer:16*1024*1024},(error,stdout)=>error?reject(error):resolve(stdout)));
       return JSON.parse(text).map((row:any)=>yue2JobSchema.parse({...row,title:JSON.parse(row.params_json).title}));
     },
+    inspectInput:inspectMusicContext,
     chooseDirectory:async()=>{
       if(choosing)throw new Error('文件夹选择窗口已经打开');choosing=true;
       try{return await new Promise<string|undefined>((resolve,reject)=>execFile('/usr/bin/osascript',['-e','POSIX path of (choose folder with prompt "选择 YuE2 专用空文件夹：程序、模型及缓存将全部保存在这里")'],{timeout:300000,maxBuffer:16384},(error,stdout,stderr)=>{if(error){if(stderr.includes('(-128)'))resolve(undefined);else reject(new Error('无法打开文件夹选择窗口，请直接填写安装目录'));}else resolve(stdout.trim());}));}finally{choosing=false;}

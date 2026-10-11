@@ -1,3 +1,5 @@
+import type {MusicContext} from './input.ts';
+import type {YuE2Generate} from './contracts.ts';
 import {installTask} from '../resources/installation.ts';
 import {randomUUID} from 'node:crypto';
 import {existsSync,lstatSync,mkdirSync,openSync,closeSync,writeFileSync,readFileSync,readdirSync,realpathSync,unlinkSync} from 'node:fs';
@@ -12,7 +14,7 @@ export type YuE2Phase='uninstalled'|'preparing'|'stopped'|'starting'|'running'|'
 export type YuE2Status={phase:YuE2Phase;directory?:string;defaultDirectory:string;installed:boolean;autoStart:boolean;modelsReady:boolean;canGenerate:boolean;url?:string;message:string;error?:string;logs:string[]};
 export type YuE2Context={signal:AbortSignal;report:(line:string)=>void;owner:string;trackProcess?:(pid:number)=>void;lease?:ResourceExecution['lease'];budget?:number};
 export type YuE2Process={url:string;headers?:Record<string,string>;exited:Promise<number|null>;status:()=>Promise<{modelsPresent:boolean;fake:boolean}>;stop:()=>Promise<void>};
-export type YuE2Driver={resourceProfile?:Record<string,unknown>;unsupported:()=>string|undefined;installed:(directory:string)=>boolean;modelsReady?:(directory:string)=>boolean;history?:(directory:string)=>Promise<YuE2Job[]>;prepare:(directory:string,models:boolean,context:YuE2Context)=>Promise<void>;launch:(directory:string,context:YuE2Context)=>Promise<YuE2Process>;chooseDirectory:()=>Promise<string|undefined>};
+export type YuE2Driver={inspectInput?:(directory:string,input:YuE2Generate)=>Promise<MusicContext>;resourceProfile?:Record<string,unknown>;unsupported:()=>string|undefined;installed:(directory:string)=>boolean;modelsReady?:(directory:string)=>boolean;history?:(directory:string)=>Promise<YuE2Job[]>;prepare:(directory:string,models:boolean,context:YuE2Context)=>Promise<void>;launch:(directory:string,context:YuE2Context)=>Promise<YuE2Process>;chooseDirectory:()=>Promise<string|undefined>};
 type Config={version:1;directory:string;autoStart:boolean};
 const alive=(pid:number)=>{try{process.kill(pid,0);return true;}catch(error:any){return error.code!=='ESRCH';}};
 
@@ -135,6 +137,7 @@ export class YuE2Engine {
     catch(error){await this.unload();throw error;}
   }
   async history(){return this.config?await this.driver.history?.(this.config.directory)??[]:[];}
+  async inspectInput(input:YuE2Generate){if(!this.config)throw new ServiceError('YUE2_NOT_INSTALLED','请先准备音乐模型');return this.driver.inspectInput?.(this.config.directory,input);}
   resourceProfile(){return this.driver.resourceProfile;}
   headers(){return this.process?.headers??{};}
   async unload(){await this.stopOwned();this.release();if(!this.active){this.phase='stopped';this.message='YuE2 已释放，生成时按需加载';}}

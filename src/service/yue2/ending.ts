@@ -1,16 +1,7 @@
 import {openSync,closeSync,fstatSync,readSync,constants} from 'node:fs';
-import {musicTruncationSchema,type MusicEnding,type MusicTruncation} from './contracts.ts';
+import {musicTruncationSchema,type MusicTruncation} from './contracts.ts';
 
-/** Explicit preference, never inferred from words in the user's creative description. */
-export function generationWithEnding(input:{style:string;lyrics:string;instrumental:boolean;ending?:MusicEnding}){
- if(input.ending==='as-described')return {style:input.style,lyrics:input.lyrics};
- const guidance='Ending arrangement: plan a complete outro. Finish the final musical phrase and resolve the harmony; gradually thin the accompaniment, sustain the final chord, and allow its natural decay before ending. Do not introduce a new phrase at the end or stop mid-phrase.';
- return {
-  style:input.style+'\n\n'+guidance+(input.instrumental?'':' Finish singing all supplied lyrics before the instrumental outro. Do not sing these arrangement instructions.'),
-  // [instrumental] is the API's explicit default protocol; custom structures and lyrics stay intact.
-  lyrics:input.instrumental&&input.lyrics.trim()==='[instrumental]'?'[instrumental]\n[intro]\n[verse]\n[outro]':input.lyrics,
- };
-}
+export {generationWithEnding} from './input.ts';
 
 /** Upstream sometimes omits truncation in its API even though summary.json contains it.
  * Call only beneath the already validated artifact directory. Missing evidence is not success.

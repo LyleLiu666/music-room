@@ -20,7 +20,7 @@ test('music lyrics: explicit modes, complete example, draft preservation and iso
  const assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
  const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources());
  const jobs=[],requests=[];
- service.yue2.status=async()=>({phase:'running',canGenerate:true,installed:true,modelsReady:true,message:'就绪',logs:[],autoStart:true,defaultDirectory:'/tmp/unused'});
+ service.yue2.inspectInput=async()=>({prefixTokens:200,planningTokens:4098,semanticTokens:9000,contextTokens:24576,requiredTokens:13298,remainingTokens:11278});service.yue2.status=async()=>({phase:'running',canGenerate:true,installed:true,modelsReady:true,message:'就绪',logs:[],autoStart:true,defaultDirectory:'/tmp/unused'});
  service.yue2Client.list=async()=>({jobs});
  service.yue2Client.generate=async args=>{requests.push(structuredClone(args));const job={id:crypto.randomUUID().replaceAll('-',''),status:'done',kind:'create',title:args.title};jobs.push(job);return {job};};
  service.yue2Client.audio=async()=>wav;
@@ -106,7 +106,7 @@ test('music settings reflect enablement, show pending feedback and can enable ag
  const assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
  const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources());
  let enabled=false,fail=false,calls=0,release;const gate=new Promise(r=>release=r);
- service.yue2.status=async()=>({phase:'stopped',canGenerate:enabled,installed:true,modelsReady:true,autoStart:enabled,message:enabled?'YuE2 已启用，生成时按需加载':'YuE2 尚未启用',logs:[],defaultDirectory:'/tmp/unused'});
+ service.yue2.inspectInput=async()=>({prefixTokens:200,planningTokens:4098,semanticTokens:9000,contextTokens:24576,requiredTokens:13298,remainingTokens:11278});service.yue2.status=async()=>({phase:'stopped',canGenerate:enabled,installed:true,modelsReady:true,autoStart:enabled,message:enabled?'YuE2 已启用，生成时按需加载':'YuE2 尚未启用',logs:[],defaultDirectory:'/tmp/unused'});
  service.yue2.start=async()=>{calls++;await gate;if(fail)throw Error('测试启用失败');enabled=true;return service.yue2.status();};
  service.yue2.stop=async()=>{enabled=false;return service.yue2.status();};
  const http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage();
@@ -131,7 +131,7 @@ test('music pressure failure preserves quality requirements and submits a fast r
  const assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
  const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources());
  const jobs=[],requests=[];
- service.yue2.status=async()=>({phase:'running',canGenerate:true,installed:true,modelsReady:true,message:'就绪',logs:[],autoStart:true,defaultDirectory:'/tmp/unused'});
+ service.yue2.inspectInput=async()=>({prefixTokens:200,planningTokens:4098,semanticTokens:9000,contextTokens:24576,requiredTokens:13298,remainingTokens:11278});service.yue2.status=async()=>({phase:'running',canGenerate:true,installed:true,modelsReady:true,message:'就绪',logs:[],autoStart:true,defaultDirectory:'/tmp/unused'});
  service.yue2Client.list=async()=>({jobs});
  service.yue2Client.generate=async args=>{
   requests.push(structuredClone(args));
@@ -152,7 +152,7 @@ test('music pressure failure preserves quality requirements and submits a fast r
   await page.getByRole('button',{name:'修改要求',exact:true}).click();
   assert.equal(await page.inputValue('#creation-text'),'快乐的小提琴');assert.equal(await page.inputValue('#preset'),'quality');
   assert.equal(await page.inputValue('#lyrics'),'[instrumental]');assert.equal(await page.locator('[name="instrumental"][value="true"]').isChecked(),true);
-  await page.locator('details.advanced summary').click();await page.selectOption('#preset','fast');await page.click('#generate');
+  await page.getByText('生成偏好',{exact:true}).click();await page.selectOption('#preset','fast');await page.click('#generate');
   await page.locator('#version-audio').waitFor();
   assert.deepEqual(requests.map(r=>r.preset),['quality','fast']);
   const versions=(await service.call('studio_library',{})).versions,child=versions.find(v=>v.id!==original.id);
@@ -179,7 +179,7 @@ test('unified production UI: mixed project, real routes, versions, playback, dra
  const root=await mkdtemp(join(tmpdir(),'studio-ui-'));const driver={installed:()=>true,prepare:async()=>{},cleanReference:async(_,req)=>{await writeFile(req.outputPath,wav);},generate:async(_,req,ctx)=>{await new Promise((resolve,reject)=>{const timer=setTimeout(resolve,2300);ctx.signal.addEventListener('abort',()=>{clearTimeout(timer);reject(Error('cancelled'));},{once:true});});await writeFile(req.outputPath,wav);}};
  const renderer=({composition})=>{const pcm=Float32Array.from({length:Math.round(composition.score.duration*44100)},(_,i)=>Math.sin(i*.1)*.2);return {result:Promise.resolve({wav:new Uint8Array(encodeWav([pcm,pcm],44100)),peak:.2,rms:.1,attenuation:1,engine:'test-pcm'}),cancel:()=>{}};};
  const service=await MusicService.open(root,renderer,p=>readFile(resolve('dist',p)),false,unused,driver,undefined,testResources()),http=await serveHttp(service,{read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false});
- const musicJobs=[];service.yue2.status=async()=>({phase:'running',canGenerate:true,installed:true,modelsReady:true,message:'就绪',logs:[],autoStart:true,defaultDirectory:'/tmp/unused'});
+ const musicJobs=[];service.yue2.inspectInput=async()=>({prefixTokens:200,planningTokens:4098,semanticTokens:9000,contextTokens:24576,requiredTokens:13298,remainingTokens:11278});service.yue2.status=async()=>({phase:'running',canGenerate:true,installed:true,modelsReady:true,message:'就绪',logs:[],autoStart:true,defaultDirectory:'/tmp/unused'});
  service.yue2Client.list=async()=>({jobs:musicJobs});service.yue2Client.generate=async args=>{const job={id:crypto.randomUUID().replaceAll('-',''),status:'running',kind:'create',title:args.title};musicJobs.push(job);setTimeout(()=>{job.status='done';},1000);return {job};};service.yue2Client.audio=async()=>wav;
  const browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required']}),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(r.status()>=400)console.log(r.url(),await r.text());});
  try{
