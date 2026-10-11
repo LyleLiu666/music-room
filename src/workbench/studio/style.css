@@ -1063,6 +1063,12 @@ audio::-webkit-media-controls-panel {
   background: var(--hover);
 }
 
+.entity-menu-group + .entity-menu-group {
+  border-top: 1px solid var(--line);
+  margin-top: 6px;
+  padding-top: 6px;
+}
+
 .entity-menu .field-note {
   margin: 5px 9px;
   max-width: 170px;
@@ -1852,7 +1858,7 @@ form::after {
 
 .voice-library-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 32px;
   align-items: start;
   margin-top: 12px;
@@ -2790,3 +2796,38 @@ body:has(#dialog[open][data-mode="settings"]) .studio-topbar{visibility:hidden}.
 #compose-form #lyrics { min-height: 180px; line-height: 1.7; }
 #compose-form .music-mode label { min-height: 44px; margin: 0; }
 #compose-form .music-mode { margin-top: 4px; gap: 4px 22px; }
+
+.library-actions { display: flex; align-items: center; justify-content: flex-end; gap: 16px; flex-wrap: wrap; }
+
+#global-task-queue{position:fixed;bottom:0;left:0;right:0;z-index:25;background:var(--surface);border-top:1px solid var(--line)}
+[data-task-queue] summary{display:flex;align-items:center;gap:10px;padding:10px 20px;font-size:12px;cursor:pointer;list-style:none}
+[data-task-queue] summary::-webkit-details-marker{display:none}
+[data-task-queue] summary>span:last-child{margin-left:auto}
+.queue-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);flex-shrink:0}.queue-dot.working{background:var(--accent)}.queue-dot.offline{background:#d99965}
+.queue-list{padding:16px 20px;border:1px solid var(--line);background:var(--surface);max-height:220px;overflow:auto;font-size:13px}
+#global-task-queue .queue-list{position:absolute;bottom:100%;right:12px;width:min(460px,calc(100vw - 24px));border-radius:12px 12px 0 0;box-shadow:var(--shadow-md)}
+.queue-list h3{font-size:14px;margin:0 0 12px}.queue-list ul{list-style:none;margin:0;padding:0}.queue-list li{display:flex;flex-direction:column;gap:4px;padding:8px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.queue-list span{color:var(--muted)}
+.dialog-task-queue{flex-shrink:0;border-top:1px solid var(--line);background:var(--surface)}
+body:has(#dialog[open]) #global-task-queue{visibility:hidden}
+#workspace{padding-bottom:72px}#background-playback{bottom:52px}.sidebar-bottom{padding-bottom:38px}
+
+/* One compact transport and queue bar, shared by the workspace and modal. */
+#global-status-bar,.dialog-status-bar{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,2fr);height:40px;flex-shrink:0;background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow-md)}
+#global-status-bar{position:fixed;left:calc(var(--sidebar-width,236px) + 24px);right:24px;bottom:12px;z-index:25}
+#global-task-queue{position:static;border:0;background:none;min-width:0}
+[data-task-queue]{min-width:0;position:relative;border-right:1px solid var(--line)}
+[data-task-queue] summary{height:38px;padding:0 12px;gap:7px;white-space:nowrap}
+[data-task-queue] summary [role=status]{overflow:hidden;text-overflow:ellipsis}
+[data-task-queue] .queue-list,#global-task-queue .queue-list{position:absolute;bottom:calc(100% + 6px);left:0;right:auto;width:min(460px,calc(100vw - 48px));border-radius:10px;box-shadow:var(--shadow-md);z-index:30}
+.bar-playback{min-width:0;display:flex;align-items:center;gap:10px;padding:0 12px;font-size:12px}
+.bar-playback button{padding:0;width:28px;height:32px;min-height:0;flex-shrink:0}
+[data-bar-title]{max-width:28%;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar-playback input[type=range]{flex:1;min-width:30px;width:0;margin:0;padding:0;height:24px;border:0;box-shadow:none}
+[data-bar-time]{white-space:nowrap;font-variant-numeric:tabular-nums;font-size:11px}
+#background-playback{display:none!important}
+body.background-playing #workspace{padding-bottom:72px}
+body:has(#dialog[open]) #global-status-bar{visibility:hidden}
+.dialog-status-bar{border-radius:0;box-shadow:none;position:relative}
+@media(max-width:900px){#global-status-bar{left:12px;right:12px}.bar-playback{gap:5px;padding:0 6px}[data-task-queue] summary{padding:0 7px;font-size:11px}[data-bar-time]{font-size:10px}}
+@media(max-width:500px){[data-bar-title]{display:none}.bar-playback button{width:24px}[data-task-queue] .queue-list{width:calc(100vw - 48px)}}
+.bar-playback [data-bar-title]{width:auto;height:32px;text-align:left;flex-shrink:1;font-size:12px;font-weight:400}

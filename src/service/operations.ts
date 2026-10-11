@@ -23,6 +23,8 @@ export const operations = {
   resource_release:{description:'空闲时确认释放模型；有任务时须先完成或取消。',schema:z.object({}).strict()},
   resource_set_limit:{description:'空闲时保存应用内存上限（字节），只能收紧默认安全额度；null 恢复自动管理。不会降低系统保留量。',schema:z.object({memoryBytes:z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER).nullable()}).strict()},
   svc_library:{description:'读取音色转换引擎状态和持久化任务。原音、参考音色与完整转换结果独立保存。',schema:z.object({page:z.number().int().positive().optional(),pageSize:z.number().int().positive().max(50).optional()}).strict()},
+  studio_conversion_sources:{description:'列出可复用的已上传原音和已生成音频，覆盖所有未删除项目。',schema:z.object({}).strict()},
+  studio_convert_saved:{description:'使用已保存原音或生成结果创建音色转换，无需重新上传。',schema:z.object({soundId:id,versionId:id,kind:z.enum(['original','result']),voiceId:id,requestId:z.string().min(1).max(120),pitchShiftSemitones:z.number().int().min(-12).max(12).optional()}).strict()},
   svc_create_version:{description:'使用当前声音版本保存的原音和指定音色新建转换版本。',schema:z.object({pitchShiftSemitones:z.number().int().min(-12).max(12).optional(),soundId:id,sourceJobId:jobId,voiceId:id,requestId:z.string().min(1).max(120)}).strict()},
   svc_cancel:{description:'取消指定音色转换任务，保留原音。',schema:z.object({jobId}).strict()},
   svc_retry:{description:'用原任务保存的音频和参考音色新建重试任务，不覆盖历史结果。',schema:z.object({jobId}).strict()},
@@ -85,6 +87,7 @@ export type OperationResults = {
   resource_status:ResourceStatus;resource_pause:ResourceStatus;resource_resume:ResourceStatus;resource_cancel:ResourceStatus;resource_release:ResourceStatus;resource_set_limit:ResourceStatus;
   svc_library:ReturnType<ConversionService['snapshot']>&{voices:SpeechVoice[]};svc_create_version:ConversionJob;svc_cancel:ConversionJob;svc_retry:ConversionJob;
   studio_update_project:Project;studio_update_sound:StudioSound;studio_purge:{purged:true};
+  studio_conversion_sources:Awaited<ReturnType<StudioService['conversionSources']>>;studio_convert_saved:Awaited<ReturnType<StudioService['convertSaved']>>;
   studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_generate:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_save_mix:StudioVersion;studio_save_speed:StudioVersion;studio_import_score:StudioVersion;
   tts_status:SpeechStatus;tts_prepare:SpeechStatus;tts_cancel_preparation:SpeechStatus;
   tts_library:ReturnType<SpeechService['snapshot']>;tts_add_voice:SpeechVoice;tts_clean_voice:SpeechVoice;tts_update_voice:SpeechVoice;tts_create_sound:SpeechSound;

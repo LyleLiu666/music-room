@@ -47,6 +47,7 @@ export class MusicService {
   }
   private handlers:OperationHandlers = {
     resource_status:async()=>this.resources.status(),resource_pause:async()=>this.resources.pause(),resource_resume:async()=>this.resources.resume(),resource_cancel:async args=>this.cancelResource(args.taskId),resource_release:async()=>{await this.resources.releaseIdle();return this.resources.status();},resource_set_limit:async args=>{this.resources.setLimits(args.memoryBytes===null?undefined:{memory:args.memoryBytes},()=>{mkdirSync(this.store.path('engines'),{recursive:true});this.store.atomicJSON(this.store.path('engines','resources.json'),{version:1,memoryBytes:args.memoryBytes});});return this.resources.status();},
+    studio_conversion_sources:async()=>this.studio.conversionSources(),studio_convert_saved:async args=>this.studio.convertSaved(args),
     svc_library:async args=>({...this.conversion.snapshot(args),voices:this.speech.conversionVoices()}),svc_create_version:async args=>this.studio.createConversionVersion(args),svc_cancel:async args=>this.studio.cancelConversion(args.jobId),svc_retry:async args=>this.studio.retryConversion(args.jobId),
     studio_update_project:async args=>this.studio.updateProject(args),studio_update_sound:async args=>this.studio.updateSound(args),studio_purge:async args=>this.studio.purge(args),
     studio_save_speed:async args=>this.studio.saveSpeed(args),
