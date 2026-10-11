@@ -15,6 +15,50 @@ import {readBuiltinVoices} from '../src/service/tts/presets.ts';
 const wav=Buffer.from(encodeWav([Float32Array.from({length:22050*4},(_,i)=>Math.sin(i*.1)*.2)],22050));
 async function openTrash(page){await page.click('[data-action="settings"]');await page.click('[data-action="trash"]');await page.locator('#dialog-title').filter({hasText:'回收站'}).waitFor();}
 const unused={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
+test('music lyrics: explicit modes, complete example, draft preservation and isolated instrumental submission',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-lyrics-ui-'));
+ const assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources());
+ const jobs=[],requests=[];
+ service.yue2.status=async()=>({phase:'running',canGenerate:true,installed:true,modelsReady:true,message:'就绪',logs:[],autoStart:true,defaultDirectory:'/tmp/unused'});
+ service.yue2Client.list=async()=>({jobs});
+ service.yue2Client.generate=async args=>{requests.push(structuredClone(args));const job={id:crypto.randomUUID().replaceAll('-',''),status:'done',kind:'create',title:args.title};jobs.push(job);return {job};};
+ service.yue2Client.audio=async()=>wav;
+ const http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1000}});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await service.call('create_project',{projectId:'lyrics',title:'歌词交互'});
+  await service.call('studio_create_sound',{projectId:'lyrics',title:'春日主题曲',kind:'music'});
+  await page.goto(http.runtime.url);await page.click('[data-action="compose"]');
+  const instrumental=page.getByRole('radio',{name:'不带歌词（纯音乐）',exact:true}),vocal=page.getByRole('radio',{name:'带歌词（演唱）',exact:true});
+  assert.equal(await instrumental.count(),1);assert.ok(await instrumental.isChecked());assert.equal(await page.locator('#lyrics-wrap').isVisible(),false);
+  await page.fill('#creation-text','轻快的民谣，温柔女声');await vocal.check();
+  assert.ok(await page.locator('#lyrics-wrap').isVisible());assert.match(await page.locator('#lyrics-help').innerText(),/完整歌词/);
+  await page.click('#generate');assert.equal(requests.length,0);assert.equal(await page.locator('#lyrics').evaluate(e=>e.validity.valueMissing),true);
+  await page.fill('#lyrics','   ');await page.click('#generate');assert.equal(requests.length,0);assert.equal(await page.locator('#lyrics').evaluate(e=>e.validity.customError),true);await page.fill('#lyrics','');
+  await page.getByText('查看完整歌词示例 · 风来时',{exact:true}).click();
+  const sample=await page.locator('#lyrics-example-text').innerText();assert.match(sample,/\[Verse\]/);assert.match(sample,/\[Chorus\]/);assert.match(sample,/\[Outro\]/);
+  await page.getByRole('button',{name:'填入示例歌词',exact:true}).click();
+  assert.equal(await page.inputValue('#lyrics'),sample);assert.equal(await page.inputValue('#creation-text'),'轻快的民谣，温柔女声');assert.equal(requests.length,0);
+  assert.ok(await page.locator('#fill-lyrics-example').isDisabled());
+  const edited=sample.replace('收起桌上的纸张','收起昨天的匆忙');await page.fill('#lyrics',edited);
+  await instrumental.check();assert.equal(await page.locator('#lyrics-wrap').isVisible(),false);await vocal.check();assert.equal(await page.inputValue('#lyrics'),edited);
+  await page.click('[data-action="close"]');await page.reload();await page.click('[data-action="compose"]');
+  assert.ok(await vocal.isChecked());assert.equal(await page.inputValue('#lyrics'),edited);
+  await mkdir('test-results/studio',{recursive:true});
+  for(const width of [1440,390]){
+   await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+   await page.locator('#lyrics').scrollIntoViewIfNeeded();await page.screenshot({path:`test-results/studio/lyrics-${width}.png`,fullPage:true});
+  }
+  await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor();
+  assert.equal(requests.length,1);assert.equal(requests[0].instrumental,false);assert.equal(requests[0].lyrics,edited);
+  await page.click('[data-action="iterate"]');assert.ok(await vocal.isChecked());assert.equal(await page.inputValue('#lyrics'),edited);
+  await instrumental.check();await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);
+  assert.equal(requests.length,2);assert.equal(requests[1].instrumental,true);assert.equal(requests[1].lyrics,'[instrumental]');
+  await page.click('[data-action="compose"]');await vocal.check();assert.equal(await page.inputValue('#lyrics'),edited);
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});
 for(const memoryFailure of [false,true])test(`failed speech retry restores requirements and submits an edited new version from the player (memory=${memoryFailure})`,async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-retry-ui-'));
  const driver={installed:()=>true,prepare:async()=>{},generate:async(_,req)=>{

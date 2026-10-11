@@ -1,3 +1,4 @@
+import type {MusicEnding,MusicTruncation} from '../yue2/contracts.ts';
 import {validateMix,type RenderMix} from '../render/renderer.ts';
 import {readAudioFile} from '../projects/audio-files.ts';
 import type {ResourceTaskState} from '../resources/contracts.ts';
@@ -14,8 +15,8 @@ import type {SpeechVersion} from '../tts/speech.ts';
 export type SoundKind='clip'|'music'|'speech'|'conversion';
 export type StudioSound={id:string;projectId:string;title:string;kind:SoundKind;createdAt:string;deleted?:boolean;purged?:boolean;finalVersionId?:string;legacyProject?:string;conversionSourceSha256?:string};
 import type {EmotionStrength} from '../tts/emotion.ts';
-export type StudioInput={pitchShiftSemitones?:number;soundId:string;text:string;voiceId?:string;emotion?:string;emotionStrength?:EmotionStrength;lyrics?:string;instrumental?:boolean;preset?:'fast'|'quality';parentId?:string};
-export type StudioVersion={scoreMix?:RenderMix;mixRequestId?:string;resource?:ResourceTaskState;speed?:SpeedEdit;audioHash?:string;id:string;soundId:string;number:number;parentId?:string;createdAt:string;state:SpeechVersion['state'];stage:string;kept:boolean;deleted:boolean;purged?:boolean;purgePending?:boolean;voiceName?:string;error?:string;duration?:number;input?:StudioInput;originalAudioPath?:string;vocalsAudioPath?:string;source:{kind:'speech'|'music'|'score'|'audio'|'conversion';id:string;projectId?:string};audioPath?:string;renderJobId?:string};
+export type StudioInput={ending?:MusicEnding;pitchShiftSemitones?:number;soundId:string;text:string;voiceId?:string;emotion?:string;emotionStrength?:EmotionStrength;lyrics?:string;instrumental?:boolean;preset?:'fast'|'quality';parentId?:string};
+export type StudioVersion={musicTruncated?:MusicTruncation;scoreMix?:RenderMix;mixRequestId?:string;resource?:ResourceTaskState;speed?:SpeedEdit;audioHash?:string;id:string;soundId:string;number:number;parentId?:string;createdAt:string;state:SpeechVersion['state'];stage:string;kept:boolean;deleted:boolean;purged?:boolean;purgePending?:boolean;voiceName?:string;error?:string;duration?:number;input?:StudioInput;originalAudioPath?:string;vocalsAudioPath?:string;source:{kind:'speech'|'music'|'score'|'audio'|'conversion';id:string;projectId?:string};audioPath?:string;renderJobId?:string};
 export type StudioLibraryOptions={paginateConversions?:boolean;includeDeletedConversions?:boolean;conversionSoundId?:string;conversionPage?:number;conversionPageSize?:number;selectedVersionId?:string};
 export type StudioConversionPagination={soundId:string;page:number;pageSize:number;total:number;totalPages:number;versionIds:string[]};
 type Data={format:'music-room-studio';version:1;sounds:StudioSound[];versions:StudioVersion[]};
@@ -76,7 +77,7 @@ export class StudioService{
   if(Date.now()-this.yueChecked>2000){this.yueChecked=Date.now();const status=await this.service.yue2.status();if(status.directory||status.canGenerate){
    try{const {jobs}=await this.service.yue2Client.list();for(const v of this.data.versions.filter(v=>v.source.kind==='music'&&v.source.id&&['running','queued'].includes(v.state)&&!jobs.some(j=>j.id===v.source.id))){try{jobs.push((await this.service.yue2Client.job(v.source.id)).job);}catch{}}for(const job of jobs){let v=this.data.versions.find(x=>x.source.kind==='music'&&x.source.id===job.id);
     if(!v){const projects=await this.service.store.projects(true);let p=projects.find(p=>!p.deleted&&!p.purged&&(p.id==='imported-music'||p.id.startsWith('imported-music-')));p??=await this.service.store.createProject(projects.some(p=>p.id==='imported-music')?`imported-music-${randomUUID()}`:'imported-music','以前生成的音乐');const s:StudioSound={id:`sound-${randomUUID()}`,projectId:p.id,title:job.title||'未命名音乐',kind:'music',createdAt:new Date().toISOString()};this.data.sounds.push(s);v={id:`version-${randomUUID()}`,soundId:s.id,number:1,createdAt:s.createdAt,state:'queued',stage:'',kept:false,deleted:false,source:{kind:'music',id:job.id}};this.data.versions.push(v);}
-    if(v.purged||v.purgePending)continue;v.state=job.status==='done'?'succeeded':job.status;v.resource=job.resource as ResourceTaskState|undefined;v.stage=job.stage??({done:'生成完成',running:'正在生成',queued:'排队中',failed:'生成失败',cancelled:'已取消'}[job.status]);v.error=job.error??undefined;if(v.state==='succeeded')v.audioPath=`/yue2-audio/${job.id}`;
+    if(v.purged||v.purgePending)continue;v.state=job.status==='done'?'succeeded':job.status;v.resource=job.resource as ResourceTaskState|undefined;v.stage=job.stage??({done:'生成完成',running:'正在生成',queued:'排队中',failed:'生成失败',cancelled:'已取消'}[job.status]);v.error=job.error??undefined;v.musicTruncated=job.truncated??undefined;if(v.state==='succeeded')v.audioPath=`/yue2-audio/${job.id}`;
    }}catch{/* Keep saved results visible while the engine reconnects. */}
   }}
  }
@@ -138,8 +139,8 @@ export class StudioService{
   if(s.kind==='conversion')fail('音色转换请上传原始音频');
   if(s.kind==='speech'){if(!args.voiceId)fail('请选择参考声音');const v=await this.service.speech.generate({soundId:s.id,voiceId:args.voiceId!,text:args.text,emotion:args.emotion,emotionStrength:args.emotionStrength,parentId:args.parentId});await this.sync();return this.version(v.id);}
   if(!(await this.service.yue2.status()).canGenerate)fail('音乐模型尚未就绪，请在设置中准备');
-  const v:StudioVersion={id:`version-${randomUUID()}`,soundId:s.id,number:this.data.versions.filter(x=>x.soundId===s.id).length+1,parentId:args.parentId,createdAt:new Date().toISOString(),state:'queued',stage:'正在提交',kept:false,deleted:false,input:clone(args),source:{kind:'music',id:''}};this.data.versions.push(v);this.save();
-  try{const {job}=await this.service.yue2Client.generate({style:args.text,lyrics:args.instrumental===false?args.lyrics||'[verse]':args.lyrics||'[instrumental]',preset:args.preset??'fast',instrumental:args.instrumental!==false,title:s.title});v.source.id=job.id;v.state=job.status==='done'?'succeeded':job.status;v.stage=v.state==='succeeded'?'生成完成':'已提交，等待生成';if(v.state==='succeeded')v.audioPath=`/yue2-audio/${job.id}`;}
+  const v:StudioVersion={id:`version-${randomUUID()}`,soundId:s.id,number:this.data.versions.filter(x=>x.soundId===s.id).length+1,parentId:args.parentId,createdAt:new Date().toISOString(),state:'queued',stage:'正在提交',kept:false,deleted:false,input:{...clone(args),ending:args.ending??'natural'},source:{kind:'music',id:''}};this.data.versions.push(v);this.save();
+  try{const {job}=await this.service.yue2Client.generate({ending:args.ending??'natural',style:args.text,lyrics:args.instrumental===false?args.lyrics||'[verse]':args.lyrics||'[instrumental]',preset:args.preset??'fast',instrumental:args.instrumental!==false,title:s.title});v.source.id=job.id;v.musicTruncated=job.truncated??undefined;v.state=job.status==='done'?'succeeded':job.status;v.stage=v.state==='succeeded'?'生成完成':'已提交，等待生成';if(v.state==='succeeded')v.audioPath=`/yue2-audio/${job.id}`;}
   catch(e){v.state='failed';v.stage='提交失败';v.error=(e as Error).message;}return v;
  });}
  audio(id:string){

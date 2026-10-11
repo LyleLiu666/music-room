@@ -19,7 +19,7 @@ async function fixture(t:any){
  const engine=await YuE2Engine.open(store,driver,resources);await engine.prepare(directory,true);for(let i=0;i<100&&(await engine.status()).phase==='preparing';i++)await delay();
  const client=new YuE2Client(engine,store,resources);
  t.after(async()=>{await client.close();await resources.close();await engine.close();await store.close();await new Promise<void>(r=>server.close(()=>r()));await rm(root,{recursive:true,force:true});});
- return {root,directory,engine,client,resources,store,counts:()=>({launches,stops,submits}),complete:async()=>{await mkdir(join(directory,'data/songs',upstream,'song'),{recursive:true});await writeFile(join(directory,'data/songs',upstream,'song/audio.flac'),'fLaC test');done=true;}};
+ return {root,directory,engine,client,resources,store,counts:()=>({launches,stops,submits}),complete:async(truncated?:{abc:boolean;semantic:boolean})=>{await mkdir(join(directory,'data/songs',upstream,'song'),{recursive:true});await writeFile(join(directory,'data/songs',upstream,'song/audio.flac'),'fLaC test');if(truncated)await writeFile(join(directory,'data/songs',upstream,'summary.json'),JSON.stringify({truncated}));done=true;}};
 }
 test('managed music is lazy, serialized, and reads completed audio after unloading',async t=>{
  const f=await fixture(t);assert.equal((await f.engine.status()).canGenerate,true);await f.engine.start();assert.equal(f.counts().launches,0);
@@ -43,4 +43,22 @@ test('reopening marks unfinished local and old upstream tasks interrupted withou
 });
 test('managed enable and disable are meaningful without loading a model',async t=>{
  const f=await fixture(t);await f.engine.stop();assert.equal((await f.engine.status()).canGenerate,false);await assert.rejects(f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true}));await f.engine.start();assert.equal((await f.engine.status()).canGenerate,true);assert.equal(f.counts().launches,0);
+});
+
+for(const truncated of [{abc:false,semantic:true},{abc:true,semantic:false},{abc:false,semantic:false}])test(`saved truncation evidence survives completion and restart: ${JSON.stringify(truncated)}`,async t=>{
+ const f=await fixture(t),result=await f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true});
+ await f.complete(truncated);for(let i=0;i<200&&(await f.client.job(result.job.id)).job.status!=='done';i++)await delay();
+ assert.equal((await f.client.job(result.job.id)).job.status,'done');assert.deepEqual((await f.client.job(result.job.id)).job.truncated,truncated);
+ await f.client.close();const restored=new YuE2Client(f.engine,f.store,f.resources);t.after(()=>restored.close());
+ assert.deepEqual((await restored.job(result.job.id)).job.truncated,truncated);
+ assert.equal((await restored.audio(result.job.id)).length,9);
+});
+
+test('resource admission counts the full ending guidance rather than only the original description',async t=>{
+ const f=await fixture(t);let measured:any;
+ f.resources.estimate=(_engine,input)=>{measured=input;return {verified:false,peak:{memory:0}};};
+ const result=await f.client.generate({style:'琴'.repeat(1000),lyrics:'[instrumental]',preset:'fast',instrumental:true});
+ assert.ok(measured.style.length>1000);assert.match(measured.lyrics,/\[outro\]/);
+ for(let i=0;i<100&&(await f.client.job(result.job.id)).job.status==='queued';i++)await delay();
+ assert.equal(f.counts().submits,0);
 });

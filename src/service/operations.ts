@@ -1,3 +1,4 @@
+import {musicEndings} from './yue2/contracts.ts';
 import type {ResourceCoordinator} from './resources/coordinator.ts';
 import type {ConversionService,ConversionJob} from './conversion/conversion.ts';
 import type {StudioService,StudioSound,StudioVersion} from './studio/studio.ts';
@@ -30,7 +31,7 @@ export const operations = {
   studio_update_project:{description:'项目重命名或移入/恢复回收站；整个层级保持原状态，生成中拒绝删除。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
   studio_update_sound:{description:'片段重命名或移入/恢复回收站，保留其版本和成品选择。',schema:z.object({soundId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
   studio_purge:{description:'彻底删除回收站中的项目、片段、版本或音色及其保存文件；不可恢复。',schema:z.object({kind:z.enum(['project','sound','version','voice']),id}).strict()},
-  studio_generate:{description:'在指定声音内生成新版本，来源和结果均保存在当前声音。',schema:z.object({soundId:id,text:z.string().trim().min(1).max(8000),voiceId:id.optional(),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),lyrics:z.string().max(16000).optional(),instrumental:z.boolean().optional(),preset:z.enum(['fast','quality']).optional(),parentId:id.optional()}).strict()},
+  studio_generate:{description:'在指定声音内生成新版本，来源和结果均保存在当前声音。音乐 ending 默认 natural（引导自然收尾），as-described 仅按原描述生成；不保证精确时长或收尾听感。',schema:z.object({ending:z.enum(musicEndings).optional(),soundId:id,text:z.string().trim().min(1).max(8000),voiceId:id.optional(),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),lyrics:z.string().max(16000).optional(),instrumental:z.boolean().optional(),preset:z.enum(['fast','quality']).optional(),parentId:id.optional()}).strict()},
   studio_update_version:{description:'保留灵感、选成品、可恢复删除版本。',schema:z.object({versionId:id,kept:z.boolean().optional(),deleted:z.boolean().optional(),final:z.boolean().optional()}).strict()},
   studio_cancel:{description:'取消指定声音版本的生成任务。',schema:z.object({versionId:id}).strict()},
   studio_import_score:{description:'将 Agent 交付的 JSON 乐谱导入指定声音，新版保留来源，不覆盖旧版。',schema:z.object({soundId:id,compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
@@ -54,7 +55,7 @@ export const operations = {
   prepare_yue2:{description:'在用户指定的空文件夹安装 YuE2 专用环境；生成时按需加载。downloadModels=true 下载约 10GB 权重及器乐适配器；后台运行，用 yue2_status 轮询。',schema:z.object({directory:z.string().min(1).max(4096),downloadModels:z.boolean().default(true)}).strict()},
   start_yue2:{description:'启用已安装的 YuE2；工作台打开时保持空闲，生成时统一申请资源。',schema:z.object({}).strict()},
   stop_yue2:{description:'停止所属 YuE2 及安装下载进程，保留文件；关闭自动启动。',schema:z.object({}).strict()},
-  yue2_generate:{description:'使用本地真实 YuE2 模型生成音乐，立即返回 job.id。instrumental 默认 true，自动使用器乐适配器；lyrics 为段落结构（如 [instrumental]），cot=full。用 yue2_get_job 查询，done 后 audioPath 是本机 FLAC。',schema:z.object({style:z.string().min(1).max(8000),lyrics:z.string().min(1).max(16000).default('[instrumental]'),preset:z.enum(['fast','quality']).default('fast'),instrumental:z.boolean().default(true),seed:z.number().int().min(0).max(2147483647).optional(),title:z.string().min(1).max(200).optional()}).strict()},
+  yue2_generate:{description:'使用本地真实 YuE2 模型生成音乐，立即返回 job.id。instrumental 默认 true，自动使用器乐适配器；lyrics 为段落结构（如 [instrumental]），cot=full。ending 默认 natural，引导完整尾声；as-described 关闭附加引导。不会裁切或自动淡出。用 yue2_get_job 查询，done 后 audioPath 是本机 FLAC。',schema:z.object({ending:z.enum(musicEndings).optional(),style:z.string().min(1).max(8000),lyrics:z.string().min(1).max(16000).default('[instrumental]'),preset:z.enum(['fast','quality']).default('fast'),instrumental:z.boolean().default(true),seed:z.number().int().min(0).max(2147483647).optional(),title:z.string().min(1).max(200).optional()}).strict()},
   yue2_get_job:{description:'查询 YuE2 真实生成状态、失败原因及完成后音频路径。',schema:z.object({jobId:yue2JobId}).strict()},
   yue2_list_jobs:{description:'列出 YuE2 最近 30 个任务，网页重开后仍可查询和试听。',schema:z.object({}).strict()},
   yue2_cancel_job:{description:'取消 YuE2 排队或生成中的指定任务。',schema:z.object({jobId:yue2JobId}).strict()},

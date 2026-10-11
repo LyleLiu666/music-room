@@ -42,6 +42,16 @@ YuE2 下载约 10 GB 基础权重，另有器乐适配器、Python、依赖、�
 
 示例是提示词模板，尚未逐一生成试听。模板的界面与提交路径已经验证；具体音乐效果、逐字演唱、音色和精确时长仍以模型生成结果为准。
 
+## 时长与收尾
+
+音乐创作的「生成偏好 → 收尾方式」默认为 **自然收尾**：请求模型完成最后一个乐句、收束和声、逐步撤去伴奏并保留结束和弦的余音。纯音乐使用默认 `[instrumental]` 时会补充 `[intro]`、`[verse]`、`[outro]` 段落；自定义段落和演唱歌词逐字保留，收尾要求只写入音乐描述。循环素材或特殊结尾选择 **仅按我的描述**，不添加这些要求。
+
+时长仍由模型生成，描述中的秒数只是期望。自然收尾是生成引导，不是精确时长控制，也不能保证每次听感完整；工作台不会自动裁切或淡出。偏好随草稿和新版本保存，查看创作要求可以核对。历史版本未记录的偏好不补写；旧版音频不改变。
+
+音乐播放器提供 **试听结尾**，从最后 15 秒开始播放，不足 15 秒则从头播放，沿用当前试听速度。若生成记录表明乐谱或音乐达到长度上限，页面提示结尾可能不完整，但保留音频供试听、下载。模型主动停止只说明没有撞到生成上限，不代表音乐收尾合格；缺少记录时显示未知，不宣称检查通过。
+
+目前自动化验证覆盖偏好传递、歌词保留、生成记录读取及持久化、结尾试听和提示。新增引导对真实音乐收尾的改善程度尚待实际生成与听评验证，不能由接口测试代替。
+
 ## 一个目录保存全部引擎文件
 
 默认目录是 `~/Music/YuE2`，可由用户更改。首次安装只接受空文件夹；再次安装只接受已标记为工作台管理的 YuE2 目录，避免覆盖无关文件。
@@ -70,12 +80,12 @@ Music Room 的作品工作目录只保存指向这个引擎目录的设置 `engi
 | 让用户选择文件夹 | `yue2_choose_directory` |
 | 准备文件并启用 | `prepare_yue2(directory, downloadModels)` |
 | 启用 / 停止 | `start_yue2`、`stop_yue2` |
-| 提交生成 | `yue2_generate(style, lyrics?, preset?, instrumental?, seed?, title?)` |
+| 提交生成 | `yue2_generate(style, lyrics?, preset?, instrumental?, seed?, title?, ending?)` |
 | 查询 / 取消 | `yue2_get_job(jobId)`、`yue2_list_jobs`、`yue2_cancel_job(jobId)` |
 
 `prepare_yue2` 立即返回，随后轮询 `yue2_status`，只有 `canGenerate=true` 才提交生成。首次模型下载应遵循用户明确选择的目录和下载意愿。
 
-`yue2_generate` 默认 `instrumental=true`、`preset=fast`、`lyrics="[instrumental]"`、`cot=full`，自动组合 AR 器乐 LoRA 与 NAR 音频 LoRA。`lyrics` 也可以写明确的段落结构；使用器乐适配器时按上游建议使用未标注时间的段落标签。生成曲长由模型规划，不能保证描述中的时长精确兑现。
+`yue2_generate` 默认 `instrumental=true`、`preset=fast`、`lyrics="[instrumental]"`、`cot=full`，自动组合 AR 器乐 LoRA 与 NAR 音频 LoRA。`ending` 默认为 `natural`，可显式设为 `as-described` 关闭附加收尾引导；`studio_generate` 接受相同参数。`lyrics` 也可以写明确的段落结构；使用器乐适配器时按上游建议使用未标注时间的段落标签。生成曲长由模型规划，不能保证描述中的时长精确兑现。
 
 返回 `job.id` 是 32 位十六进制。用 `yue2_get_job` 查询到 `job.status=done` 后，`audioPath` 指向所选目录内的 FLAC；`failed` 会包含失败原因。网页关闭后后台仍生成，重新打开可查看最近任务。任务应通过 Music Room 网页或 MCP 提交，统一队列与预算覆盖整个生成过程。
 

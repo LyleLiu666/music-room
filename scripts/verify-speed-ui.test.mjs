@@ -30,6 +30,10 @@ test('speed preview, precise adjustment, safe retry, save, download and reload u
   let polls=0;
   await page.route('**/api/studio_library',async route=>{const response=await route.fetch(),json=await response.json();json.engines.music.message=`更新 ${++polls}`;await route.fulfill({response,json});});
   await page.goto(http.runtime.url);await page.waitForFunction(()=>document.querySelector('#version-audio')?.readyState>=1);
+  const card=await page.locator('.listening').boundingBox();
+  assert.ok(card.height<=240,`desktop player card should be compact, got ${card.height}px`);
+  const adjustment=await page.locator('#playback-speed').boundingBox(),save=await page.locator('#save-speed').boundingBox();
+  assert.ok(Math.abs(adjustment.y+adjustment.height/2-save.y-save.height/2)<=2,'speed adjustment and save share one row');
   assert.equal(await page.locator('#save-speed').isDisabled(),true);
   await page.getByRole('button',{name:'0.8 倍',exact:true}).click();
   assert.equal(await page.locator('#version-audio').evaluate(a=>a.playbackRate),.8);
@@ -42,6 +46,9 @@ test('speed preview, precise adjustment, safe retry, save, download and reload u
   assert.match(await page.locator('#speed-note').innerText(),/3.8 秒/);
   await mkdir('test-results/speed',{recursive:true});await page.screenshot({path:'test-results/speed/desktop.png',fullPage:true});
   await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'test-results/speed/mobile.png',fullPage:true});
+  for(const selector of ['#save-speed','[data-speed-preset="0.8"]','[data-action="download"]']){
+   const box=await page.locator(selector).boundingBox();assert.ok(box.height>=44&&box.x>=0&&box.x+box.width<=390,`${selector} remains easy to tap on mobile`);
+  }
   await page.setViewportSize({width:1440,height:1000});
   const requests=[];let loseResponse=true;
   await page.route('**/api/studio_save_speed',async route=>{

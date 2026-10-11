@@ -1,3 +1,4 @@
+import {generationWithEnding,readTruncation} from './ending.ts';
 import {readAudioFile} from '../projects/audio-files.ts';
 import {randomUUID,createHash} from 'node:crypto';
 import {existsSync,lstatSync,readFileSync,realpathSync,statSync,createReadStream} from 'node:fs';
@@ -60,7 +61,7 @@ export class YuE2Proxy {
   const state=await this.engine.status();if(!state.canGenerate||!state.directory)throw new ServiceError('YUE2_UNAVAILABLE','请先准备并启用音乐模型');
   const id=randomUUID().replaceAll('-',''),record:RecordJob={job:{id,kind:'create',status:'queued',title:input.title,created_at:new Date().toISOString()},directory:state.directory,input:structuredClone(input)};
   this.records.set(id,record);this.save();const controller=new AbortController();
-  const done=this.resources.run({id,engine:'yue2',signal:controller.signal,demand:this.resources.estimate('yue2',{...input,resourceProfile:this.engine.resourceProfile()}),onState:resource=>{record.job.resource=resource;record.job.stage=resource.message??resource.stage;this.save();},execute:async execution=>{
+  const done=this.resources.run({id,engine:'yue2',signal:controller.signal,demand:this.resources.estimate('yue2',{...input,...generationWithEnding(input),resourceProfile:this.engine.resourceProfile()}),onState:resource=>{record.job.resource=resource;record.job.stage=resource.message??resource.stage;this.save();},execute:async execution=>{
    await this.engine.activate(execution);execution.signal.throwIfAborted();execution.running();
    // POST is intentionally not retried: a lost response may already have created an upstream job.
    let upstream=await this.request('jobs',body,execution.signal);record.upstreamId=upstream.id;this.save();
@@ -68,7 +69,7 @@ export class YuE2Proxy {
     await new Promise<void>((resolve,reject)=>{const abort=()=>{clearTimeout(timer);reject(execution.signal.reason);};const timer=setTimeout(()=>{execution.signal.removeEventListener('abort',abort);resolve();},250);execution.signal.addEventListener('abort',abort,{once:true});});
     upstream=await this.request('jobs/'+record.upstreamId,undefined,execution.signal);
    }
-   if(upstream.status==='done')await this.seal(record);return upstream;
+   if(upstream.status==='done'){await this.seal(record);const truncated=readTruncation(join(dirname(dirname(this.artifact(record))),'summary.json'));if(truncated)upstream.truncated=truncated;}return upstream;
   }}).then(upstream=>{const next={...upstream,id,resource:record.job.resource};if(JSON.stringify(next)!==JSON.stringify(record.job)){record.job=next;this.save();}}).catch(error=>{record.job.status=controller.signal.aborted?'cancelled':'failed';record.job.error=error instanceof Error?error.message:String(error);this.save();}).finally(()=>this.tasks.delete(id));
   this.tasks.set(id,{controller,done});return this.result(record);
  }

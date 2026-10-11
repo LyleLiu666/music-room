@@ -791,7 +791,7 @@ h3 {
   border: 1px solid var(--line);
   border-radius: var(--r-xl);
   overflow: visible;
-  padding: 24px 28px 16px;
+  padding: 10px 16px 6px;
   box-shadow: var(--shadow);
 }
 
@@ -836,8 +836,8 @@ h3 {
 }
 
 .player-space {
-  padding: 24px 0 22px;
-  min-height: 108px;
+  padding: 6px 0;
+  min-height: 0;
   position: relative;
 }
 
@@ -865,14 +865,13 @@ audio::-webkit-media-controls-panel {
 }
 
 .speed-controls {
-  margin-top: 18px;
+  margin-top: 6px;
 }
 
-.speed-adjustment,
-.speed-save {
+.speed-adjustment {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
 }
 
@@ -889,10 +888,10 @@ audio::-webkit-media-controls-panel {
 }
 
 .speed-adjustment input[type="range"] {
-  flex: 1 1 120px;
+  flex: 1 1 100px;
   width: auto;
   min-width: 80px;
-  max-width: 280px;
+  max-width: 160px;
   padding: 0;
   accent-color: var(--accent);
 }
@@ -902,22 +901,49 @@ audio::-webkit-media-controls-panel {
   background: var(--accent-soft);
 }
 
-.speed-save {
-  justify-content: space-between;
-  margin-top: 10px;
-}
-
-.speed-save .field-note {
-  flex: 1 1 190px;
+.speed-controls #speed-note {
+  flex: 1 1 auto;
   margin: 0;
+  font-size: 11px;
+  white-space: nowrap;
 }
 
-.speed-save button {
+.speed-controls button {
+  min-height: 32px;
+  padding: 5px 10px;
+}
+
+#save-speed {
+  margin-left: auto;
   flex-shrink: 0;
 }
 
 #speed-error {
   color: var(--danger, #b34f48);
+  margin: 4px 0 0;
+}
+
+.ending-preview {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 8px;
+  margin-top: 2px;
+}
+
+.ending-preview button {
+  min-height: 32px;
+  padding: 5px 10px;
+}
+
+.ending-preview .field-note {
+  margin: 0;
+  font-size: 11px;
+}
+
+#ending-preview-error {
+  flex-basis: 100%;
+  color: var(--danger);
 }
 
 .listening-actions {
@@ -925,7 +951,17 @@ audio::-webkit-media-controls-panel {
   align-items: center;
   gap: 6px;
   border-top: 1px solid var(--line);
-  padding-top: 12px;
+  padding-top: 4px;
+}
+
+.listening-actions > button {
+  min-height: 32px;
+  padding: 5px 10px;
+}
+
+.listening-actions .more-menu summary {
+  min-height: 32px;
+  padding: 5px 10px;
 }
 
 .action-spacer {
@@ -1735,6 +1771,7 @@ form::after {
 }
 
 .music-mode {
+  flex-wrap: wrap;
   border: 0;
   padding: 0;
   display: flex;
@@ -2224,7 +2261,7 @@ pre {
   }
 
   .listening {
-    padding: 20px 20px 14px;
+    padding: 14px 16px 8px;
   }
 
   .listening-actions {
@@ -2419,12 +2456,57 @@ pre {
   }
 
   .listening {
-    padding: 16px 14px 10px;
+    padding: 12px 14px 8px;
     border-radius: var(--r-lg);
   }
 
   .player-space {
-    padding: 18px 0;
+    padding: 8px 0;
+  }
+
+  .speed-adjustment {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    gap: 4px 8px;
+  }
+
+  .speed-adjustment input[type="range"] {
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    min-height: 44px;
+  }
+
+  .speed-adjustment output {
+    text-align: right;
+  }
+
+  .speed-controls button,
+  .ending-preview button,
+  .listening-actions > button,
+  .listening-actions .more-menu summary {
+    min-height: 44px;
+  }
+
+  #save-speed {
+    margin-left: 0;
+    grid-column: 3;
+    grid-row: 2;
+  }
+
+  .speed-controls #speed-note {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    white-space: normal;
+  }
+
+  .ending-preview {
+    gap: 0 4px;
+  }
+
+  .ending-preview > span {
+    flex: 1;
+    min-width: 0;
   }
 
   .listening-actions {
@@ -2688,7 +2770,7 @@ dialog[data-mode="score-tools"] .dialog-body { padding:20px; }
 #background-playback[hidden]{display:none}
 .background-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
 .background-heading button{min-height:44px}.background-heading button:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-#background-playback .player-space{padding:0;min-height:0}#background-playback audio{width:100%}#background-playback .speed-controls,#background-playback #audio-placeholder{display:none}
+#background-playback .player-space{padding:0;min-height:0}#background-playback audio{width:100%}#background-playback .speed-controls,#background-playback .ending-preview,#background-playback #audio-placeholder{display:none}
 body.background-playing #workspace{padding-bottom:180px}
 @media(max-width:700px){#background-playback{left:12px;right:12px;bottom:12px;padding:8px 12px}.background-heading{gap:4px}.background-heading button{font-size:12px}}
 #background-player{display:none}.background-controls{display:flex;align-items:center;gap:12px}.background-controls button{min-width:64px;min-height:44px}.background-controls output{font-size:12px;font-variant-numeric:tabular-nums;white-space:nowrap}.background-controls input{flex:1;min-width:0;width:100%;accent-color:var(--accent)}
@@ -2700,3 +2782,11 @@ body:has(#dialog[open][data-mode="settings"]) .studio-topbar{visibility:hidden}.
 @media(max-width:600px){.settings-theme{margin-right:4px}.settings-theme .theme-switch button{padding:4px 5px;font-size:10px}}
 
 .settings-shortcuts{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--line)}.settings-shortcuts .field-note{margin:0}.settings-shortcuts button{min-height:44px}
+
+/* Lyrics stay readable inside both desktop and narrow creation dialogs. */
+.lyrics-example { margin-top: 12px; }
+.lyrics-example summary { cursor: pointer; min-height: 44px; padding: 10px 0; }
+.lyrics-example pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; font-size: 13px; line-height: 1.8; padding: 12px; border-left: 2px solid var(--line); }
+#compose-form #lyrics { min-height: 180px; line-height: 1.7; }
+#compose-form .music-mode label { min-height: 44px; margin: 0; }
+#compose-form .music-mode { margin-top: 4px; gap: 4px 22px; }
