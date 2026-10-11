@@ -27,3 +27,12 @@ export function renderWorkspace(workspace:HTMLElement,markup:string){
  }
  updateAroundPlayer(workspace,next.content);
 }
+
+/** Move the connected player without restarting native playback. */
+export function movePlayer(parent:HTMLElement,player:HTMLElement,before:Node|null=null){
+ if(parent.moveBefore){parent.moveBefore(player,before);return;}
+ // Older browsers lack state-preserving DOM moves.
+ const audio=player.querySelector('audio'),playing=audio&&!audio.paused;
+ parent.insertBefore(player,before);
+ if(playing)void audio.play().catch(()=>{});
+}

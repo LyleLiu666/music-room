@@ -10,7 +10,7 @@ import {MusicService} from '../src/service/service.ts';
 import {serveHttp} from '../src/server/http.ts';
 import {encodeWav} from '../src/wav.ts';
 
-test('native playback menus and playback survive library refreshes; changing versions replaces the player',async()=>{
+test('native playback menus and playback survive library refreshes; browsing keeps playback available in a persistent dock',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-player-menu-'));
  const wav=Buffer.from(encodeWav([Float32Array.from({length:22050*12},(_,i)=>Math.sin(i*.1)*.2)],22050));
  const unused={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
@@ -75,7 +75,23 @@ test('native playback menus and playback survive library refreshes; changing ver
   assert.equal(await page.evaluate(()=>playerRemovals),0,'version metadata updates around the connected player');
   await page.locator(`[data-action="version"][data-id="${versions[0].id}"]`).click();
   await page.waitForFunction(id=>document.querySelector('#version-audio')?.dataset.version===id&&document.querySelector('#version-audio')?.readyState>=1,versions[0].id);
-  assert.equal(await page.evaluate(()=>player!==document.querySelector('#version-audio')&&player.paused&&!player.isConnected),true,'switching versions replaces and pauses the old player');
+  assert.equal(await page.evaluate(()=>player!==document.querySelector('#version-audio')&&!player.paused&&player.isConnected),true,'browsing another version keeps playback');
+  await page.locator('#background-playback').filter({hasText:'菜单试听 · V2'}).waitFor();
+  const timeBefore=await page.evaluate(()=>player.currentTime);await page.waitForTimeout(700);assert.ok(await page.evaluate(t=>player.currentTime>t,timeBefore));
+  await page.click('[data-action="return-playback"]');await page.waitForFunction(()=>player===document.querySelector('#version-audio'));assert.equal(await page.evaluate(()=>player===document.querySelector('#version-audio')&&!player.paused&&player.playbackRate===1.5&&player.volume===.4),true,'return keeps the same player and its settings');assert.ok((await names()).some(n=>['暂停','Pause'].includes(n)),'returned native pause control remains visible');
+  const other=await service.call('studio_create_sound',{projectId:'menus',title:'另一个声音',kind:'music'});
+  await page.locator(`[data-action="sound"][data-id="${other.id}"]`).waitFor();await page.click(`[data-action="sound"][data-id="${other.id}"]`);
+  assert.equal(await page.evaluate(()=>!player.paused&&player.isConnected),true,'sound tabs keep music playing even without another audio');
+  await service.call('create_project',{projectId:'other',title:'另一个项目'});await page.locator('[data-action="project"][data-id="other"]').waitFor();await page.click('[data-action="project"][data-id="other"]');
+  assert.equal(await page.evaluate(()=>!player.paused&&player.isConnected),true,'project browsing keeps playback');
+  await page.setViewportSize({width:390,height:844});const dock=await page.locator('#background-playback').boundingBox();assert.ok(dock.x>=0&&dock.x+dock.width<=390&&dock.y+dock.height<=844);assert.ok((await page.locator('[data-action="stop-playback"]').boundingBox()).height>=44);await page.setViewportSize({width:1440,height:1000});
+  await page.click('[data-action="voice-library"]');assert.equal(await page.evaluate(()=>!player.paused&&player.isConnected),true,'voice library browsing keeps playback');
+  await page.getByRole('button',{name:'暂停',exact:true}).click();assert.equal(await page.evaluate(()=>player.paused),true,'dock provides a working pause');
+  await page.getByRole('button',{name:'播放',exact:true}).click();await page.click('[data-action="return-playback"]');await page.waitForFunction(()=>player===document.querySelector('#version-audio'));
+  await page.click(`[data-action="version"][data-id="${versions[0].id}"]`);await page.waitForFunction(()=>document.querySelector('#version-audio')?.readyState>=1);
+  await page.locator('#version-audio').evaluate(a=>a.play());assert.equal(await page.evaluate(()=>player.paused),true,'explicit playback of another version replaces the playing track');
+  assert.equal(await page.locator('#background-playback').isVisible(),false);
+  await page.click(`[data-action="sound"][data-id="${other.id}"]`);await page.locator('#background-playback').waitFor();await page.click('[data-action="stop-playback"]');assert.equal(await page.locator('#background-playback').isVisible(),false);
   assert.deepEqual(errors,[]);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
