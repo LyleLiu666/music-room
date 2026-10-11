@@ -45,7 +45,7 @@ export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
   const opt=options(argv);configureCommandWorker(process.execPath,[...selfArgs,'command-worker']);
   if(opt.mode==='command-worker'){await runCommandWorker();return;}
   if(opt.mode==='help'||opt.mode==='--help'){console.log('Music Room\n  serve [--workspace DIRECTORY] [--port PORT]\n  mcp [--workspace DIRECTORY]  # stdio MCP; connects to or starts local service\n  status [--workspace DIRECTORY]\n  call OPERATION --input request.json [--workspace DIRECTORY]\nDefault workspace: ~/Music/MusicRoom. No Electron or browser runtime. Optional YuE2 is installed into your chosen directory from the web page.');return;}
-  if(opt.mode==='speed-worker'){await runSpeedWorker();return;}
+  if(opt.mode==='speed-worker'){await runSpeedWorker(assets.read);return;}
   if(opt.mode==='render-worker'){await runRenderWorker(assets.read);return;}
   if(opt.mode==='conversion-native-worker'){await runConversionWorker();return;}
   if(opt.mode==='tts-native-worker'){await runNativeSpeechWorker();return;}

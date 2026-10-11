@@ -4,6 +4,8 @@
 
 当前交付为 macOS Apple Silicon 命令行二进制，内置服务、网页、基础音色和 MCP。用户无需安装 Node、Bun、Python 或新浏览器运行时。用已有浏览器听评，关闭网页不会停止独立启动的后台。
 
+macOS 调速保存内嵌 Rubber Band 4.0.0 R3 双遍离线程序；源码构建需要 Xcode Command Line Tools，`npm run build` 自动下载并校验固定源码、编译和打包，后续复用经校验的源码缓存。直接运行服务测试前，`npm run test:service` 会先构建该程序；手动运行单个测试可先执行 `npm run build:speed-native`。终端用户不需要编译工具。调速失败会报错，不会静默切回旧算法。独立辅助程序的完整对应源码、构建脚本和 GPL 许可内嵌于 `/speed-native/source.zip`，构建记录位于 `/speed-native/manifest.json`。
+
 ```sh
 ./release/start.sh --workspace "$HOME/Music/MusicRoom" --port 5174
 ```

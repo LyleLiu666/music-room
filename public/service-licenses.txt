@@ -31,6 +31,18 @@ https://registry.npmjs.org/@soundtouchjs/interpolation-strategy-lanczos/-/interp
 Source repository: https://github.com/cutterbl/SoundTouchJS
 License text: https://www.mozilla.org/en-US/MPL/2.0/
 
+macOS speed helper: Rubber Band Library 4.0.0, GPL-2.0-or-later.
+Copyright 2007-2024 Particular Programs Ltd, written by Chris Cannam.
+Upstream source: https://github.com/breakfastquay/rubberband
+Pinned revision: 1d95888bec3ae0a17c0c4af791810d5a63f6bc35
+The separate helper native/speed/render.cpp is GPL-2.0-or-later and links
+Rubber Band's R3 engine; the application invokes it as a child process.
+Complete corresponding source, dependency notices, GPL license text and
+the build script accompany the executable at /speed-native/source.zip.
+Build/source hashes: /speed-native/manifest.json
+License text: /speed-native/COPYING
+Apple Accelerate is supplied by the operating system.
+
 @wasm-audio-decoders/flac 0.2.10 and codec-parser 2.5.0:
 MIT JavaScript wrappers, Copyright Ethan Halsall.
 Source, embedded WASM and build instructions:

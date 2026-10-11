@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {fileURLToPath} from 'node:url';
 import {createInterface} from 'node:readline';
 import {changeAudioSpeed} from './speed.ts';
+import type {SpeedAssetReader} from './speed-native.ts';
 import type {ResourceExecution} from '../resources/contracts.ts';
 export type SpeedProcessor=(bytes:Uint8Array,rate:number,execution:ResourceExecution)=>Promise<Uint8Array>;
 export function processSpeed(command=process.execPath,args=[fileURLToPath(new URL('./speed-worker-entry.ts',import.meta.url))]):SpeedProcessor{
@@ -24,13 +25,13 @@ export function processSpeed(command=process.execPath,args=[fileURLToPath(new UR
   }finally{await rm(directory,{recursive:true,force:true});}
  };
 }
-export async function runSpeedWorker(){
+export async function runSpeedWorker(read?:SpeedAssetReader){
  const lines=createInterface({input:process.stdin}),controller=new AbortController();let started=false;
  const stop=()=>controller.abort();lines.once('close',stop);process.once('SIGTERM',stop);process.once('SIGINT',stop);
  try{
   const line=await new Promise<string>((resolve,reject)=>{lines.once('line',line=>{started=true;resolve(line);});lines.once('close',()=>{if(!started)reject(new Error('调速任务缺失'));});});
   if(line.length>16384)throw new Error('调速参数无效');const task=JSON.parse(line);if(typeof task.path!=='string'||!Number.isFinite(task.budget)||task.budget<=0)throw new Error('调速参数无效');
-  const output=await changeAudioSpeed(new Uint8Array(await readFile(task.path)),task.rate,controller.signal,task.budget);controller.signal.throwIfAborted();
+  const output=await changeAudioSpeed(new Uint8Array(await readFile(task.path)),task.rate,controller.signal,task.budget,read);controller.signal.throwIfAborted();
   await new Promise<void>((resolve,reject)=>process.stdout.write(output,error=>error?reject(error):resolve()));
  }finally{lines.removeListener('close',stop);lines.close();process.stdin.destroy();process.removeListener('SIGTERM',stop);process.removeListener('SIGINT',stop);}
 }

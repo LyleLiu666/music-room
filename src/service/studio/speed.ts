@@ -6,14 +6,15 @@ import {FLACDecoder} from '@wasm-audio-decoders/flac';
 import {setImmediate} from 'node:timers/promises';
 import {encodeWav} from '../../wav.ts';
 import {ServiceError} from '../projects/store.ts';
+import {renderNativeSpeed,type SpeedAssetReader} from './speed-native.ts';
 
 export type SpeedEdit={rate:number;sourceVersionId:string;requestId:string};
 export function validateSpeed(rate:number){
  if(!Number.isFinite(rate)||rate<.5||rate>2||rate===1)throw new ServiceError('INVALID_SPEED','请选择 0.5–2.0 倍之间、不同于 1.0 倍的速度');
 }
 
-/** WSOLA changes duration without changing sample rate or musical pitch. */
-export async function changeAudioSpeed(bytes:Uint8Array,rate:number,signal?:AbortSignal,budget=Number.MAX_SAFE_INTEGER):Promise<Uint8Array>{
+/** Decode and validate before offline rendering; retain WSOLA on non-macOS hosts. */
+export async function changeAudioSpeed(bytes:Uint8Array,rate:number,signal?:AbortSignal,budget=Number.MAX_SAFE_INTEGER,read?:SpeedAssetReader):Promise<Uint8Array>{
  validateSpeed(rate);signal?.throwIfAborted();if(speedPeak(bytes,rate)>budget)throw new ServiceError('INSUFFICIENT_CAPACITY','调速音频超过内存预算');
  const shape=audioShape(bytes);let decoded:{sampleRate:number;channelData:Float32Array[]};
  if(Buffer.from(bytes.subarray(0,4)).toString()==='fLaC'){
@@ -26,6 +27,7 @@ export async function changeAudioSpeed(bytes:Uint8Array,rate:number,signal?:Abor
  signal?.throwIfAborted();
  const {sampleRate,channelData}=decoded,frames=channelData[0]?.length??0;
  if(frames!==shape.frames||sampleRate!==shape.rate||channelData.length!==shape.channels||!frames||![1,2].includes(channelData.length)||sampleRate<8000||sampleRate>96000||channelData.some(c=>c.length!==frames))throw new ServiceError('INVALID_AUDIO','暂不支持此音频的声道或采样率');
+ if(process.platform==='darwin')return renderNativeSpeed(channelData,sampleRate,rate,signal,read);
  const outputFrames=Math.round(frames/rate),channels=channelData.map(()=>new Float32Array(outputFrames));
  const stretch=new Stretch({sampleRate,createBuffers:true});stretch.tempo=rate;
  const input=stretch.inputBuffer!,output=stretch.outputBuffer!;

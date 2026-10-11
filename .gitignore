@@ -4,6 +4,7 @@ dist/
 test-results/
 public/authoring-kit/
 public/music-authoring-kit.zip
+public/speed-native/
 build/
 release/
 

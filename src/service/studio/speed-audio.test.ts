@@ -4,6 +4,51 @@ import assert from 'node:assert/strict';
 import decoder from 'wav-decoder';
 import {changeAudioSpeed} from './speed.ts';
 import {encodeWav} from '../../wav.ts';
+import {readFile} from 'node:fs/promises';
+
+test('production half-speed uses the R3 signal path selected in the listening comparison', {skip:process.platform!=='darwin'}, async()=>{
+ const fixture=JSON.parse(await readFile(new URL('./fixtures/r3-vocal-050.json',import.meta.url),'utf8'));
+ const sampleRate=fixture.sampleRate;
+ const source=Float32Array.from({length:sampleRate},(_,i)=>{
+  const t=i/sampleRate,phase=2*Math.PI*(140*t+25*t*t),envelope=Math.sin(Math.PI*t)**2;
+  return envelope*(.4*Math.sin(phase)+.2*Math.sin(phase*2)+.1*Math.sin(phase*3));
+ });
+ const bytes=await changeAudioSpeed(new Uint8Array(encodeWav([source],sampleRate)),.5);
+ const actual=(await decoder.decode(new Uint8Array(bytes).buffer)).channelData[0];
+ assert.equal(actual.length,fixture.outputFrames);
+ let error=0,energy=0;
+ for(const [frame,value] of fixture.samples){error+=(actual[frame]-value)**2;energy+=value**2;}
+ assert.ok(Math.sqrt(error/energy)<.001,'saved output must match the independently rendered R3 fixture');
+});
+
+test('speed processing reserves peak headroom instead of clipping loud material', {skip:process.platform!=='darwin'}, async()=>{
+ const sampleRate=22050,samples=Float32Array.from({length:sampleRate*2},(_,i)=>.98*Math.sin(2*Math.PI*440*i/sampleRate));
+ const output=await changeAudioSpeed(new Uint8Array(encodeWav([samples],sampleRate)),.5);
+ const channel=(await decoder.decode(new Uint8Array(output).buffer)).channelData[0];
+ let peak=0;for(const x of channel)peak=Math.max(peak,Math.abs(x));
+ assert.ok(peak<=.9801,`output peak ${peak} exceeds headroom`);
+ assert.ok(peak>.9,'headroom protection must not excessively attenuate the audio');
+});
+
+test('saved speech tempo preserves short sounds and their timing', {skip:process.platform!=='darwin'}, async()=>{
+ // Separated 40 ms syllable-like sounds expose repeats/skips hidden by a steady tone.
+ const sampleRate=24000,starts=Array.from({length:7},(_,i)=>.2+i*.4);
+ const source=Float32Array.from({length:sampleRate*3},(_,i)=>{
+  const t=i/sampleRate,start=starts.find(start=>t>=start&&t<start+.04);
+  return start===undefined?0:.3*Math.sin(Math.PI*(t-start)/.04)**2*Math.sin(2*Math.PI*440*t);
+ });
+ for(const rate of [.8,.85,.5,1.2,2]){
+  const bytes=await changeAudioSpeed(new Uint8Array(encodeWav([source],sampleRate)),rate);
+  const samples=(await decoder.decode(new Uint8Array(bytes).buffer)).channelData[0];
+  const onsets:number[]=[];let last=-sampleRate;
+  for(let i=0;i<samples.length;i++)if(Math.abs(samples[i])>.04){
+   if(i-last>sampleRate*.02)onsets.push(i/sampleRate);
+   last=i;
+  }
+  assert.equal(onsets.length,starts.length,`${rate}x must not repeat or drop short sounds`);
+  onsets.forEach((onset,i)=>assert.ok(Math.abs(onset-starts[i]/rate)<.025,`${rate}x sound ${i}: ${onset} vs ${starts[i]/rate}`));
+ }
+});
 
 test('tempo changes preserve mono/stereo, sample rate, pitch, leading audio and the last phrase',async()=>{
  for(const sampleRate of [22050,48000])for(const rate of [.5,.8,1.2,2]){

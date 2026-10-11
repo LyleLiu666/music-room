@@ -11,6 +11,7 @@ import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {presetVoices} from '../src/service/tts/preset-manifest.ts';
 import {nativeProgramManifest} from '../src/service/tts/native-program-manifest.ts';
+import {audioShape} from '../src/service/studio/audio-budget.ts';
 const root=await mkdtemp(join(tmpdir(),'music-binary-')),binary=join(root,'music-room'),workspace=join(root,'workspace');
 const out=resolve('test-results/binary');await mkdir(out,{recursive:true});await copyFile('release/music-room',binary);await chmod(binary,0o755);await copyFile('release/start.sh',join(root,'start.sh'));await chmod(join(root,'start.sh'),0o755);
 const example=JSON.parse(await readFile('src/music/authoring/example.json','utf8'));
@@ -42,6 +43,16 @@ try {
   assert.equal(nativeBytes.byteLength,nativeProgramManifest.archiveBytes);
   assert.equal(createHash('sha256').update(nativeBytes).digest('hex'),nativeProgramManifest.archiveSha256);
   results.push('patched native TTS package is embedded and matches the pinned archive SHA-256');
+  if(process.platform==='darwin'){
+    const speedManifestResponse=await fetch(runtime.url+'/speed-native/manifest.json');assert.equal(speedManifestResponse.status,200);
+    const manifest=await speedManifestResponse.json();assert.equal(manifest.engine,'Rubber Band R3');assert.equal(manifest.revision,'1d95888bec3ae0a17c0c4af791810d5a63f6bc35');
+    for(const [path,sha] of [[manifest.program,manifest.programSha256],[manifest.source,manifest.sourceSha256]]){
+      const response=await fetch(runtime.url+'/speed-native/'+path);assert.equal(response.status,200);
+      const bytes=new Uint8Array(await response.arrayBuffer());assert.equal(createHash('sha256').update(bytes).digest('hex'),sha);
+      if(path===manifest.source){const zip=join(root,'speed-source.zip');await writeFile(zip,bytes);const entries=execFileSync('/usr/bin/unzip',['-Z1',zip],{encoding:'utf8'});for(const name of ['render.cpp','build.sh','COPYING','rubberband/single/RubberBandSingle.cpp'])assert.ok(entries.includes('speed-native-source/'+name));}
+    }
+    results.push('R3 helper and complete corresponding source/license/build script are embedded and match manifest hashes');
+  }
   const requirements=await fetch(runtime.url+'/yue2-runtime/requirements.txt');assert.equal(requirements.status,200);assert.ok((await requirements.text()).includes('MUSIC_ROOM_MLX_YUE_ARCHIVE'));results.push('YuE2 contracts and hash-locked installer requirements are embedded');
   const managed=join(root,'模型 程序 测试');await mkdir(join(managed,'bin'),{recursive:true});await writeFile(join(managed,'.music-room-yue2.lock'),JSON.stringify({pid:process.pid,owner:'binary-lease'}));await writeFile(join(managed,'bin','uv'),'#!/bin/sh\nsleep 60 &\nprintf "%s" "$!" > child.pid\nwait\n');await chmod(join(managed,'bin','uv'),0o755);
   const supervisor=spawn(binary,['yue2-worker'],{cwd:root,env,stdio:['pipe','pipe','pipe']});let diagnostics='';supervisor.stderr.on('data',chunk=>diagnostics+=chunk);const supervised=new Promise(r=>supervisor.once('close',r));
@@ -54,15 +65,17 @@ try {
   await tool('import_revision',{compositionJson:JSON.stringify(long),parentId:example.revision.id});
   assert.equal((await tool('get_revision',{projectId:example.work.id,revisionId:long.revision.id})).metadata.parentId,example.revision.id);results.push('MCP creates project and parent/child 8→16 bar versions');
   const render=await tool('render_revision',{projectId:example.work.id,revisionId:long.revision.id,idempotencyKey:'binary-render'});
-  let done;for(let i=0;i<200;i++){done=await tool('get_job',{jobId:render.id});if(!['queued','running'].includes(done.state))break;await new Promise(r=>setTimeout(r,30));}
-  assert.equal(done.state,'succeeded',done.error??'');const wav=await readFile(join(workspace,'projects',example.work.id,done.artifact.path));
+  // Real resource admission may wait up to 60 s; allow that before judging the render.
+  let done;const renderDeadline=Date.now()+90000;do{done=await tool('get_job',{jobId:render.id});if(!['queued','running'].includes(done.state))break;await new Promise(r=>setTimeout(r,200));}while(Date.now()<renderDeadline);
+  assert.equal(done.state,'succeeded',done.error??JSON.stringify(done.resource));const wav=await readFile(join(workspace,'projects',example.work.id,done.artifact.path));
   assert.equal(wav.length,44+40*44100*4);assert.equal(createHash('sha256').update(wav).digest('hex'),done.artifact.sha256);results.push('standalone backend worker uses embedded samples; real 40 second WAV/hash');
   const source=(await tool('studio_library')).versions.find(v=>v.source.kind==='score'&&v.source.id===long.revision.id);
   const speed=await tool('studio_save_speed',{versionId:source.id,rate:.8,requestId:'binary-speed'});
   assert.ok(Math.abs(speed.duration-50)<.002);assert.equal(speed.source.kind,'audio');
   const speedResponse=await fetch(runtime.url+speed.audioPath,{headers:{authorization:`Bearer ${runtime.token}`}});
   assert.equal(speedResponse.status,200);const speedBytes=new Uint8Array(await speedResponse.arrayBuffer());
-  assert.equal(speedBytes.length,44+50*44100*4);
+  // Native WAV writers may include legal padding/metadata chunks before PCM.
+  assert.deepEqual(audioShape(speedBytes),{frames:50*44100,channels:2,rate:44100});
   results.push('standalone pitch-preserving speed save produces an independent 50 second WAV from a 40 second score');
   await tool('add_feedback',{projectId:example.work.id,revisionId:long.revision.id,text:'主题保留，下一版加一点变化。'});
   httpClient=new Client({name:'binary-http-agent',version:'1'});await httpClient.connect(new StreamableHTTPClientTransport(new URL(runtime.url+'/mcp'),{requestInit:{headers:{authorization:`Bearer ${runtime.token}`}}}));
