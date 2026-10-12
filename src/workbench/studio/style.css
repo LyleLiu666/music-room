@@ -2891,5 +2891,20 @@ body:has(#dialog[open]) #global-status-bar{visibility:hidden}
 .empty-player .music-progress{max-width:680px;margin:4px 0 12px}
 .queue-list .music-progress{margin:4px 0 8px}
 .queue-list .music-progress strong{font-size:13px}
+.task-progress{display:flex;flex-direction:column;gap:6px;font-size:12px;line-height:1.6;font-variant-numeric:tabular-nums}
+.task-progress progress{width:100%;height:6px;accent-color:var(--accent)}
 .queue-list{max-height:min(360px,calc(100dvh - 100px))}
 @media(max-width:600px){.empty-player:has(.music-progress){flex-wrap:wrap;align-items:flex-start;gap:12px}.empty-player:has(.music-progress)>div{min-width:0;flex-basis:calc(100% - 62px)}.empty-player:has(.music-progress)>button{margin-left:60px}}
+
+.workspace-toolbar .sound-tab { flex: 0 1 auto; min-width: 0; }
+.workspace-toolbar .sound-tab > span:last-child { min-width: 0; }
+.sound-overflow-trigger { flex-shrink: 0; padding: 6px 10px; font-size: 22px; color: var(--muted); }
+#sound-overflow { position: fixed; margin: 0; width: min(320px, calc(100vw - 16px)); padding: 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); color: var(--text); box-shadow: 0 12px 36px #0004; }
+#sound-overflow input { width: 100%; }
+.sound-overflow-list { max-height: min(360px, 55vh); overflow-y: auto; margin-top: 8px; }
+.sound-overflow-list button { width: 100%; text-align: left; padding: 10px; }
+.sound-overflow-list button:not([hidden]) { display: flex; align-items: center; gap: 12px; }
+.sound-overflow-list button span { flex: 1; overflow-wrap: anywhere; }
+.sound-overflow-list small { flex-shrink: 0; color: var(--muted); }
+.sound-overflow-list button:hover, .sound-overflow-list button[aria-pressed='true'] { background: var(--line); }
+.sound-search-empty { padding: 12px; color: var(--muted); }

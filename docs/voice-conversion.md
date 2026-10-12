@@ -76,3 +76,7 @@ node --test scripts/verify-studio-conversion-ui.test.mjs scripts/verify-conversi
 真实 Seed-VC F16 / Metal 短测设置 +3 半音，6 秒片段输出音高变化中位数 +3.022 半音，380 个有效配对帧中 92.9% 在目标 ±0.5 半音内。再使用实际分离的贝斯和其他伴奏同步移调、鼓轨逐采样不变，生成严格 6 秒的立体声混音。证据位于 `test-results/seed-vc-trial/pitch-plus3-short/`，试听位于 `test-results/seed-vc-trial/outputs/pitch-{zero,plus3}-64-70-mix.wav`。
 
 此测试证明移调参数和处理链实际生效，不代表全部移调幅度的音质已验收。0 半音对照来自整曲，+3 输入仅 6 秒，两者生成上下文和归一化不同；原始 +3 模型输出有 3 个触顶采样，最终混音未触顶，但衰减不能恢复之前的削波细节。
+
+## 相关探索
+
+[音频转谱与人声音色转换探索结论（2026-10-12）](music-transcription-assessment-2026-10-12.md)：记录 SheetSage2 实测证据、暂停转谱的决定，以及直接换声与转谱的适用边界。

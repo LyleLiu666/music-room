@@ -11,6 +11,10 @@ import {MusicService} from '../service/service.ts';
 import {processRenderer} from '../service/render/process.ts';
 import {serveHttp} from './http.ts';
 import {fileURLToPath} from 'node:url';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
+import {readRuntime,remoteCall} from './main.ts';
+const stop=(root:string)=>promisify(execFile)(process.execPath,[fileURLToPath(new URL('./dev.ts',import.meta.url)),'stop','--workspace',root]);
 const example=JSON.parse(await readFile(new URL('../music/authoring/example.json',import.meta.url),'utf8'));
 const rootAssets=new URL('../../dist/',import.meta.url);
 const assets={read:(path:string)=>readFile(new URL(path,rootAssets)),has:()=>true,embedded:false};
@@ -42,24 +46,28 @@ test('official HTTP MCP client authors, renders, reads artifacts/resources and r
   assert.equal((await fetch(http.runtime.url+'/api/status',{method:'POST'})).status,401);
   assert.equal((await fetch(http.runtime.url+'/api/status',{method:'POST',headers:{origin:'https://evil.invalid',authorization:`Bearer ${http.runtime.token}`}})).status,403);
 });
-test('stdio MCP starts one shared service and a second connection reuses its project state',async t=>{
-  const root=await mkdtemp(join(tmpdir(),'music-stdio-'));t.after(()=>rm(root,{recursive:true,force:true}));
+test('stdio MCP starts one independent service and tasks survive closing all connections',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'music-stdio-'));t.after(async()=>{await stop(root);await rm(root,{recursive:true,force:true});});
   const connect=async()=>{const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('./dev.ts',import.meta.url)),'mcp','--workspace',root],stderr:'pipe'});const c=new Client({name:'stdio-integration',version:'1'});await c.connect(transport);return c;};
   const a=await connect();t.after(()=>a.close());
   await a.callTool({name:'import_revision',arguments:{compositionJson:JSON.stringify(example)}});
   const b=await connect();t.after(()=>b.close());const result=await b.callTool({name:'get_revision',arguments:{projectId:example.work.id,revisionId:example.revision.id}});
   assert.ok(!result.isError);assert.equal(JSON.parse((result.content as any)[0].text).composition.revision.id,example.revision.id);
   await b.close(); assert.ok(!(await a.callTool({name:'status',arguments:{}})).isError);
+  const resultJob=await a.callTool({name:'render_revision',arguments:{projectId:example.work.id,revisionId:example.revision.id,idempotencyKey:'mcp-window-close'}});
+  const job=JSON.parse((resultJob.content as any)[0].text),runtime=readRuntime(root)!;
   await a.close();
+  for(let i=0;i<200;i++){const value=await remoteCall(runtime,'get_job',{jobId:job.id});if(!['queued','running'].includes(value.state)){assert.equal(value.state,'succeeded',value.error??'');return;}await new Promise(r=>setTimeout(r,30));}throw Error('task did not finish after MCP clients closed');
 });
 
 test('concurrent stdio startup shares one owner rather than failing its second agent',async t=>{
-  const root=await mkdtemp(join(tmpdir(),'music-racing-'));t.after(()=>rm(root,{recursive:true,force:true}));
+  const root=await mkdtemp(join(tmpdir(),'music-racing-'));t.after(async()=>{await stop(root);await rm(root,{recursive:true,force:true});});
   const start=async()=>{const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('./dev.ts',import.meta.url)),'mcp','--workspace',root],stderr:'pipe'});const client=new Client({name:'racing-agent',version:'1'});t.after(()=>client.close());try{await client.connect(transport);return {client,transport};}catch(e){await transport.close();throw e;}};
   const connections=await Promise.all([start(),start()]);
   t.after(async()=>{for(const x of connections)await x.client.close();});
   const runtime=JSON.parse(await readFile(join(root,'.music-room.runtime.json'),'utf8'));
   for(const x of connections)assert.ok(!(await x.client.callTool({name:'status',arguments:{}})).isError);
-  const reused=connections.find(x=>x.transport.pid!==runtime.pid)!;const owner=connections.find(x=>x.transport.pid===runtime.pid)!;
-  await reused.client.close();assert.ok(!(await owner.client.callTool({name:'status',arguments:{}})).isError);await owner.client.close();
+  for(const connection of connections)assert.notEqual(connection.transport.pid,runtime.pid);
+  await connections[0].client.close();assert.ok(!(await connections[1].client.callTool({name:'status',arguments:{}})).isError);await connections[1].client.close();
+  assert.equal((await remoteCall(runtime,'status',{})).workspace,runtime.workspace);
 });

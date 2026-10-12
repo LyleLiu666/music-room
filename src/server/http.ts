@@ -11,7 +11,7 @@ import {operationName,parseOperation} from '../service/operations.ts';
 import {ServiceError} from '../service/projects/store.ts';
 import type {MusicService} from '../service/service.ts';
 export type WebAssets = {read:(path:string)=>Promise<Uint8Array>;has:(path:string)=>boolean;embedded:boolean};
-export type Runtime = {pid:number;url:string;token:string;workspace:string;command:string;args:string[]};
+export type Runtime = {pid:number;url:string;token:string;workspace:string;command:string;args:string[];background?:boolean};
 const mime=(p:string)=>p.endsWith('.html')?'text/html; charset=utf-8':p.endsWith('.js')||p.endsWith('.mjs')?'text/javascript; charset=utf-8':p.endsWith('.css')?'text/css; charset=utf-8':p.endsWith('.json')?'application/json':p.endsWith('.mp3')?'audio/mpeg':p.endsWith('.wav')?'audio/wav':p.endsWith('.mid')?'audio/midi':p.endsWith('.zip')?'application/zip':'text/plain; charset=utf-8';
 async function jsonBody(req:IncomingMessage) {const chunks:Buffer[]=[];let size=0;for await(const c of req){size+=c.length;if(size>5*1024*1024)throw new ServiceError('TOO_LARGE','请求超过 5 MiB');chunks.push(c);}return JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}');}
 const json=(res:ServerResponse,status:number,value:unknown)=> {res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});res.end(JSON.stringify(value));};

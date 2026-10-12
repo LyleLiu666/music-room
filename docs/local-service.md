@@ -2,7 +2,7 @@
 
 ## 启动与文件保存
 
-当前交付为 macOS Apple Silicon 命令行二进制，内置服务、网页、基础音色和 MCP。用户无需安装 Node、Bun、Python 或新浏览器运行时。用已有浏览器听评，关闭网页不会停止独立启动的后台。
+当前交付为 macOS Apple Silicon 命令行二进制，内置服务、网页、基础音色和 MCP。用户无需安装 Node、Bun、Python 或新浏览器运行时。用已有浏览器听评。默认启动的服务独立在后台运行，关闭网页、启动终端或 Agent 连接都不会停止任务。
 
 macOS 调速保存内嵌 Rubber Band 4.0.0 R3 双遍离线程序；源码构建需要 Xcode Command Line Tools，`npm run build` 自动下载并校验固定源码、编译和打包，后续复用经校验的源码缓存。直接运行服务测试前，`npm run test:service` 会先构建该程序；手动运行单个测试可先执行 `npm run build:speed-native`。终端用户不需要编译工具。调速失败会报错，不会静默切回旧算法。独立辅助程序的完整对应源码、构建脚本和 GPL 许可内嵌于 `/speed-native/source.zip`，构建记录位于 `/speed-native/manifest.json`。
 
@@ -10,7 +10,15 @@ macOS 调速保存内嵌 Rubber Band 4.0.0 R3 双遍离线程序；源码构建�
 ./release/start.sh --workspace "$HOME/Music/MusicRoom" --port 5174
 ```
 
-启动脚本仅执行相邻的 `music-room serve`；也可直接运行二进制。终端打印网页 URL，在浏览器打开即可。省略 `--port` 会选择空闲端口；省略 `--workspace` 使用 `~/Music/MusicRoom`。Ctrl+C 停止后台并中断未完成任务；再次启动恢复项目和已完成音频。
+启动脚本执行相邻的 `music-room start`，等待后台就绪后打印网页 URL 并退出，在浏览器打开即可。省略 `--port` 会选择空闲端口；省略 `--workspace` 使用 `~/Music/MusicRoom`。重复启动同一工作目录会复用现有服务；若现有服务是前台或旧版程序，启动器会明确提示它仍随所属终端退出，应等任务完成后 `stop` 再 `start`。直接运行 `music-room`（无命令）也默认启动独立后台。日志写入工作目录 `music-room.log`。
+
+关闭启动终端不再停止服务。需要主动退出时使用：
+
+```sh
+./release/music-room stop --workspace "$HOME/Music/MusicRoom"
+```
+
+停止会中断未完成任务；再次启动恢复项目和已完成音频。开发或进程监督场景可显式使用 `music-room serve` 在前台运行，此时 Ctrl+C 或关闭所属终端会停止服务。电脑关机、重启或强制杀进程仍会中断任务；当前不提供开机自动运行或中断任务自动续算。
 
 本机稳定版可独立安装到 `~/Applications/MusicRoom/`，避免依赖源码目录的构建产物。升级前等待任务结束，停止旧服务，再复制新二进制及启动脚本；原工作目录及模型继续复用。
 
@@ -47,7 +55,7 @@ cp release/music-room release/start.sh "$HOME/Applications/MusicRoom/"
 }
 ```
 
-`mcp` 优先复用该目录的现有服务；没有服务时自动启动。不同 agent 连接共享项目和任务。若由 stdio 连接启动服务，关闭该拥有者连接会停止它；需要任务在 agent 退出后继续时，先用启动脚本运行服务。
+`mcp` 优先复用该目录的现有服务；没有服务时自动启动独立后台。不同 Agent 连接共享项目和任务，关闭全部 stdio 连接后后台及已提交任务继续运行。主动停止仍使用 `music-room stop`。
 
 HTTP MCP 地址为启动 URL 加 `/mcp`，采用 Streamable HTTP，带 `Authorization: Bearer <token>`。地址与令牌位于工作目录 `.music-room.runtime.json`，具有私有文件权限；每次服务启动会变化。该文件不是工程内容，不需要交给模型或放入提示词。只在本机监听，无云端上传。
 
@@ -89,6 +97,6 @@ Bun 1.4.2 是项目内锁定的开发依赖，不更新全局 Bun。产物为 `r
 
 SDK、解码器与运行时版本变更后必须重跑独立验收。Bun 打包对当前 MP3 库未使用 worker 导出的处理由 `scripts/compile-binary.mjs` 明确限定为同步解码器入口；不会改动 npm 包或解码/WASM 实现。
 
-源代码运行可用 `npm run build`、`npm run serve -- --workspace <目录>`，此模式使用现有开发 Node 和 `dist`。服务测试为 `npm run test:service`，浏览器服务验证为 `npm run verify:service`，包含听评保存期间继续编辑/切换版本、保存失败和首次连接失败后的版本链接恢复；静态网页仍可用 `npm run dev`。
+源代码运行可用 `npm run build`、`npm run serve -- --workspace <目录>`，启动后可关闭终端，此模式使用现有开发 Node 和 `dist`。停止使用 `node src/server/dev.ts stop --workspace <目录>`；需要前台调试时使用 `node src/server/dev.ts serve --workspace <目录>`。服务测试为 `npm run test:service`，浏览器服务验证为 `npm run verify:service`，包含听评保存期间继续编辑/切换版本、保存失败和首次连接失败后的版本链接恢复；静态网页仍可用 `npm run dev`。
 
 产品、存储与逐轮设计见[本地服务方案](design/local-service.md)。音色与组件声明见[署名页](../public/credits.html)和[服务依赖说明](../public/service-licenses.txt)。

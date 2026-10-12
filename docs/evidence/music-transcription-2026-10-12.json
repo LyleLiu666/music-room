@@ -1,0 +1,285 @@
+{
+  "date": "2026-10-12",
+  "model": "m-a-p/SheetSage2",
+  "revision": "32c7c7473e7b59e1ed36bd8a8fefbd11ae8d468a",
+  "model_sha256": "b235f68091a5f5b644000f2b5acb57d1e70432aca2b34ab1b9cf27236e1f4274",
+  "parent": "m-a-p/MERT-v2-FullSong",
+  "parent_revision": "d8ba1c745e733b3908ce6ad16ebeb17ac7600a42",
+  "runtime": {
+    "python": "3.11",
+    "torch": "2.8.0",
+    "transformers": "4.45.2",
+    "device": "Apple Silicon MPS",
+    "dtype": "fp32"
+  },
+  "metrics": [
+    {
+      "case": "control-flute",
+      "source_start": 0,
+      "seconds": 20,
+      "onset_pitch": {
+        "reference_notes": 32,
+        "predicted_notes": 33,
+        "matched": 32,
+        "wrong_or_extra": 1,
+        "missed": 0,
+        "precision": 0.9696969696969697,
+        "recall": 1.0,
+        "f1": 0.9846153846153847
+      },
+      "onset_pitch_duration": {
+        "reference_notes": 32,
+        "predicted_notes": 33,
+        "matched": 2,
+        "wrong_or_extra": 31,
+        "missed": 30,
+        "precision": 0.06060606060606061,
+        "recall": 0.0625,
+        "f1": 0.06153846153846154
+      },
+      "pitch_class_only": {
+        "reference_notes": 32,
+        "predicted_notes": 33,
+        "matched": 32,
+        "wrong_or_extra": 1,
+        "missed": 0,
+        "precision": 0.9696969696969697,
+        "recall": 1.0,
+        "f1": 0.9846153846153847
+      },
+      "elapsed_seconds": 16.275164209015202
+    },
+    {
+      "case": "ensemble",
+      "source_start": 25,
+      "seconds": 20,
+      "onset_pitch": {
+        "reference_notes": 51,
+        "predicted_notes": 51,
+        "matched": 51,
+        "wrong_or_extra": 0,
+        "missed": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "onset_pitch_duration": {
+        "reference_notes": 51,
+        "predicted_notes": 51,
+        "matched": 43,
+        "wrong_or_extra": 8,
+        "missed": 8,
+        "precision": 0.8431372549019608,
+        "recall": 0.8431372549019608,
+        "f1": 0.8431372549019607
+      },
+      "pitch_class_only": {
+        "reference_notes": 51,
+        "predicted_notes": 51,
+        "matched": 51,
+        "wrong_or_extra": 0,
+        "missed": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0
+      },
+      "elapsed_seconds": 15.316225833958015
+    },
+    {
+      "case": "intro",
+      "source_start": 0,
+      "seconds": 20,
+      "onset_pitch": {
+        "reference_notes": 45,
+        "predicted_notes": 48,
+        "matched": 45,
+        "wrong_or_extra": 3,
+        "missed": 0,
+        "precision": 0.9375,
+        "recall": 1.0,
+        "f1": 0.967741935483871
+      },
+      "onset_pitch_duration": {
+        "reference_notes": 45,
+        "predicted_notes": 48,
+        "matched": 41,
+        "wrong_or_extra": 7,
+        "missed": 4,
+        "precision": 0.8541666666666666,
+        "recall": 0.9111111111111111,
+        "f1": 0.8817204301075269
+      },
+      "pitch_class_only": {
+        "reference_notes": 45,
+        "predicted_notes": 48,
+        "matched": 45,
+        "wrong_or_extra": 3,
+        "missed": 0,
+        "precision": 0.9375,
+        "recall": 1.0,
+        "f1": 0.967741935483871
+      },
+      "elapsed_seconds": 19.45053158403607
+    }
+  ],
+  "runs": {
+    "intro": {
+      "elapsed_seconds": 19.45053158403607,
+      "source": "/Users/liu_y/code/music/public/exports/rain-letter-v1/song.wav",
+      "start_seconds": 0,
+      "duration_seconds": 20,
+      "device": "mps",
+      "abc_error": null,
+      "keys": [
+        "audio",
+        "duration_seconds",
+        "prompts",
+        "preset",
+        "melody_only",
+        "dtype",
+        "window_seconds",
+        "overlap_seconds",
+        "lookahead_seconds",
+        "windows",
+        "elapsed_seconds",
+        "warnings",
+        "peak_gpu_mib",
+        "melody_notes",
+        "vocal_notes",
+        "instrumental_notes",
+        "events",
+        "abc_measures",
+        "abc_error",
+        "diagnostics",
+        "num_events",
+        "abc",
+        "midi",
+        "midis",
+        "labs",
+        "playback",
+        "tokens",
+        "tensors"
+      ],
+      "source_excerpt": "/Users/liu_y/code/music/output/transcription-trial/inputs/intro.wav"
+    },
+    "ensemble": {
+      "elapsed_seconds": 15.316225833958015,
+      "source": "/Users/liu_y/code/music/public/exports/rain-letter-v1/song.wav",
+      "start_seconds": 25,
+      "duration_seconds": 20,
+      "device": "mps",
+      "abc_error": null,
+      "keys": [
+        "audio",
+        "duration_seconds",
+        "prompts",
+        "preset",
+        "melody_only",
+        "dtype",
+        "window_seconds",
+        "overlap_seconds",
+        "lookahead_seconds",
+        "windows",
+        "elapsed_seconds",
+        "warnings",
+        "peak_gpu_mib",
+        "melody_notes",
+        "vocal_notes",
+        "instrumental_notes",
+        "events",
+        "abc_measures",
+        "abc_error",
+        "diagnostics",
+        "num_events",
+        "abc",
+        "midi",
+        "midis",
+        "labs",
+        "playback",
+        "tokens",
+        "tensors"
+      ],
+      "source_excerpt": "/Users/liu_y/code/music/output/transcription-trial/inputs/ensemble.wav"
+    },
+    "control-flute": {
+      "elapsed_seconds": 16.275164209015202,
+      "source": "/Users/liu_y/code/music/output/transcription-trial/inputs/control-flute.wav",
+      "start_seconds": 0,
+      "duration_seconds": 20,
+      "device": "mps",
+      "abc_error": "Interval 19.960000-20.000000 (C:maj) is shorter than the ABC subbeat grid",
+      "keys": [
+        "audio",
+        "duration_seconds",
+        "prompts",
+        "preset",
+        "melody_only",
+        "dtype",
+        "window_seconds",
+        "overlap_seconds",
+        "lookahead_seconds",
+        "windows",
+        "elapsed_seconds",
+        "warnings",
+        "peak_gpu_mib",
+        "melody_notes",
+        "vocal_notes",
+        "instrumental_notes",
+        "events",
+        "abc_measures",
+        "abc_error",
+        "diagnostics",
+        "num_events",
+        "abc",
+        "midi",
+        "midis",
+        "labs",
+        "playback",
+        "tokens",
+        "tensors"
+      ]
+    }
+  },
+  "browser_verification": {
+    "sections": 3,
+    "audio": [
+      {
+        "src": "inputs/control-flute.wav",
+        "duration": 20
+      },
+      {
+        "src": "results/control-flute/reference-melody.wav",
+        "duration": 20.5
+      },
+      {
+        "src": "results/control-flute/predicted-melody.wav",
+        "duration": 20.5
+      },
+      {
+        "src": "inputs/ensemble.wav",
+        "duration": 20
+      },
+      {
+        "src": "results/ensemble/reference-melody.wav",
+        "duration": 20.5
+      },
+      {
+        "src": "results/ensemble/predicted-melody.wav",
+        "duration": 20.5
+      },
+      {
+        "src": "inputs/intro.wav",
+        "duration": 20
+      },
+      {
+        "src": "results/intro/reference-melody.wav",
+        "duration": 20.5
+      },
+      {
+        "src": "results/intro/predicted-melody.wav",
+        "duration": 20.5
+      }
+    ],
+    "overflow": false
+  }
+}

@@ -10,6 +10,7 @@ import {MusicService} from '../src/service/service.ts';
 import {serveHttp} from '../src/server/http.ts';
 import {encodeWav} from '../src/wav.ts';
 import {wavInfo} from '../src/service/tts/speech.ts';
+import {MPEGDecoder} from 'mpg123-decoder';
 
 test('speed preview, precise adjustment, safe retry, save, download and reload use independent audio',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-speed-ui-'));
@@ -68,8 +69,13 @@ test('speed preview, precise adjustment, safe retry, save, download and reload u
   assert.equal(library.versions.length,2);assert.ok(Math.abs(saved.duration-3.75)<.002);
   assert.match(await page.locator('.listening-top').innerText(),/0.8 倍调速版/);
   const download=page.waitForEvent('download');await page.locator('[data-action="download"]').click();
-  const file=await download;assert.match(file.suggestedFilename(),/V2\.wav$/);
-  assert.ok(Math.abs(wavInfo(await readFile(await file.path())).duration-3.75)<.002);
+  const file=await download;assert.match(file.suggestedFilename(),/V2\.mp3$/);
+  const decoder=new MPEGDecoder();await decoder.ready;
+  try{const decoded=decoder.decode(await readFile(await file.path()));assert.equal(decoded.errors.length,0);assert.ok(Math.abs(decoded.samplesDecoded/decoded.sampleRate-3.75)<.1);}finally{decoder.free();}
+  await page.locator('.more-menu summary').click();
+  const originalDownload=page.waitForEvent('download');await page.locator('[data-action="download-original"]').click();
+  const originalFile=await originalDownload;assert.match(originalFile.suggestedFilename(),/V2\.wav$/);
+  assert.ok(Math.abs(wavInfo(await readFile(await originalFile.path())).duration-3.75)<.002);
   await page.reload();await page.waitForFunction(()=>document.querySelector('#version-audio')?.readyState>=1);
   assert.equal(await page.locator('#version-audio').getAttribute('data-version'),saved.id);
   assert.equal(await page.locator('#version-audio').evaluate(a=>a.playbackRate),1);

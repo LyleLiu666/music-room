@@ -28,7 +28,7 @@ npm run build:binary
 ./release/start.sh --workspace "$HOME/Music/MusicRoom"
 ```
 
-按终端 URL 在已有浏览器听评。构建产物是 `release/music-room` 和启动脚本 `release/start.sh`，运行它们无需安装 Node/Python；构建工具仅用于开发。Agent 通过 stdio / HTTP MCP 调用相同的项目、版本、后台渲染和反馈能力。二进制对应构建机器的操作系统与架构。
+启动就绪后脚本退出，按终端 URL 在已有浏览器听评；关闭终端、网页或 Agent 连接不会停止后台任务。主动退出使用 `./release/music-room stop --workspace "$HOME/Music/MusicRoom"`。构建产物是 `release/music-room` 和启动脚本 `release/start.sh`，运行它们无需安装 Node/Python；构建工具仅用于开发。Agent 通过 stdio / HTTP MCP 调用相同的项目、版本、后台渲染和反馈能力。二进制对应构建机器的操作系统与架构。
 
 [启动、MCP 连接与构建说明](docs/local-service.md) · [YuE2 自动安装与生成](docs/yue2.md) · [IndexTTS 2.0 语音创作](docs/tts.md) · [技术设计与四轮边界](docs/design/local-service.md)。MIDI/JSON 创作闭环已经实现；YuE2 通过网页或内置 MCP 生成音乐。统一页面通过 IndexTTS 2.0 生成真实语音，支持参考声音复用、情绪描述、多版本试听、成品选择、删除恢复和 WAV 下载。两种模型均由后台管理专用运行环境。音视频识谱尚未接入。乐谱加工的功能归属见[正式页面交互规则](docs/design/studio.md#midi-与音轨的归属)。
 

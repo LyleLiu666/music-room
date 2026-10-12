@@ -1,0 +1,40 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,rm,readFile} from 'node:fs/promises';
+import {existsSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join,resolve} from 'node:path';
+import {chromium} from 'playwright';
+import {MusicService} from '../src/service/service.ts';
+import {serveHttp} from '../src/server/http.ts';
+import {testResources} from '../src/service/resources/testing.ts';
+const unused={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
+test('three recent tabs, searchable overflow, persistence and mobile layout',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'sound-navigation-')),assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources());
+ const http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ try{
+  await service.call('create_project',{projectId:'recent',title:'最近访问'});
+  const sounds=[];for(let i=1;i<=5;i++)sounds.push(await service.call('studio_create_sound',{projectId:'recent',title:`声音 ${i}`,kind:'music'}));
+  await page.goto(http.runtime.url);await page.locator('.sound-tab').first().waitFor();
+  assert.equal(await page.locator('.sound-tab').count(),3);
+  await page.getByRole('button',{name:'更多声音',exact:true}).click();
+  await page.getByRole('searchbox',{name:'搜索声音'}).fill('不存在');
+  assert.ok(await page.getByText('没有匹配的声音').isVisible());
+  await page.getByRole('searchbox',{name:'搜索声音'}).fill('声音 5');
+  await service.call('studio_create_sound',{projectId:'recent',title:'声音 6',kind:'speech'});
+  await page.evaluate(()=>window.dispatchEvent(new Event('focus')));
+  await page.locator('#sound-overflow button').filter({hasText:'声音 6'}).waitFor({state:'attached'});
+  assert.equal(await page.getByRole('searchbox',{name:'搜索声音'}).inputValue(),'声音 5');
+  assert.ok(await page.locator('#sound-overflow').isVisible());
+  await page.locator(`#sound-overflow [data-id="${sounds[4].id}"]`).click();
+  await page.waitForFunction(id=>document.querySelector('.sound-tab')?.dataset.id===id,sounds[4].id);
+  const stored=()=>page.evaluate(()=>JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith('music-room-studio:')))).soundVisits);
+  const before=await stored();await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForTimeout(700);assert.deepEqual(await stored(),before);
+  await page.reload();await page.locator('.sound-tab').first().waitFor();assert.equal(await page.locator('.sound-tab').first().getAttribute('data-id'),sounds[4].id);
+  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'更多声音',exact:true}).click();
+  const box=await page.locator('#sound-overflow').boundingBox();assert.ok(box.x>=0&&box.x+box.width<=390);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+  await page.keyboard.press('Escape');assert.equal(await page.locator('#sound-overflow').isVisible(),false);
+  assert.deepEqual(errors,[]);
+ }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});

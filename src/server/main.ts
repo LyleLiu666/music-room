@@ -3,7 +3,8 @@ import {runSpeedWorker,processSpeed} from '../service/studio/speed-process.ts';
 import {createResources} from '../service/resources/runtime.ts';
 import {runConversionWorker} from '../service/conversion/worker.ts';
 import {createNativeConversionDriver} from '../service/conversion/native.ts';
-import {readFileSync,existsSync,lstatSync,realpathSync,unlinkSync,mkdirSync} from 'node:fs';
+import {readFileSync,existsSync,lstatSync,realpathSync,unlinkSync,mkdirSync,openSync,closeSync} from 'node:fs';
+import {spawn} from 'node:child_process';
 import {readFile} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {homedir} from 'node:os';
@@ -34,17 +35,36 @@ export function readRuntime(directory:string):Runtime|undefined {
   try {process.kill(r.pid,0);} catch(e:any){if(e.code==='ESRCH')return;throw e;}return r;
 }
 function options(argv:string[]) {
-  const mode=argv[0]??'serve',args=argv.slice(1),out:Record<string,string>={};
-  if(!['serve','mcp','status','call','--help','help','render-worker','command-worker','speed-worker','yue2-worker','tts-worker','tts-native-worker','conversion-native-worker'].includes(mode))throw new Error('未知命令，请运行 --help');
+  const mode=argv[0]??'start',args=argv.slice(1),out:Record<string,string>={};
+  if(!['start','stop','serve','service-worker','mcp','status','call','--help','help','render-worker','command-worker','speed-worker','yue2-worker','tts-worker','tts-native-worker','conversion-native-worker'].includes(mode))throw new Error('未知命令，请运行 --help');
   if(mode==='call'){out.operation=args.shift()??'';}
   for(let i=0;i<args.length;i+=2){if(!['--workspace','--port','--input'].includes(args[i]) || !args[i+1] || args[i+1].startsWith('--'))throw new Error('参数无效：'+args[i]);out[args[i].slice(2)]=args[i+1];}
   const port=out.port===undefined?0:Number(out.port);if(!Number.isInteger(port)||port<0||port>65535)throw new Error('端口必须在 0–65535');
   return {mode,workspace:resolve(out.workspace??join(homedir(),'Music','MusicRoom')),port,input:out.input,operation:out.operation};
 }
+async function startBackground(workspace:string,port:number,selfArgs:string[]):Promise<Runtime> {
+  const log=join(workspace,'music-room.log'),fd=openSync(log,'a',0o600);
+  let child:ReturnType<typeof spawn>;
+  try{child=spawn(process.execPath,[...selfArgs,'service-worker','--workspace',workspace,'--port',String(port)],{cwd:workspace,detached:true,stdio:['ignore',fd,fd]});}
+  finally{closeSync(fd);}
+  let failure:Error|undefined,exited=false;
+  child.once('error',error=>{failure=error;});child.once('exit',code=>{exited=true;if(code!==0)failure=new Error(`后台进程退出（${code}）`);});child.unref();
+  const until=Date.now()+30000;
+  while(Date.now()<until){
+    const runtime=readRuntime(workspace);
+    if(runtime){try{await remoteCall(runtime,'status',{});return runtime;}catch(error){if(exited)failure=error instanceof Error?error:new Error(String(error));}}
+    if(failure||exited)break;
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  // A launcher must never leave an unconfirmed child running after reporting failure.
+  if(!exited)child.kill('SIGTERM');
+  const tail=readFileSync(log,'utf8').slice(-2000).trim();
+  throw new Error(`后台启动失败：${failure?.message??'等待服务就绪超时'}。日志：${log}${tail?'\n'+tail:''}`);
+}
 export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
   const opt=options(argv);configureCommandWorker(process.execPath,[...selfArgs,'command-worker']);
   if(opt.mode==='command-worker'){await runCommandWorker();return;}
-  if(opt.mode==='help'||opt.mode==='--help'){console.log('Music Room\n  serve [--workspace DIRECTORY] [--port PORT]\n  mcp [--workspace DIRECTORY]  # stdio MCP; connects to or starts local service\n  status [--workspace DIRECTORY]\n  call OPERATION --input request.json [--workspace DIRECTORY]\nDefault workspace: ~/Music/MusicRoom. No Electron or browser runtime. Optional YuE2 is installed into your chosen directory from the web page.');return;}
+  if(opt.mode==='help'||opt.mode==='--help'){console.log('Music Room\n  start [--workspace DIRECTORY] [--port PORT]  # independent background service (default)\n  stop [--workspace DIRECTORY]  # stop service and interrupt unfinished tasks\n  serve [--workspace DIRECTORY] [--port PORT]  # foreground, for development/supervision\n  mcp [--workspace DIRECTORY]  # stdio MCP; connects to or starts independent background service\n  status [--workspace DIRECTORY]\n  call OPERATION --input request.json [--workspace DIRECTORY]\nDefault workspace: ~/Music/MusicRoom. No Electron or browser runtime. Optional YuE2 is installed into your chosen directory from the web page.');return;}
   if(opt.mode==='speed-worker'){await runSpeedWorker(assets.read);return;}
   if(opt.mode==='render-worker'){await runRenderWorker(assets.read);return;}
   if(opt.mode==='conversion-native-worker'){await runConversionWorker();return;}
@@ -53,17 +73,30 @@ export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
   if(opt.mode==='yue2-worker'){await runYuE2Worker();return;}
   mkdirSync(opt.workspace,{recursive:true,mode:0o700});
   let runtime=readRuntime(opt.workspace);
+  if(opt.mode==='stop'){
+    if(!runtime){console.log(JSON.stringify({stopped:false,workspace:opt.workspace}));return;}
+    await remoteCall(runtime,'status',{});process.kill(runtime.pid,'SIGTERM');
+    const until=Date.now()+30000;
+    while(Date.now()<until){const current=readRuntime(opt.workspace);if(!current||current.token!==runtime.token){console.log(JSON.stringify({stopped:true,workspace:runtime.workspace}));return;}await new Promise(resolve=>setTimeout(resolve,50));}
+    throw new Error('后台正在停止，尚未完成资源释放；请检查 music-room.log');
+  }
+  if(opt.mode==='start'){
+    const reused=Boolean(runtime);runtime??=await startBackground(opt.workspace,opt.port,selfArgs);
+    await remoteCall(runtime,'status',{});
+    if(runtime.background!==true)console.error('当前复用的是前台或旧版服务，它仍可能随所属终端退出。请等任务完成后使用 stop，再重新 start。');
+    console.log(JSON.stringify({url:runtime.url,workspace:runtime.workspace,mcp:`${runtime.url}/mcp`,pid:runtime.pid,reused,background:runtime.background===true,log:join(runtime.workspace,'music-room.log')}));return;
+  }
+  if(opt.mode==='mcp'&&!runtime)runtime=await startBackground(opt.workspace,opt.port,selfArgs);
   let owned: {service:MusicService;http:Awaited<ReturnType<typeof serveHttp>>}|undefined;
   let closing=false;
   const cleanup=async()=> {
     if(closing)return;closing=true;
     if(owned){
       const file=owned.service.store.path('.music-room.runtime.json');
-      if(existsSync(file)&&JSON.parse(readFileSync(file,'utf8')).token===owned.http.runtime.token)unlinkSync(file);
-      try{await owned.service.close();}finally{await owned.http.close();}
+      try{await owned.service.close();}finally{try{await owned.http.close();}finally{if(existsSync(file)&&JSON.parse(readFileSync(file,'utf8')).token===owned.http.runtime.token)unlinkSync(file);}}
     }
   };
-  if(!runtime && (opt.mode==='serve'||opt.mode==='mcp')) {
+  if(!runtime && (opt.mode==='serve'||opt.mode==='service-worker')) {
     const renderer=processRenderer(process.execPath,[...selfArgs,'render-worker']);
     for(let attempt=0;attempt<30 && !runtime;attempt++) {
       let service: MusicService;
@@ -74,12 +107,12 @@ export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
         await new Promise(r=>setTimeout(r,100));runtime=readRuntime(opt.workspace);continue;
       }
       try {
-        const http=await serveHttp(service,assets,opt.port,process.execPath,selfArgs);owned={service,http};runtime=http.runtime;
+        const http=await serveHttp(service,assets,opt.port,process.execPath,selfArgs);owned={service,http};runtime=http.runtime;runtime.background=opt.mode==='service-worker';
         service.store.atomicJSON(service.store.path('.music-room.runtime.json'),runtime);
       }catch(e){if(owned)await owned.http.close();await service.close();throw e;}
     }
   }
-  if(!runtime)throw new Error('没有正在运行的服务。请先运行 music-room serve --workspace <目录>');
+  if(!runtime)throw new Error('没有正在运行的服务。请先运行 music-room start --workspace <目录>');
   const endpoint=runtime;
   const call:ServiceCaller=(name,args)=>remoteCall(endpoint,name,args);
   // A live PID does not guarantee the descriptor belongs to a usable service.
@@ -88,7 +121,7 @@ export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
     const args=opt.input?JSON.parse(await readFile(opt.input,'utf8')):{};
     console.log(JSON.stringify(await call(opt.mode==='status'?'status':operationName(opt.operation),args),null,2));return;
   }
-  if(opt.mode==='serve'&&!owned){console.log(JSON.stringify({url:endpoint.url,workspace:endpoint.workspace,reused:true}));return;}
+  if((opt.mode==='serve'||opt.mode==='service-worker')&&!owned){console.log(JSON.stringify({url:endpoint.url,workspace:endpoint.workspace,reused:true}));return;}
   const shutdown=()=>{void cleanup().then(()=>process.exit(0),error=>{console.error(error);process.exit(1);});};
   process.once('SIGINT',shutdown);process.once('SIGTERM',shutdown);
   if(opt.mode==='mcp') {

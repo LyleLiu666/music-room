@@ -101,11 +101,16 @@ try {
   await page.locator('.sound-workspace').screenshot({path:join(out,'tasks.png')});assert.deepEqual(errors,[]);results.push('embedded studio previews real samples, plays saved WAV, shows version feedback');
   await browser.close();browser=undefined;await httpClient.close();httpClient=undefined;
   await client.close();client=undefined;
-  // stdio-owned service exits; reopen the same workspace from the copied binary.
+  assert.equal(JSON.parse(execFileSync(binary,['status','--workspace',workspace],{cwd:root,env,encoding:'utf8'})).workspace,runtime.workspace);
+  assert.equal(JSON.parse(await readFile(join(workspace,'.music-room.runtime.json'),'utf8')).pid,runtime.pid);
+  results.push('independent binary service survives closing browser and all MCP clients');
+  execFileSync(binary,['stop','--workspace',workspace],{cwd:root,env});
+  // Explicitly stop, then reopen the same workspace from the copied binary.
   client=await connect();const restoredVoices=(await tool('tts_library')).voices.filter(v=>v.builtinId);assert.deepEqual(restoredVoices.map(v=>({id:v.id,builtinId:v.builtinId})),speech.voices.filter(v=>v.builtinId).map(v=>({id:v.id,builtinId:v.builtinId})));const recovered=await tool('get_project',{projectId:example.work.id});assert.equal(recovered.project.revisions.length,2);assert.equal(recovered.feedback.length,1);results.push('restart restores project, versions, artifact and feedback');
   const report={checks:results,binaryBytes:(await stat(binary)).size,wav:{seconds:40,bytes:wav.length,peak:done.result.peak,rms:done.result.rms},errors};
   await writeFile(join(out,'verification.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 } finally {
   await browser?.close();await httpClient?.close();await client?.close();
+  execFileSync(binary,['stop','--workspace',workspace],{cwd:root,env});
   if(existsSync(held))await rename(held,'dist');await rm(root,{recursive:true,force:true});
 }

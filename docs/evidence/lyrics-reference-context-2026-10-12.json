@@ -1,0 +1,63 @@
+{
+  "date": "2026-10-12",
+  "audioWindowSeconds": [
+    24.2,
+    50.8
+  ],
+  "model": "local Qwen3-ASR-0.6B",
+  "before": {
+    "name": "original-context",
+    "context": "不是我陪得多，也不是陪得少\n是你陪的那只手，放没放到该放的地方\n看着我，帮着我，替我算好每一步\n说这样我就少走弯路——那你告诉我\n我的脚，往哪放？\n我就永远学不会，什么叫坑\n你想替我做最好的选择\n我就永远长不出自己的判断力",
+    "text": "也不是陪得少，是你陪的那只手放没放到该放的地方。看着我放，着我替我算好每一步。说这样我就少走弯路——那你告诉我，我的脚往哪放？路你都不凭了我的脚往哪放。你想替我避开所有坑，我就永远学不会什么叫坑。你想替我做最好的选择，我就永远长不出自己的判断力。你越怕我帅，我越。",
+    "elapsed": 4.7452204169821925
+  },
+  "after": {
+    "name": "bounded-phrase-context",
+    "context": "不是我陪得多，也不是陪得少\n是你陪的那只手，放没放到该放的地方\n看着我，帮着我，替我算好每一步\n说这样我就少走弯路——那你告诉我\n我的脚，往哪放？\n路你都铺平了，我的脚往哪放？\n你想替我避开所有坑\n我就永远学不会，什么叫坑\n你想替我做最好的选择\n我就永远长不出自己的判断力\n你越怕我摔，我越怕试错",
+    "text": "也不是陪得少，是你陪的那只手放没放到该放的地方。看着我放，着我替我算好每一步，说这样我就少走弯路。那你告诉我，我的脚往哪放？路你都铺平了，我的脚往哪放？你想替我避开所有坑，我就永远学不会什么叫坑。你想替我做最好的选择，我就永远长不出自己的判断力。你越怕我摔，我越。",
+    "elapsed": 2.9546699170023203
+  },
+  "productionVerification": {
+    "versionId": "version-ed5e6547-66d8-46bd-81c7-a7229075436a",
+    "song": "方向盘",
+    "version": 2,
+    "audioSha256": "f77b69c6d535a16baa2c11712730a0018b1e085ad435e28e0e2bbcc9f0c9fc90",
+    "target": {
+      "before": {
+        "text": "路你都不凭了我的脚往哪放",
+        "start": 36.2,
+        "end": 38.92
+      },
+      "after": [
+        {
+          "text": "路你都铺平了",
+          "start": 36.2,
+          "end": 37.48
+        },
+        {
+          "text": "我的脚往哪放",
+          "start": 37.48,
+          "end": 38.92
+        }
+      ]
+    },
+    "oldDraftBackedUp": true,
+    "installedWorkerVerified": true,
+    "jobState": "succeeded",
+    "remainingUnresolved": 4,
+    "seekHighlightVerified": true,
+    "lrcVerified": true,
+    "pageErrors": []
+  },
+  "checks": {
+    "pythonRegressionTests": 6,
+    "serviceTests": 5,
+    "playerIntegrationTests": 1,
+    "build": "passed"
+  },
+  "limitations": [
+    "Single-song regression, not an overall ASR accuracy measurement",
+    "Four unresolved passages remain in this production draft",
+    "Reference candidates are recall context only; audio model decides transcription"
+  ]
+}

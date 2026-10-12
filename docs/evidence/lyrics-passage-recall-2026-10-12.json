@@ -1,0 +1,85 @@
+{
+  "date": "2026-10-12",
+  "approach": "one contiguous reference passage per audio segment; lexical ranking is context recall only; audio model decides transcription",
+  "regressionCases": [
+    "complete intermediate reference lines",
+    "reference duplicates preserved",
+    "ASR punctuation independence",
+    "dense verse short-line correction",
+    "no added trailing verse"
+  ],
+  "realAudio": [
+    {
+      "chunk": 0,
+      "start": 0,
+      "end": 24.2,
+      "context": "楼道的灯，一亮一灭\n金属门在身后，咔哒一声锁死\n他们说：孩子，听话\n我听见的，是\"归我管\"三个字\n家长口中的叛逆，是不听话，是不配合\n是不服权威，是欠管教的那一个\n可你们想没想过，它不是我出厂的样子\n它是对控制竖起的一根倒刺",
+      "rawText": "兜兜的灯，一两音乐，新手们在身后开打，一身所思。他们说：“孩子听话，我听见的是‘归我管’三个字。”假装厚重的叛逆是不听话是不卑，可是不服权威是前冠角的那一个。可你们想没想过，他不是我出生的样子，他是对控制术只的一根稻子，不是我飞的多。",
+      "text": "楼道的灯一亮一灭，金属门在身后开打一声锁死。他们说：“孩子听话。”我听见的是“归我管”三个字。家长口中的叛逆是不听话，是不配合，是不服权威，是欠管教的那一个。可你们想没想过，它不是我出厂的样子，它是对控制竖起的一根倒刺，不是我配的多。",
+      "elapsed": 3.1698783329920843
+    },
+    {
+      "chunk": 1,
+      "start": 24.2,
+      "end": 50.80000000000004,
+      "context": "不是我陪得多，也不是陪得少\n是你陪的那只手，放没放到该放的地方\n看着我，帮着我，替我算好每一步\n说这样我就少走弯路——那你告诉我\n我的脚，往哪放？\n路你都铺平了，我的脚往哪放？\n你想替我避开所有坑\n我就永远学不会，什么叫坑\n你想替我做最好的选择\n我就永远长不出自己的判断力\n你越怕我摔，我越怕试错",
+      "rawText": "也不是背的少，是你背的那只手。放没放到该放的地方，看着我放，就我替我算好每一步。说这样我就早走完路。那你告诉我，我的脚往哪放路。你都不停了我的脚往哪放。你想替我避开所有坑，我就永远学不会什么教坑。你想替我做最好的选择，我就永远站不住自己的判断力。你越怕我帅，我越。",
+      "text": "也不是陪得少，是你陪的那只手放没放到该放的地方。看着我放，着我替我算好每一步，说这样我就少走弯路。那你告诉我，我的脚往哪放？路你都铺平了，我的脚往哪放？你想替我避开所有坑，我就永远学不会什么叫坑。你想替我做最好的选择，我就永远长不出自己的判断力。你越怕我摔，我越。",
+      "elapsed": 2.7395857090014033
+    },
+    {
+      "chunk": 6,
+      "start": 171.59999999999917,
+      "end": 197.07866666666666,
+      "context": "这是我的生活，得有我自己说了算的部分\n你还想把我攥在手里，攥到几时？\n你把所有路都铺好了\n那我的脚，该往哪放？",
+      "rawText": "那我的脚该往哪放？这是我的生活，得有我自己说了算的部分。这是我的生活，得有我自己说了算的部分。这是我的生活，得有我自己说了算的部分。这是我的生活，得有我自己说了算的部分。",
+      "text": "那我的脚该往哪放？这是我的生活，得有我自己说了算的部分。这是我的生活，得有我自己说了算的部分。这是我的生活，得有我自己说了算的部分。这是我的生活，得有我自己说了算的部分。",
+      "elapsed": 1.6035052500083111
+    }
+  ],
+  "productionVerification": {
+    "versionId": "version-ed5e6547-66d8-46bd-81c7-a7229075436a",
+    "song": "方向盘",
+    "version": 2,
+    "audioSha256": "f77b69c6d535a16baa2c11712730a0018b1e085ad435e28e0e2bbcc9f0c9fc90",
+    "target": {
+      "before": {
+        "text": "路你都铺平了",
+        "start": 36.2,
+        "end": 37.48
+      },
+      "after": [
+        {
+          "text": "路你都铺平了",
+          "start": 36.2,
+          "end": 37.48
+        },
+        {
+          "text": "我的脚往哪放",
+          "start": 37.48,
+          "end": 38.92
+        }
+      ]
+    },
+    "oldDraftBackedUp": true,
+    "installedWorkerVerified": true,
+    "jobState": "succeeded",
+    "remainingUnresolved": 4,
+    "seekHighlightVerified": true,
+    "lrcVerified": true,
+    "pageErrors": []
+  },
+  "checks": {
+    "pythonRegressionTests": 9,
+    "serviceTests": 5,
+    "realAudioProbeWindows": 3,
+    "build": "passed",
+    "livePlayerAndLrc": "passed"
+  },
+  "limitations": [
+    "Candidate passage is not a semantic match confirmation",
+    "The reference is ASR context, not forcibly substituted performed lyrics",
+    "Four unresolved passages remain; word errors can still occur",
+    "Single-song check; not a general accuracy claim"
+  ]
+}
