@@ -1,8 +1,9 @@
+import type {LyricJob} from './lyrics-generation.ts';
 import {existsSync,readFileSync,lstatSync} from 'node:fs';
 import {join} from 'node:path';
 import {identity,ServiceError} from '../projects/store.ts';
 export type LyricLine={text:string;start:number;end:number};
-export type LyricsResult={kind:'none'|'plain'|'synced';reference:string;lines:LyricLine[];draft:boolean};
+export type LyricsResult={canGenerate?:boolean;available?:boolean;job?:LyricJob;kind:'none'|'plain'|'synced';reference:string;lines:LyricLine[];draft:boolean};
 /** Sidecars belong to one immutable audio version; input lyrics never imply a timeline. */
 export function readLyrics(directory:string,v:{id:string;audioPath?:string;input?:{lyrics?:string};audioHash?:string}):LyricsResult{
  const file=join(directory,identity(v.id)+'.json'),reference=v.input?.lyrics??'';

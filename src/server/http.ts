@@ -36,7 +36,9 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
         json(res,200,{token,url:runtime.url,workspace:runtime.workspace,mcp:{mcpServers:{'music-room':{command:runtime.command,args:[...runtime.args,'mcp','--workspace',runtime.workspace]}}}});return;
       }
       if(path==='/api/studio-lyrics') {
-        if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
+        if(req.method==='POST'){const body=await readJSON();if(typeof body.versionId!=='string'||typeof body.requestId!=='string')throw new ServiceError('INVALID_REQUEST','歌词请求无效');json(res,202,service.lyricsGeneration.start(body.versionId,body.requestId));return;}
+        if(req.method==='DELETE'){const id=url.searchParams.get('versionId')??'';service.studio.lyrics(id);json(res,200,await service.lyricsGeneration.cancel(id));return;}
+        if(req.method!=='GET'){json(res,405,{message:'不支持此方法'});return;}
         const result=service.studio.lyrics(url.searchParams.get('versionId')??'');
         if(url.searchParams.get('format')==='lrc'){
           if(result.kind!=='synced'){json(res,404,{message:'暂无同步歌词'});return;}

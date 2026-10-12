@@ -37,7 +37,8 @@ export class StudioService{
   for(const name of readdirSync(directory))if(/^speed-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.partial\.wav$/.test(name))unlinkSync(this.service.store.path('studio-audio',name));
  }
  private async serial<T>(fn:()=>Promise<T>,rollback=true):Promise<T>{const next=this.pending.then(async()=>{const before=clone(this.data);try{const result=await fn();if(JSON.stringify(before)!==JSON.stringify(this.data))this.save();return clone(result);}catch(e){if(rollback)this.data=before;else this.save();throw e;}});this.pending=next.catch(()=>{});return next;}
- lyrics(id:string){const v=this.version(id);this.activeSound(v.soundId);if(v.deleted||v.purged||v.purgePending)fail('版本在回收站中');return readLyrics(this.service.store.path('lyrics'),v);}
+ lyrics(id:string){const v=this.version(id);this.activeSound(v.soundId);if(v.deleted||v.purged||v.purgePending)fail('版本在回收站中');return {...readLyrics(this.service.store.path('lyrics'),v),canGenerate:!!v.input?.lyrics?.trim()&&v.state==='succeeded'&&!!v.audioPath,...this.service.lyricsGeneration.status(id)};}
+ lyricSource(id:string){const v=this.version(identity(id));this.activeSound(v.soundId);if(v.deleted||v.purged||v.purgePending||v.state!=='succeeded'||!v.audioPath||!v.input?.lyrics?.trim())fail('请选择有参考歌词的已完成歌曲');return {id:v.id,audioPath:v.audioPath!,reference:v.input!.lyrics!,audio:async()=>{if(v.source.kind==='music')return this.service.yue2Client.audio(v.source.id);if(v.source.kind==='audio')return this.audio(v.id);throw Error('此音频来源暂不支持歌词生成');}};}
  private save(){this.service.store.atomicJSON(this.service.store.path('studio.json'),this.data);}
  private sound(id:string){return this.data.sounds.find(s=>s.id===id)??fail('声音不存在');}
  private version(id:string){return this.data.versions.find(v=>v.id===id)??fail('版本不存在');}

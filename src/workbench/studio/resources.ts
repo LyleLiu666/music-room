@@ -1,6 +1,6 @@
 import type {ResourceStatus} from '../../service/operations.ts';
 import type {ResourceTaskState} from '../../service/resources/contracts.ts';
-export const resourceEngineNames:Record<string,string>={tts:'语音',reference:'参考清理',conversion:'音色转换',yue2:'音乐',render:'乐谱合成',speed:'调速',installation:'安装准备',import:'音频导入'};
+export const resourceEngineNames:Record<string,string>={tts:'语音',reference:'参考清理',conversion:'音色转换',yue2:'音乐',render:'乐谱合成',speed:'调速',lyrics:'同步歌词',installation:'安装准备',import:'音频导入'};
 const escape=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 /** Recovery follows the backend reason code, never guesses from an error's wording. */
 export function resourceFailure(resource:Pick<ResourceTaskState,'reason'|'message'|'diagnostic'>|undefined,music:boolean,canRetry=true){
