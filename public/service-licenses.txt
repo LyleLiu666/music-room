@@ -105,3 +105,9 @@ The earlier tail-context-v0.9.1.patch and tail1 package remain available for rol
 The bundled archive includes upstream LICENSE, NOTICE, third-party license texts,
 source/patch hashes and a copy of the modifications. GGML and cpp-httplib: MIT;
 SentencePiece and bundled protobuf/absl: Apache-2.0; see included license texts.
+
+@breezystack/lamejs 1.2.7: LGPL-3.0, MP3 encoder (Alex Zhukov and contributors).
+Source and build instructions: https://github.com/shijinyu/lamejs
+Unmodified library bundled by the application. To replace it, install your modified
+package and rebuild with npm run build:binary from the Music Room source.
+Full license: /lamejs-license.txt

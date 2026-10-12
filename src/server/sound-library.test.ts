@@ -24,6 +24,7 @@ test('external audio is authenticated, imported once, listed even without projec
   assert.equal((await(await fetch(url,{method:'POST',body:wav,headers})).json()).id,item.id);
   const data=await service.call('studio_library',{paginateConversions:true});assert.equal(data.soundLibrary.length,1);assert.equal(data.projects.length,0);
   assert.equal((await fetch(http.runtime.url+item.audioPath)).status,401);const audio=await fetch(http.runtime.url+item.audioPath,{headers});assert.equal(audio.headers.get('content-type'),'audio/wav');assert.deepEqual(Buffer.from(await audio.arrayBuffer()),wav);
+  assert.equal((await fetch(http.runtime.url+item.audioPath+'?format=mp3')).status,401);const mp3=await fetch(http.runtime.url+item.audioPath+'?format=mp3',{headers});assert.equal(mp3.status,200);assert.equal(mp3.headers.get('content-type'),'audio/mpeg');assert.ok((await mp3.arrayBuffer()).byteLength>0);assert.deepEqual(Buffer.from(await(await fetch(http.runtime.url+item.audioPath,{headers})).arrayBuffer()),wav);
   assert.equal((await fetch(http.runtime.url+'/sound-library/audio/unknown',{headers})).status,404);
   assert.equal((await fetch(url.replace('requestId=test','requestId=bad'),{method:'POST',body:Buffer.from('bad'),headers})).status,400);assert.equal((await service.call('studio_library',{})).soundLibrary.length,1);
  }finally{await http.close();await service.close();await rm(root,{recursive:true,force:true});}

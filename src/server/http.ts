@@ -1,3 +1,4 @@
+import {exportMp3} from '../service/studio/mp3.ts';
 import {BufferGate,importRequest,readAudioUpload} from './resource-io.ts';
 import {soundImportLimit} from '../service/studio/sound-library.ts';
 import {conversionUploadLimit} from '../service/conversion/conversion.ts';
@@ -19,7 +20,7 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
   const server=createServer(async(req,res)=> {
     const controller=new AbortController();const disconnect=()=>{if(!res.writableFinished)controller.abort(new Error('客户端已断开'));};req.once('aborted',disconnect);res.once('close',disconnect);
     const readJSON=()=>jsonBuffers.run(controller.signal,()=>jsonBody(req));
-    const audio=async(contentType:string,read:()=>Uint8Array|Promise<Uint8Array>,filename?:string,disposition='inline')=>audioBuffers.run(controller.signal,async()=>{const bytes=await read();controller.signal.throwIfAborted();res.writeHead(200,{'content-type':contentType,'content-length':bytes.length,'cache-control':'no-store',...(filename?{'content-disposition':`${disposition}; filename="${filename}"`}:{})});await new Promise<void>(resolve=>{const finish=()=>{res.off('finish',finish);res.off('close',finish);resolve();};res.once('finish',finish);res.once('close',finish);res.end(bytes);});});
+    const audio=async(contentType:string,read:()=>Uint8Array|Promise<Uint8Array>,filename?:string,disposition='inline')=>audioBuffers.run(controller.signal,async()=>{let bytes=await read();if(new URL(req.url??'/', 'http://localhost').searchParams.get('format')==='mp3'){bytes=await exportMp3(bytes,controller.signal);contentType='audio/mpeg';if(filename)filename=filename.replace(/\.[^.]+$/,'.mp3');disposition='attachment';}controller.signal.throwIfAborted();res.writeHead(200,{'content-type':contentType,'content-length':bytes.length,'cache-control':'no-store',...(filename?{'content-disposition':`${disposition}; filename="${filename}"`}:{})});await new Promise<void>(resolve=>{const finish=()=>{res.off('finish',finish);res.off('close',finish);resolve();};res.once('finish',finish);res.once('close',finish);res.end(bytes);});});
     try {
       const origin=runtime.url;
       if(req.headers.host!==new URL(origin).host || req.headers.origin && req.headers.origin!==origin){json(res,403,{code:'FORBIDDEN_ORIGIN',message:'来源不允许'});return;}

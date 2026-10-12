@@ -1,6 +1,6 @@
 import {ServiceError} from '../projects/store.ts';
 /** Parse bounded headers before codecs allocate full PCM arrays. */
-export function audioShape(bytes:Uint8Array){
+export function audioShape(bytes:Uint8Array,maxSeconds=600){
  const b=Buffer.from(bytes.buffer,bytes.byteOffset,bytes.byteLength);let frames=0,channels=0,rate=0;
  if(b.subarray(0,4).toString()==='fLaC'){
   if(b.length<42||(b[4]&127)!==0||b.readUIntBE(5,3)!==34)throw new ServiceError('INVALID_AUDIO','FLAC 缺少有效长度信息');
@@ -16,7 +16,7 @@ export function audioShape(bytes:Uint8Array){
   }frames=dataBytes/block;
 
  }
- if(!Number.isSafeInteger(frames)||frames<1||frames>96000*600||frames/rate>600||![1,2].includes(channels)||rate<8000||rate>96000)throw new ServiceError('INVALID_AUDIO','音频长度、声道或采样率超出处理范围');
+ if(!Number.isSafeInteger(frames)||frames<1||frames>96000*maxSeconds||frames/rate>maxSeconds||![1,2].includes(channels)||rate<8000||rate>96000)throw new ServiceError('INVALID_AUDIO','音频长度、声道或采样率超出处理范围');
  return {frames,channels,rate};
 }
 export function speedPeak(bytes:Uint8Array,tempo:number){const {frames,channels}=audioShape(bytes);return Math.ceil(bytes.length*3+frames*channels*4*(1+1/tempo)+frames/tempo*channels*2*3+64*1048576);}
