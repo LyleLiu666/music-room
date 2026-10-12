@@ -1,3 +1,4 @@
+import {readLyrics} from './lyrics.ts';
 import {collectedSounds,type LibrarySound} from './sound-library.ts';
 import {musicProgress,type MusicProgress} from '../yue2/progress.ts';
 import type {MusicEnding,MusicTruncation} from '../yue2/contracts.ts';
@@ -36,6 +37,7 @@ export class StudioService{
   for(const name of readdirSync(directory))if(/^speed-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.partial\.wav$/.test(name))unlinkSync(this.service.store.path('studio-audio',name));
  }
  private async serial<T>(fn:()=>Promise<T>,rollback=true):Promise<T>{const next=this.pending.then(async()=>{const before=clone(this.data);try{const result=await fn();if(JSON.stringify(before)!==JSON.stringify(this.data))this.save();return clone(result);}catch(e){if(rollback)this.data=before;else this.save();throw e;}});this.pending=next.catch(()=>{});return next;}
+ lyrics(id:string){const v=this.version(id);this.activeSound(v.soundId);if(v.deleted||v.purged||v.purgePending)fail('版本在回收站中');return readLyrics(this.service.store.path('lyrics'),v);}
  private save(){this.service.store.atomicJSON(this.service.store.path('studio.json'),this.data);}
  private sound(id:string){return this.data.sounds.find(s=>s.id===id)??fail('声音不存在');}
  private version(id:string){return this.data.versions.find(v=>v.id===id)??fail('版本不存在');}
@@ -96,7 +98,7 @@ export class StudioService{
   if(!(project?.deleted||sound?.deleted||owner.deleted||target?.deleted))fail('请先移入回收站，再彻底删除');
   const scope=project?this.data.sounds.filter(s=>s.projectId===project.id&&!s.purged):[sound!];if(target){if([...this.speedTasks.values()].some(t=>t.sourceId===target.id)||['queued','running'].includes(target.state)||target.renderJobId)fail('请先取消或等待生成完成');}else this.assertIdle(scope);
   const versions=target?[target]:this.data.versions.filter(v=>scope.some(s=>s.id===v.soundId)&&!v.purged);
-  for(const v of versions){if(v.purged)continue;v.deleted=true;v.purgePending=true;this.save();if(v.source.kind==='speech')this.service.speech.purgeVersion(v.source.id);else if(v.source.kind==='score'){this.service.jobs.purge(v.source.projectId!,v.source.id);await this.service.store.purgeRevision(v.source.projectId!,v.source.id);}else if(v.source.kind==='conversion')this.service.conversion.purge(v.source.id);else if(v.source.kind==='audio'){const path=this.service.store.path('studio-audio',`${identity(v.id)}.wav`);if(existsSync(path))unlinkSync(path);}else if(v.audioPath)await this.service.yue2Client.purgeAudio(v.source.id);v.purged=true;v.purgePending=undefined;v.deleted=true;v.audioPath=undefined;v.input=undefined;v.error=undefined;const s=this.sound(v.soundId);if(s.finalVersionId===v.id)s.finalVersionId=undefined;this.save();}
+  for(const v of versions){if(v.purged)continue;v.deleted=true;v.purgePending=true;this.save();if(v.source.kind==='speech')this.service.speech.purgeVersion(v.source.id);else if(v.source.kind==='score'){this.service.jobs.purge(v.source.projectId!,v.source.id);await this.service.store.purgeRevision(v.source.projectId!,v.source.id);}else if(v.source.kind==='conversion')this.service.conversion.purge(v.source.id);else if(v.source.kind==='audio'){const path=this.service.store.path('studio-audio',`${identity(v.id)}.wav`);if(existsSync(path))unlinkSync(path);}else if(v.audioPath)await this.service.yue2Client.purgeAudio(v.source.id);const lyricPath=this.service.store.path('lyrics',`${identity(v.id)}.json`);if(existsSync(lyricPath))unlinkSync(lyricPath);v.purged=true;v.purgePending=undefined;v.deleted=true;v.audioPath=undefined;v.input=undefined;v.error=undefined;const s=this.sound(v.soundId);if(s.finalVersionId===v.id)s.finalVersionId=undefined;this.save();}
   if(!target)for(const s of scope){if(s.kind==='speech')this.service.speech.purgeSound(s.id);s.purged=true;s.deleted=true;s.title='已删除片段';s.finalVersionId=undefined;}
   this.save();if(project){this.service.jobs.purge(project.id);await this.service.store.purgeProject(project.id);}return {purged:true};
  },false);}

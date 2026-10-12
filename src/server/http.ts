@@ -1,3 +1,4 @@
+import {lyricsLrc} from '../service/studio/lyrics.ts';
 import {exportMp3} from '../service/studio/mp3.ts';
 import {BufferGate,importRequest,readAudioUpload} from './resource-io.ts';
 import {soundImportLimit} from '../service/studio/sound-library.ts';
@@ -33,6 +34,15 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
       if(path==='/local-session') {
         if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
         json(res,200,{token,url:runtime.url,workspace:runtime.workspace,mcp:{mcpServers:{'music-room':{command:runtime.command,args:[...runtime.args,'mcp','--workspace',runtime.workspace]}}}});return;
+      }
+      if(path==='/api/studio-lyrics') {
+        if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
+        const result=service.studio.lyrics(url.searchParams.get('versionId')??'');
+        if(url.searchParams.get('format')==='lrc'){
+          if(result.kind!=='synced'){json(res,404,{message:'暂无同步歌词'});return;}
+          res.writeHead(200,{'content-type':'text/plain; charset=utf-8','cache-control':'no-store','content-disposition':'attachment; filename="lyrics.lrc"'});res.end(lyricsLrc(result.lines));return;
+        }
+        json(res,200,result);return;
       }
       if(path==='/mcp') {
         if(req.method!=='POST'){res.writeHead(405,{allow:'POST'});res.end();return;}

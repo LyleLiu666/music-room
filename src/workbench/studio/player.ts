@@ -1,3 +1,4 @@
+import {mountLyrics} from './lyrics.ts';
 /** Update the workspace without detaching the current player or its ancestors.
  * Re-inserting the same audio node preserves its properties, but closes native
  * media menus and can interrupt playback. Keep its entire DOM path connected.
@@ -9,6 +10,7 @@ export function renderWorkspace(workspace:HTMLElement,markup:string){
  const nextAudio=next.content.querySelector<HTMLAudioElement>('#version-audio');
  if(!audio||!nextAudio||audio.dataset.version!==nextAudio.dataset.version||audio.dataset.audioPath!==nextAudio.dataset.audioPath){
   workspace.replaceChildren(next.content);
+  mountLyrics(workspace.querySelector<HTMLAudioElement>('#version-audio'));
   return;
  }
  function updateAroundPlayer(current:Node,replacement:Node){
@@ -26,6 +28,7 @@ export function renderWorkspace(workspace:HTMLElement,markup:string){
   }
  }
  updateAroundPlayer(workspace,next.content);
+ mountLyrics(audio);
 }
 
 /** Move the connected player without restarting native playback. */
