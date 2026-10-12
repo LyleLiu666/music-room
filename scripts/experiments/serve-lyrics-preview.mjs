@@ -1,0 +1,8 @@
+import {createServer} from 'node:http';
+import {readFile,stat} from 'node:fs/promises';
+import {createReadStream} from 'node:fs';
+import {resolve,basename} from 'node:path';
+const root=resolve(process.argv[2]??'test-results/lyrics-alignment-2026-10-12'),port=Number(process.argv[3]??5175);
+const samples=JSON.parse(await readFile(root+'/samples.json','utf8'));
+const allowed=new Set(['index.html',...samples.flatMap(s=>[basename(s.path),s.id+'/lyrics.lrc'])]);
+createServer(async(req,res)=>{try{const path=decodeURIComponent(new URL(req.url,'http://localhost').pathname).slice(1)||'index.html';if(!allowed.has(path)||!['GET','HEAD'].includes(req.method)){res.writeHead(404);res.end();return;}const file=resolve(root,path),info=await stat(file),type=path.endsWith('.html')?'text/html; charset=utf-8':path.endsWith('.flac')?'audio/flac':'text/plain; charset=utf-8';let start=0,end=info.size-1,partial=false;if(req.headers.range){const match=/^bytes=(\d+)-(\d*)$/.exec(req.headers.range);if(!match){res.writeHead(416,{'content-range':'bytes */'+info.size});res.end();return;}start=Number(match[1]);end=match[2]?Number(match[2]):end;if(start>end||end>=info.size){res.writeHead(416,{'content-range':'bytes */'+info.size});res.end();return;}partial=true;}res.writeHead(partial?206:200,{'content-type':type,'accept-ranges':'bytes','content-length':end-start+1,'cache-control':'no-store',...(partial?{'content-range':`bytes ${start}-${end}/${info.size}`}:{})});if(req.method==='HEAD')res.end();else createReadStream(file,{start,end}).pipe(res);}catch{if(!res.headersSent)res.writeHead(404);res.end();}}).listen(port,'127.0.0.1',()=>console.log('Lyrics preview: http://127.0.0.1:'+port));
