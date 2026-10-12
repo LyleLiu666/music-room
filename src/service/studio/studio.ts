@@ -1,3 +1,4 @@
+import {collectedSounds,type LibrarySound} from './sound-library.ts';
 import {musicProgress,type MusicProgress} from '../yue2/progress.ts';
 import type {MusicEnding,MusicTruncation} from '../yue2/contracts.ts';
 import {validateMix,type RenderMix} from '../render/renderer.ts';
@@ -114,7 +115,8 @@ export class StudioService{
    conversionPagination={soundId:sound.id,page,pageSize,total,totalPages,versionIds};
   }
   if(options.paginateConversions||options.conversionSoundId){const conversionSounds=new Set(this.data.sounds.filter(s=>s.kind==='conversion').map(s=>s.id));versions=versions.filter(v=>!conversionSounds.has(v.soundId)||include.has(v.id)||options.includeDeletedConversions&&v.deleted);}
-  return {...this.data,backgroundVersions,sounds:this.data.sounds.filter(s=>!s.purged),versions,conversionPagination,projects:await this.service.store.projects(),voices:this.service.speech.snapshot().voices,conversionVoices:this.service.speech.conversionVoices(),engines:{conversion:this.service.conversion.snapshot({page:1,pageSize:1}).status,speech:this.service.speech.status(),music:await this.service.yue2.status()}};
+  const projects=await this.service.store.projects(),soundLibrary:LibrarySound[]=[...collectedSounds(projects,this.data.sounds,this.data.versions),...this.service.soundLibrary.list()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.id.localeCompare(a.id));
+  return {...this.data,soundLibrary,backgroundVersions,sounds:this.data.sounds.filter(s=>!s.purged),versions,conversionPagination,projects,voices:this.service.speech.snapshot().voices,conversionVoices:this.service.speech.conversionVoices(),engines:{conversion:this.service.conversion.snapshot({page:1,pageSize:1}).status,speech:this.service.speech.status(),music:await this.service.yue2.status()}};
  });}
  async createSound(args:{projectId:string;title:string;kind:SoundKind}){return this.serial(async()=>{this.service.store.assertActive(args.projectId);if(args.kind==='speech'){const s=await this.service.speech.createSound(args.projectId,args.title);const result:StudioSound={...s,kind:'speech'};this.data.sounds.push(result);return result;}const s:StudioSound={...args,id:`sound-${randomUUID()}`,createdAt:new Date().toISOString()};this.data.sounds.push(s);return s;});}
  async uploadConversion(args:{pitchShiftSemitones?:number;soundId?:string;parentId?:string;name:string;bytes:Uint8Array;voiceId:string;requestId:string},signal?:AbortSignal){return this.serial(async()=>{

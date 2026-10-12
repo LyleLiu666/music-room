@@ -429,6 +429,40 @@ h3 {
   font-weight: 600;
 }
 
+.sidebar-libraries {display:flex;flex-direction:column;gap:4px;}
+.sound-library-entry > span::before {-webkit-mask:var(--icon-note) center / contain no-repeat;mask:var(--icon-note) center / contain no-repeat;}
+.sound-library-controls {display:flex;gap:20px;align-items:end;margin:28px 0;}
+.sound-library-controls label {display:flex;flex-direction:column;gap:8px;}
+.sound-library-controls label:first-child {flex:1;}
+.sound-library-controls select {min-width:150px;}
+.sound-library-list {display:flex;flex-direction:column;gap:10px;}
+.sound-library-card {display:flex;align-items:center;gap:18px;width:100%;padding:18px 20px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);}
+.sound-library-card:hover {background:var(--hover);}
+.sound-library-card.selected {border-color:var(--accent);background:var(--accent-soft);}
+.sound-library-copy {display:flex;flex:1;min-width:0;flex-direction:column;gap:6px;}
+.sound-library-copy strong {color:var(--text-strong);overflow-wrap:anywhere;}
+.sound-library-copy small,.sound-library-copy > span,.sound-library-card time {font-size:13px;color:var(--muted);}
+.sound-library-copy > span {overflow-wrap:anywhere;}
+.sound-library-play {color:var(--accent);}
+.sound-library-tags {display:flex;gap:8px;flex-wrap:wrap;}
+.sound-library-card time {font-variant-numeric:tabular-nums;}
+.sound-library-preview-heading {display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;}
+.sound-library-preview-heading > div {flex:1;min-width:180px;}
+.sound-library-preview-heading h2 {font-size:20px;margin:0 0 8px;overflow-wrap:anywhere;}
+#sound-library-preview {margin-bottom:24px;}
+#sound-library-audio {width:100%;}
+#sound-import-file {max-width:100%;}
+
+@media(max-width:650px){
+ .sidebar-libraries {grid-column:1;grid-row:3;flex-direction:row;gap:0;flex-wrap:wrap;}
+ .sound-library-controls {gap:12px;flex-wrap:wrap;}
+ .sound-library-controls label:first-child {min-width:180px;}
+ .sound-library-card {padding:14px;gap:12px;flex-wrap:wrap;}
+ .sound-library-copy {flex-basis:65%;}
+ .sound-library-tags {margin-left:28px;}
+ .sound-library-card time {margin-left:auto;}
+}
+
 .sidebar-bottom {
   margin-top: auto;
   display: flex;
@@ -2322,7 +2356,7 @@ pre {
   .brand-symbol {
     width: 26px;
     height: 26px;
-    font-size: 15px;
+    font-size: 0;
   }
 
   .new-project {
@@ -2395,7 +2429,7 @@ pre {
   }
 
   .library-entry > span {
-    font-size: 17px;
+    font-size: 0;
   }
 
   #workspace {
@@ -2843,7 +2877,16 @@ body:has(#dialog[open]) #global-status-bar{visibility:hidden}
 .music-progress progress::-webkit-progress-value{background:var(--accent);border-radius:6px}
 .music-progress progress::-moz-progress-bar{background:var(--accent);border-radius:6px}
 .music-progress progress:indeterminate{background:linear-gradient(90deg,var(--line) 30%,var(--accent) 50%,var(--line) 70%);opacity:.65}
-.music-progress-time,.music-progress-activity,.music-progress-note{color:var(--muted)}
+.music-progress-time,.music-progress-activity{color:var(--muted)}
+.music-progress .music-stage-list{list-style:none;margin:0 0 5px;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px}
+.music-progress .music-stage{display:flex;flex-direction:row;flex-wrap:wrap;justify-content:center;align-items:center;gap:3px;padding:5px 2px;border:1px solid transparent;border-radius:4px;background:var(--line);color:var(--muted);font-size:11px;line-height:1.5;text-align:center}
+.music-progress .music-stage-number{font-size:10px;opacity:.8}
+.music-progress .music-stage-name{white-space:nowrap;color:inherit}
+.music-progress .music-stage.complete{background:var(--accent-soft);color:var(--accent)}
+.music-progress .music-stage.current{background:var(--accent);color:var(--surface)}
+.music-progress .music-stage.current span{color:inherit}
+.music-progress-heading{display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:2px 12px}
+.music-progress-heading .music-progress-detail{font-size:12px;color:var(--muted)}
 .music-progress.delayed .music-progress-activity{color:#cf936d}
 .empty-player .music-progress{max-width:680px;margin:4px 0 12px}
 .queue-list .music-progress{margin:4px 0 8px}

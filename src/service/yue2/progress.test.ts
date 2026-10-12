@@ -42,3 +42,28 @@ test('audio export chunk counts are real phase progress too',()=>{
  const p=musicProgress({...base,progress:{type:'stage',stage:'decode',completed:12,total:24,unit:'chunks',seconds:12,ts:new Date(now).toISOString()}})!;
  const v=musicProgressView(p,now);assert.equal(v.percent,50);assert.equal(v.remainingSeconds,12);assert.match(v.detail,/12 \/ 24 段/);assert.match(v.title,/导出/);
 });
+
+test('five major stages distinguish the fourth stage from its 32 synthesis steps and total time',()=>{
+ const p=musicProgress({...base,progress:{type:'stage',stage:'synthesize',completed:4,total:32,unit:'steps',seconds:100,ts:new Date(now).toISOString()}})!;
+ const v=musicProgressView(p,now);
+ assert.match(v.title,/第 4 \/ 5 阶段.*合成声音/);
+ assert.deepEqual(v.stages.map(s=>s.state),['complete','complete','complete','current','pending']);
+ assert.deepEqual(v.stages.map(s=>s.title),['规划旋律与和弦','生成音乐内容','准备声音合成','合成声音','导出与保存']);
+ assert.equal(v.detail,'已完成 4 / 32 小步');
+ assert.match(v.elapsed,/总计已运行 11 分/);
+ assert.equal(v.phaseElapsed,'当前环节已用 1 分 40 秒');
+ const queued=musicProgressView({stage:'queued'},now);
+ assert.ok(queued.stages.every(s=>s.state==='pending'));
+ const unknown=musicProgressView({stage:'running'},now);
+ assert.ok(unknown.stages.every(s=>s.state==='pending'));
+});
+
+test('engine model loading labels keep preparation and export in the correct major stage',()=>{
+ for(const [label,stage,index] of [['Loading acoustic model','conditioning',3],['Loading MLX audio decoder','decode',5]] as const){
+  const p=musicProgress({...base,progress:{type:'stage',stage:'load',label,seconds:0,ts:new Date(now).toISOString()}})!;
+  assert.equal(p.stage,stage);
+  assert.match(musicProgressView(p,now).title,new RegExp(`第 ${index} / 5 阶段`));
+ }
+ assert.ok(musicProgressView(musicProgress({...base,progress:{stage:'load',label:'Loading bf16 AR model'}})!,now).stages.every(s=>s.state==='pending'));
+ assert.equal(musicProgressView({stage:'save'},now).stages[4].state,'current');
+});

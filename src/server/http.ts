@@ -1,4 +1,5 @@
-import {BufferGate,importRequest} from './resource-io.ts';
+import {BufferGate,importRequest,readAudioUpload} from './resource-io.ts';
+import {soundImportLimit} from '../service/studio/sound-library.ts';
 import {conversionUploadLimit} from '../service/conversion/conversion.ts';
 import {createServer,type IncomingMessage,type ServerResponse} from 'node:http';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
@@ -23,7 +24,7 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
       const origin=runtime.url;
       if(req.headers.host!==new URL(origin).host || req.headers.origin && req.headers.origin!==origin){json(res,403,{code:'FORBIDDEN_ORIGIN',message:'来源不允许'});return;}
       const url=new URL(req.url??'/',origin),path=decodeURIComponent(url.pathname);
-      const protectedRoute=path.startsWith('/api/') || path==='/mcp' || path.startsWith('/artifacts/')||path.startsWith('/yue2-audio/')||path.startsWith('/speech/')||path.startsWith('/studio-audio/')||path.startsWith('/tts-presets/')||path.startsWith('/conversion/');
+      const protectedRoute=path.startsWith('/api/') || path==='/mcp' || path.startsWith('/artifacts/')||path.startsWith('/yue2-audio/')||path.startsWith('/speech/')||path.startsWith('/studio-audio/')||path.startsWith('/tts-presets/')||path.startsWith('/conversion/')||path.startsWith('/sound-library/');
       if(protectedRoute) {
         const candidate=Buffer.from(req.headers.authorization??''),expected=Buffer.from(`Bearer ${token}`);
         if(candidate.length!==expected.length || !timingSafeEqual(candidate,expected)){json(res,401,{code:'UNAUTHORIZED',message:'需要本地访问令牌'});return;}
@@ -39,6 +40,14 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
         const transport=new StreamableHTTPServerTransport({sessionIdGenerator:undefined,enableJsonResponse:true});
         res.on('close',()=>{void transport.close();void mcp.close();});
         await mcp.connect(transport);await transport.handleRequest(req,res,body);return;
+      }
+      if(path==='/sound-library/import') {
+        if(req.method!=='POST'){json(res,405,{message:'请用 POST'});return;}
+        const item=await audioBuffers.run(controller.signal,async()=>service.soundLibrary.import({name:url.searchParams.get('name')??'',title:url.searchParams.get('title')??undefined,requestId:url.searchParams.get('requestId')??'',bytes:await readAudioUpload(req,soundImportLimit,controller.signal)},controller.signal));json(res,200,item);return;
+      }
+      if(path.startsWith('/sound-library/audio/')) {
+        if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
+        const id=path.slice('/sound-library/audio/'.length);await audio(service.soundLibrary.contentType(id),()=>service.soundLibrary.audio(id));return;
       }
       if(path==='/conversion/upload') {
         if(req.method!=='POST'){json(res,405,{message:'请用 POST'});return;}
