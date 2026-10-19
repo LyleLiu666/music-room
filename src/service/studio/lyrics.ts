@@ -4,11 +4,12 @@ import {join} from 'node:path';
 import {identity,ServiceError} from '../projects/store.ts';
 export type LyricLine={text:string;start:number;end:number};
 export type LyricsResult={canGenerate?:boolean;available?:boolean;job?:LyricJob;kind:'none'|'plain'|'synced';reference:string;lines:LyricLine[];draft:boolean};
+export function referenceLyrics(input?:{instrumental?:boolean;lyrics?:string}){return input?.instrumental===true?'':input?.lyrics??'';}
 /** Sidecars belong to one immutable audio version; input lyrics never imply a timeline. */
-export function readLyrics(directory:string,v:{id:string;audioPath?:string;input?:{lyrics?:string};audioHash?:string}):LyricsResult{
- const file=join(directory,identity(v.id)+'.json'),reference=v.input?.lyrics??'';
+export function readLyrics(directory:string,v:{id:string;audioPath?:string;input?:{instrumental?:boolean;lyrics?:string};audioHash?:string}):LyricsResult{
+ const file=join(directory,identity(v.id)+'.json'),reference=referenceLyrics(v.input);
  const fallback:LyricsResult={kind:reference.trim()?'plain':'none',reference,lines:[],draft:false};
- if(!existsSync(file))return fallback;
+ if(v.input?.instrumental===true||!existsSync(file))return fallback;
  if(lstatSync(file).isSymbolicLink()||lstatSync(file).size>1024*1024)throw new ServiceError('INVALID_LYRICS','歌词文件无效');
  const doc=JSON.parse(readFileSync(file,'utf8'));
  if(doc.versionId!==v.id||doc.audioPath!==v.audioPath||v.audioHash&&doc.audioSha256!==v.audioHash)return fallback;

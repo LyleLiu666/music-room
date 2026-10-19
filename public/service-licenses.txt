@@ -111,3 +111,8 @@ Source and build instructions: https://github.com/shijinyu/lamejs
 Unmodified library bundled by the application. To replace it, install your modified
 package and rebuild with npm run build:binary from the Music Room source.
 Full license: /lamejs-license.txt
+
+YuE native ABC utilities (abc_tools.py, compile_score.py, instrumentalize.py, common.py): Apache-2.0.
+Copied unchanged from https://github.com/multimodal-art-projection/YuE/tree/1647252d68b70cbead046ffd3f7caf036dde47ee/skills/yue2-music/instrumental/scripts
+License: /yue2-score/vendor/LICENSE. Source attribution: /yue2-score/vendor/README.md.
+The local score.py adapter is Music Room project code.

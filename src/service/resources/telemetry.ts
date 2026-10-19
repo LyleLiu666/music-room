@@ -1,9 +1,20 @@
-import {groupMembers} from './processes.ts';
-import {processIdentity} from './lease.ts';
 import {execFile} from 'node:child_process';
 import {totalmem,freemem} from 'node:os';
 import type {HardwareSnapshot} from './contracts.ts';
-export function commandOutput(command:string,args:string[]){return new Promise<string>((resolve,reject)=>execFile(command,args,{encoding:'utf8',timeout:3000,maxBuffer:2*1048576,env:{...process.env,LC_ALL:'C'}},(error,stdout)=>error?reject(error):resolve(stdout)));}
+export function commandOutput(command:string,args:string[],timeout=3000){return new Promise<string>((resolve,reject)=>execFile(command,args,{encoding:'utf8',timeout,maxBuffer:2*1048576,env:{...process.env,LC_ALL:'C'}},(error,stdout)=>error?reject(error):resolve(stdout)));}
+/** One asynchronous process-table read per sample, with one bounded retry for OS timeouts. */
+export async function processGroupPids(groups:number[],read:(command:string,args:string[],timeout:number)=>Promise<string>=commandOutput){
+ let output:string;
+ try{output=await read('/bin/ps',['-axo','pid=,pgid=,stat='],2000);}
+ catch(error:any){if(error?.code!=='ETIMEDOUT'&&error?.killed!==true)throw error;output=await read('/bin/ps',['-axo','pid=,pgid=,stat='],1000);}
+ const selected=new Set(groups);
+ return output.trim().split('\n').flatMap(line=>{
+  const fields=line.trim().split(/\s+/),[pid,group,state]=fields;
+  if(fields.length!==3||!/^\d+$/.test(pid)||!/^\d+$/.test(group)||!Number.isSafeInteger(Number(pid))||Number(pid)<1||!Number.isSafeInteger(Number(group))||!state)throw Error('无法读取完整进程列表');
+  return selected.has(Number(group))&&!state.startsWith('Z')?[Number(pid)]:[];
+ });
+}
+function processExists(pid:number){try{process.kill(pid,0);return true;}catch(error:any){if(error.code==='ESRCH')return false;throw error;}}
 export function parsePressure(capacity:number,free:string,level:string):HardwareSnapshot{
  const match=free.match(/System-wide memory free percentage:\s*(\d+)%/),code=Number(level.trim()),percent=Number(match?.[1]);
  if(!match||percent<0||percent>100||![1,2,4].includes(code)||!Number.isSafeInteger(capacity)||capacity<1)throw new Error('内存指标无效');
@@ -20,8 +31,8 @@ export async function probeHardware(measure:(pid:number)=>Promise<number>=physic
 }
 
 export async function observeProcesses(groups:number[],baseline:HardwareSnapshot,measure:(pid:number)=>Promise<number>=physicalBytes){
- const pids=new Set<number>([process.pid]);for(const group of groups)for(const pid of groupMembers(group))pids.add(pid);
- const values=await Promise.all([...pids].map(async pid=>{const identity=processIdentity(pid);if(!identity)return 0;try{return await measure(pid);}catch(error){if(!processIdentity(pid))return 0;throw error;}}));
+ const pids=new Set<number>([process.pid,...await processGroupPids(groups)]);
+ const values=await Promise.all([...pids].map(async pid=>{if(!processExists(pid))return 0;try{return await measure(pid);}catch(error){if(!processExists(pid))return 0;throw error;}}));
  const [free,level,swap]=await Promise.all([commandOutput('/usr/bin/memory_pressure',['-Q']),commandOutput('/usr/sbin/sysctl',['-n','kern.memorystatus_vm_pressure_level']),commandOutput('/usr/sbin/sysctl',['vm.swapusage'])]);
  const current=parsePressure(totalmem(),free,level);return {usage:{memory:Math.max(0,values.reduce((a,b)=>a+b,0)-(baseline.pools.find(p=>p.id==='memory')?.owned??0))},swapUsed:parseSwap(swap),pressure:current.pressure};
 }

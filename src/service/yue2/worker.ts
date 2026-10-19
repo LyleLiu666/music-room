@@ -37,7 +37,18 @@ for repo,revision,target,files in [(config.MODEL_REPO,'5f7620e546fb3c6130a09a7e1
 script=Path(os.environ['YUE2_STUDIO_HOME'])/'source'/'scripts'/'setup.py'
 sys.argv=[str(script),'--skip-download']
 runpy.run_path(str(script),run_name='__main__')`;
-const serve=`import os
+export const musicRuntimeHashes={"recovery.py":"c3b2d00e605501ec9ebcab34cf074cc359c5b351cfc74cfbb818d7a985c244b0","duration.py": "b00d20c9ad7d32e592e67a54c142c51c25a0c4588ccb88fda804b9172f688313", "abc_tools.py": "ea04b922dacebec7ad257a2f8d83bdb5dfecb7a23110c1a3121c5c41c313930e", "instrumentalize.py": "a769111656f418cf4298841dc4a7f6be1a50bfae1e66b1bccfaca3eacf948681", "compile_score.py": "c4eec7f68e3f09b93b45d568a8af640b3f10bb47d31ef6d3b6ce4ae23ac1dea3", "common.py": "2929619bd37a176c87c37fdcde9864613d4d5172ca2d89d724aa450a4d7053be"};
+const serve=`MUSIC_ROOM_RUNTIME_HASHES=${JSON.stringify(musicRuntimeHashes)}
+import os
+import sys,hashlib
+runtime=__import__('pathlib').Path(os.environ['YUE2_STUDIO_HOME'])/'music-room-runtime'
+for name,digest in MUSIC_ROOM_RUNTIME_HASHES.items():
+ if hashlib.sha256((runtime/name).read_bytes()).hexdigest()!=digest:raise RuntimeError('Music Room runtime changed')
+sys.path.insert(0,str(runtime))
+from duration import install
+install()
+from recovery import install as install_recovery
+install_recovery()
 from yue2_studio.main import create_app
 from yue2_studio import config
 from pathlib import Path

@@ -26,3 +26,11 @@ test('unverified input failures show preflight advice and an obvious retry inste
  const html=resourceFailure({reason:'RESOURCE_PROFILE_UNVERIFIED',message:'此模型配置的资源需求尚未验证'},false);
  assert.match(html,/生成前检查未通过/);assert.match(html,/8000 字/);assert.match(html,/长稿会自动分段/);assert.match(html,/<button class="primary" data-action="retry-generation">重试生成/);assert.doesNotMatch(html,/关闭暂时不用的应用/);
 });
+
+test('music recovery states the saved boundary instead of promising chunk-level continuation',()=>{
+ for(const [stage,expected] of [['plan','音乐内容生成'],['semantic','声音合成'],['synthesis','音频导出']] as const){
+  const html=resourceFailure({reason:'RESOURCE_TELEMETRY_UNAVAILABLE'},true,true,{jobId:'a'.repeat(32),stage});
+  assert.match(html,/继续生成/);assert.ok(html.includes(expected));assert.doesNotMatch(html,/从头生成/);
+ }
+ assert.match(resourceFailure({reason:'RESOURCE_TELEMETRY_UNAVAILABLE'},true),/尚无可用恢复点/);
+});

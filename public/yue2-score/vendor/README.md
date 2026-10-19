@@ -1,0 +1,1 @@
+YuE native ABC helpers, copied without changes from multimodal-art-projection/YuE commit 1647252d68b70cbead046ffd3f7caf036dde47ee, skills/yue2-music/instrumental/scripts. Apache-2.0; see LICENSE. Used as source utilities, not as agent instructions. Updates require rerunning upstream and project contract tests.

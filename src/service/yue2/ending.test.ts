@@ -14,7 +14,7 @@ test('natural ending guides music without changing lyrics or interpreting user k
  assert.equal(result.lyrics,lyrics);assert.equal(input.style,'温柔女声');
  assert.deepEqual(generationWithEnding({...input,ending:'as-described'}),{style:input.style,lyrics});
  const instrumental=generationWithEnding({style:'钢琴',lyrics:'[instrumental]',instrumental:true});
- assert.match(instrumental.lyrics,/\[outro\]/);
+ assert.equal(instrumental.lyrics,'[instrumental]');
  const structure='[intro]\n[bridge]\n[outro]';
  assert.equal(generationWithEnding({style:'钢琴',lyrics:structure,instrumental:true}).lyrics,structure);
 });

@@ -14,3 +14,7 @@ release/
 .ui-review/
 
 public/resource-native/
+
+# Python runtime caches
+__pycache__/
+*.pyc

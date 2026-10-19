@@ -20,8 +20,9 @@ test('ending preference survives drafts and iteration; tail audition and honest 
  service.yue2Client.list=async()=>({jobs});
  service.yue2Client.generate=async args=>{requests.push(structuredClone(args));const job={id:crypto.randomUUID().replaceAll('-',''),status:'done',kind:'create',title:args.title,truncated};jobs.push(job);return {job};};
  service.yue2Client.audio=async()=>Buffer.from(encodeWav([Float32Array.from({length:22050*seconds},(_,i)=>Math.sin(i*.1)*.05)],22050));
- const http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1100}}),errors=[];
+ const http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1440,height:1100}}),errors=[],lyricRequests=[];
  page.on('pageerror',e=>errors.push(e.message));
+ page.on('request',r=>{if(new URL(r.url()).pathname==='/api/studio-lyrics')lyricRequests.push(r.url());});
  const compose=async()=>{await page.click('[data-action="compose"]');await page.getByText('生成偏好',{exact:true}).click();};
  const generate=async()=>{await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.waitForFunction(()=>document.querySelector('#preview-ending')?.disabled===false);};
  const requirements=async()=>{await page.click('.listening .more-menu summary');await page.click('[data-action="requirements"]');};
@@ -30,10 +31,13 @@ test('ending preference survives drafts and iteration; tail audition and honest 
   await page.goto(http.runtime.url);await compose();assert.equal(await page.inputValue('#music-ending'),'natural');
   await page.fill('#creation-text','温暖钢琴');await page.selectOption('#music-ending','as-described');await page.click('[data-action="close"]');await page.reload();await compose();assert.equal(await page.inputValue('#music-ending'),'as-described');
   await page.selectOption('#music-ending','natural');await generate();assert.equal(requests.at(-1).ending,'natural');assert.equal(await page.locator('#music-ending-warning').count(),0);
+  const speedRow=await page.locator('#save-speed').boundingBox(),endingButton=await page.locator('#preview-ending').boundingBox();
+  assert.ok(Math.abs(speedRow.y+speedRow.height/2-endingButton.y-endingButton.height/2)<2,'ending preview shares the speed control row');
+  assert.equal(await page.locator('#workspace .player-lyrics').count(),0);assert.deepEqual(lyricRequests,[],'pure music does not request lyrics');
   const first=(await service.call('studio_library',{})).versions.find(v=>v.soundId===sound.id);assert.equal(first.input.ending,'natural');
   await page.click('#preview-ending');await page.waitForFunction(()=>{const a=document.querySelector('#version-audio');return a&&!a.paused&&a.currentTime>=5&&a.currentTime<8;});
   await page.locator('#version-audio').evaluate(a=>a.pause());await page.waitForTimeout(50);assert.equal(await page.locator('#ending-preview-error').isVisible(),false);
-  await requirements();assert.match(await page.locator('#dialog').innerText(),/不代表听感收尾合格/);await page.click('[data-action="close"]');
+  await requirements();assert.match(await page.locator('#dialog').innerText(),/不带歌词（纯音乐）/);assert.equal(await page.locator('#dialog h3').filter({hasText:'歌词'}).count(),0);assert.doesNotMatch(await page.locator('#dialog').innerText(),/\[instrumental\]/);assert.match(await page.locator('#dialog').innerText(),/不代表听感收尾合格/);await page.click('[data-action="close"]');
   await page.click('[data-action="iterate"]');await page.getByText('生成偏好',{exact:true}).click();assert.equal(await page.inputValue('#music-ending'),'natural');
   await page.selectOption('#music-ending','as-described');truncated={abc:false,semantic:true};seconds=4;await generate();assert.equal(requests.at(-1).ending,'as-described');
   await page.locator('#music-ending-warning').waitFor();assert.match(await page.locator('#music-ending-warning').innerText(),/长度上限/);

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {mkdtemp,rm,mkdir,writeFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createServer} from 'node:http';
@@ -11,15 +12,15 @@ import {testResources} from '../resources/testing.ts';
 const delay=()=>new Promise(r=>setTimeout(r,5));
 async function fixture(t:any){
  const root=await mkdtemp(join(tmpdir(),'managed-yue-')),directory=join(root,'engine');
- let launches=0,stops=0,submits=0,done=false,progress:Record<string,unknown>|undefined;
+ let launches=0,stops=0,submits=0,done=false,progress:Record<string,unknown>|undefined;const bodies:any[]=[];
  const upstream='a'.repeat(32),resources=testResources(),store=await ProjectStore.open(join(root,'workspace'));
- const server=createServer(async(req,res)=>{let body='';for await(const p of req)body+=p;res.setHeader('content-type','application/json');if(req.url==='/api/jobs'&&req.method==='POST')submits++;res.end(JSON.stringify({job:{id:upstream,kind:'create',status:done?'done':'running',progress}}));});
+ const server=createServer(async(req,res)=>{let body='';for await(const p of req)body+=p;res.setHeader('content-type','application/json');if(req.url==='/api/jobs'&&req.method==='POST'){submits++;bodies.push(JSON.parse(body));}res.end(JSON.stringify({job:{id:upstream,kind:'create',status:done?'done':'running',progress}}));});
  await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
  const driver={unsupported:()=>undefined,installed:()=>true,modelsReady:()=>true,chooseDirectory:async()=>directory,prepare:async()=>{},launch:async()=>{launches++;let end!:(n:number)=>void;return {url:`http://127.0.0.1:${(server.address() as any).port}`,exited:new Promise<number>(r=>end=r),status:async()=>({modelsPresent:true,fake:false}),stop:async()=>{stops++;end(0);}};}};
  const engine=await YuE2Engine.open(store,driver,resources);await engine.prepare(directory,true);for(let i=0;i<100&&(await engine.status()).phase==='preparing';i++)await delay();
  const client=new YuE2Client(engine,store,resources);
  t.after(async()=>{await client.close();await resources.close();await engine.close();await store.close();await new Promise<void>(r=>server.close(()=>r()));await rm(root,{recursive:true,force:true});});
- return {root,directory,engine,client,resources,store,setProgress:(value:Record<string,unknown>)=>{progress=value;},counts:()=>({launches,stops,submits}),complete:async(truncated?:{abc:boolean;semantic:boolean})=>{await mkdir(join(directory,'data/songs',upstream,'song'),{recursive:true});await writeFile(join(directory,'data/songs',upstream,'song/audio.flac'),'fLaC test');if(truncated)await writeFile(join(directory,'data/songs',upstream,'summary.json'),JSON.stringify({truncated}));done=true;}};
+ return {root,directory,engine,client,resources,store,bodies,setProgress:(value:Record<string,unknown>)=>{progress=value;},counts:()=>({launches,stops,submits}),complete:async(truncated?:{abc:boolean;semantic:boolean})=>{await mkdir(join(directory,'data/songs',upstream,'song'),{recursive:true});await writeFile(join(directory,'data/songs',upstream,'song/audio.flac'),'fLaC test');if(truncated)await writeFile(join(directory,'data/songs',upstream,'summary.json'),JSON.stringify({truncated}));done=true;}};
 }
 test('managed music is lazy, serialized, and reads completed audio after unloading',async t=>{
  const f=await fixture(t);assert.equal((await f.engine.status()).canGenerate,true);await f.engine.start();assert.equal(f.counts().launches,0);
@@ -31,6 +32,18 @@ test('managed music is lazy, serialized, and reads completed audio after unloadi
 test('queued music cancellation never launches a model',async t=>{
  const f=await fixture(t);const block=new AbortController();f.resources.register('block',{resident:()=>undefined,unload:async()=>{}});const held=f.resources.run({id:'block',engine:'block',demand:{verified:true,peak:{memory:1}},signal:block.signal,execute:async ctx=>new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}))}).catch(()=>{});
  const a=await f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true});await assert.rejects(f.engine.prepare(f.directory,false),/请先完成或取消/);assert.equal((await f.engine.status()).canGenerate,true);await f.client.cancel(a.job.id);assert.equal((await f.client.job(a.job.id)).job.status,'cancelled');assert.equal(f.counts().launches,0);block.abort();await held;
+});
+test('resume carries only verified matching artifacts through the normal queue and protects its source',async t=>{
+ const f=await fixture(t),input={style:'piano',lyrics:'[instrumental]',preset:'fast' as const,instrumental:true,seed:42};
+ const first=await f.client.generate(input);for(let i=0;i<100&&f.counts().submits<1;i++)await delay();await f.client.cancel(first.job.id);
+ const plan=join(f.directory,'data/songs','a'.repeat(32),'plan');await mkdir(plan,{recursive:true});const manifest:Record<string,string>={};
+ for(const name of ['plan.json','abc_tokens.npy','prefix.npy','score.abc']){await writeFile(join(plan,name),'fixture');manifest[name]=createHash('sha256').update('fixture').digest('hex');}await writeFile(join(plan,'plan_manifest.json'),JSON.stringify(manifest));
+ assert.equal((await f.client.job(first.job.id)).job.recovery?.stage,'plan');
+ await assert.rejects(f.client.generate({...input,seed:43},first.job.id),/恢复点不可用/);assert.equal(f.counts().submits,1);
+ const block=new AbortController();f.resources.register('block',{resident:()=>undefined,unload:async()=>{}});const held=f.resources.run({id:'hold-recovery',engine:'block',demand:{verified:true,peak:{memory:1}},signal:block.signal,execute:async ctx=>new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}))}).catch(()=>{});
+ const resumed=await f.client.generate(input,first.job.id);assert.equal(resumed.job.status,'queued');await assert.rejects(f.client.purgeAudio(first.job.id),/恢复生成仍在使用/);
+ block.abort();await held;for(let i=0;i<100&&f.counts().submits<2;i++)await delay();
+ assert.equal(f.bodies[1].params.resume_from,'a'.repeat(32));assert.equal(f.bodies[1].params.seed,42);assert.equal(f.bodies[1].loras.length,2);await f.client.cancel(resumed.job.id);
 });
 
 test('reopening marks unfinished local and old upstream tasks interrupted without execution',async t=>{
@@ -58,7 +71,7 @@ test('resource admission counts the full ending guidance rather than only the or
  const f=await fixture(t);let measured:any;
  f.resources.estimate=(_engine,input)=>{measured=input;return {verified:false,peak:{memory:0}};};
  const result=await f.client.generate({style:'琴'.repeat(1000),lyrics:'[instrumental]',preset:'fast',instrumental:true});
- assert.ok(measured.style.length>1000);assert.match(measured.lyrics,/\[outro\]/);
+ assert.ok(measured.style.length>1000);assert.match(measured.style,/Ending arrangement/);assert.match(measured.style,/No vocals/);assert.equal(measured.lyrics,'[instrumental]');
  for(let i=0;i<100&&(await f.client.job(result.job.id)).job.status==='queued';i++)await delay();
  assert.equal(f.counts().submits,0);
 });

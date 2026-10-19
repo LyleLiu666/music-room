@@ -8,8 +8,8 @@ const files=[];
 async function collect(folder,prefix='') {
   for(const entry of await readdir(folder,{withFileTypes:true})) {
     const name=prefix+entry.name,path=join(folder,entry.name);
-    if(entry.isDirectory())await collect(path,name+'/');
-    else if(entry.isFile() && (name==='index.html'||name==='speech.html'||name==='conversion.html'||name==='score.html'||name==='credits.html'||name==='project-license.txt'||name==='service-licenses.txt'||name==='lamejs-license.txt'||name.startsWith('assets/')||name.startsWith('samples/')||name.startsWith('tts-presets/')||name.startsWith('tts-native/')||name.startsWith('speed-native/')||name.startsWith('resource-native/')||name.startsWith('yue2-runtime/')||name.startsWith('lyrics-runtime/')||name.startsWith('authoring-kit/')||name==='music-authoring-kit.zip'))files.push(name);
+    if(entry.isDirectory()){if(entry.name!=='__pycache__')await collect(path,name+'/');}
+    else if(entry.isFile() && (name==='index.html'||name==='speech.html'||name==='conversion.html'||name==='score.html'||name==='credits.html'||name==='project-license.txt'||name==='service-licenses.txt'||name==='lamejs-license.txt'||name.startsWith('assets/')||name.startsWith('samples/')||name.startsWith('tts-presets/')||name.startsWith('tts-native/')||name.startsWith('speed-native/')||name.startsWith('resource-native/')||name.startsWith('yue2-runtime/')||name.startsWith('yue2-score/')||name.startsWith('lyrics-runtime/')||name.startsWith('authoring-kit/')||name==='music-authoring-kit.zip'))files.push(name);
   }
 }
 await copyFile(join(root,'LICENSE'),join(root,'dist/project-license.txt'));

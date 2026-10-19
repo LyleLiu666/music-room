@@ -1,4 +1,6 @@
+import {musicEditKinds,type MusicEditDraft} from './studio/music-edits.ts';
 import {musicInputLimits,type MusicContext} from './yue2/input.ts';
+import {musicDurations} from './yue2/duration.ts';
 import {musicEndings} from './yue2/contracts.ts';
 import type {ResourceCoordinator} from './resources/coordinator.ts';
 import type {ConversionService,ConversionJob} from './conversion/conversion.ts';
@@ -34,7 +36,17 @@ export const operations = {
   studio_update_project:{description:'项目重命名或移入/恢复回收站；整个层级保持原状态，生成中拒绝删除。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
   studio_update_sound:{description:'片段重命名或移入/恢复回收站，保留其版本和成品选择。',schema:z.object({soundId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
   studio_purge:{description:'彻底删除回收站中的项目、片段、版本或音色及其保存文件；不可恢复。',schema:z.object({kind:z.enum(['project','sound','version','voice']),id}).strict()},
-  studio_generate:{description:'在指定声音内生成新版本，来源和结果均保存在当前声音。音乐 ending 默认 natural（引导自然收尾），as-described 仅按原描述生成；不保证精确时长或收尾听感。',schema:z.object({seed:z.number().int().min(0).max(2147483647).optional(),structure:z.string().max(musicInputLimits.lyrics).optional(),abc:z.string().max(musicInputLimits.abc).optional(),ending:z.enum(musicEndings).optional(),soundId:id,text:z.string().trim().min(1).max(musicInputLimits.style),voiceId:id.optional(),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),lyrics:z.string().max(musicInputLimits.lyrics).optional(),instrumental:z.boolean().optional(),preset:z.enum(['fast','quality']).optional(),parentId:id.optional()}).strict()},
+  studio_music_edit_open:{description:'读取所选音乐版本真实保存的 ABC，打开可恢复的改谱草稿。',schema:z.object({versionId:id,kind:z.enum(musicEditKinds)}).strict()},
+  studio_music_edit_prepare:{description:'校验并保存改谱草稿，不生成音频，不改动原版。revision 防止覆盖新草稿。',schema:z.object({draftId:id,revision:z.number().int().min(0),style:z.string().trim().min(1).max(musicInputLimits.style),change:z.discriminatedUnion('kind',[
+   z.object({kind:z.literal('transfer'),overlap:z.enum(['error','vocal'])}).strict(),
+   z.object({kind:z.literal('harmony'),abc:z.string().min(1).max(musicInputLimits.abc)}).strict(),
+   z.object({kind:z.literal('tempo'),bpm:z.number().int().min(20).max(300)}).strict(),
+   z.object({kind:z.literal('section'),index:z.number().int().min(0),action:z.enum(['repeat','delete'])}).strict()
+  ])}).strict()},
+  studio_music_edit_brief:{description:'导出可交给任意 AI / LLM 的改谱要求和完整原谱，不调用模型。',schema:z.object({draftId:id,instruction:z.string().trim().min(1).max(10000)}).strict()},
+  studio_music_edit_generate:{description:'将已检查的草稿提交现有音乐队列，创建同声音的子版本；同一草稿修订重试返回同一版本。',schema:z.object({draftId:id,revision:z.number().int().min(0)}).strict()},
+  studio_retry_music:{description:'沿用失败或取消版本的创作要求，新建重试版本并复用经过校验的阶段恢复点；重复提交返回同一重试版本。',schema:z.object({versionId:id}).strict()},
+  studio_generate:{description:'在指定声音内生成新版本，来源和结果均保存在当前声音。音乐可设 targetDuration=60/120/180/240/300（约 1–5 分钟），先规划并检查乐谱长度，省略则由模型决定。音乐 ending 默认 natural（引导自然收尾），as-described 仅按原描述生成；不保证精确时长或收尾听感。',schema:z.object({targetDuration:z.number().refine(n=>musicDurations.some(value=>value===n),'目标时长请选择约 1–5 分钟').optional(),seed:z.number().int().min(0).max(2147483647).optional(),structure:z.string().max(musicInputLimits.lyrics).optional(),abc:z.string().max(musicInputLimits.abc).optional(),ending:z.enum(musicEndings).optional(),soundId:id,text:z.string().trim().min(1).max(musicInputLimits.style),voiceId:id.optional(),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),lyrics:z.string().max(musicInputLimits.lyrics).optional(),instrumental:z.boolean().optional(),preset:z.enum(['fast','quality']).optional(),parentId:id.optional()}).strict()},
   studio_update_version:{description:'保留灵感、选成品、可恢复删除版本。',schema:z.object({versionId:id,kept:z.boolean().optional(),deleted:z.boolean().optional(),final:z.boolean().optional()}).strict()},
   studio_cancel:{description:'取消指定声音版本的生成任务。',schema:z.object({versionId:id}).strict()},
   studio_import_score:{description:'将 Agent 交付的 JSON 乐谱导入指定声音，新版保留来源，不覆盖旧版。',schema:z.object({soundId:id,compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
@@ -58,9 +70,9 @@ export const operations = {
   prepare_yue2:{description:'在用户指定的空文件夹安装 YuE2 专用环境；生成时按需加载。downloadModels=true 下载约 10GB 权重及器乐适配器；后台运行，用 yue2_status 轮询。',schema:z.object({directory:z.string().min(1).max(4096),downloadModels:z.boolean().default(true)}).strict()},
   start_yue2:{description:'启用已安装的 YuE2；工作台打开时保持空闲，生成时统一申请资源。',schema:z.object({}).strict()},
   stop_yue2:{description:'停止所属 YuE2 及安装下载进程，保留文件；关闭自动启动。',schema:z.object({}).strict()},
-  yue2_inspect_input:{description:'用已安装模型的真实分词器检查风格、歌词和 ABC 的上下文预算，不加载模型权重。',schema:z.object({style:z.string().max(musicInputLimits.style),lyrics:z.string().max(musicInputLimits.lyrics),instrumental:z.boolean(),ending:z.enum(musicEndings).optional(),abc:z.string().max(musicInputLimits.abc).optional()}).strict()},
+  yue2_inspect_input:{description:'用已安装模型的真实分词器检查风格、歌词和 ABC 的上下文预算；有 targetDuration 和自定义 ABC 时同时检查谱长，不加载模型权重。',schema:z.object({targetDuration:z.number().refine(n=>musicDurations.some(value=>value===n),'目标时长请选择约 1–5 分钟').optional(),style:z.string().max(musicInputLimits.style),lyrics:z.string().max(musicInputLimits.lyrics),instrumental:z.boolean(),ending:z.enum(musicEndings).optional(),abc:z.string().max(musicInputLimits.abc).optional()}).strict()},
   yue2_score:{description:'读取已完成音乐版本的 ABC 乐谱副本。修改后作为新的 abc 输入生成，不覆盖原作品。',schema:z.object({jobId:yue2JobId}).strict()},
-  yue2_generate:{description:'使用本地真实 YuE2 模型生成音乐，立即返回 job.id。instrumental 默认 true，自动使用器乐适配器；lyrics 为段落结构（如 [instrumental]），cot=full。ending 默认 natural，引导完整尾声；as-described 关闭附加引导。不会裁切或自动淡出。用 yue2_get_job 查询，done 后 audioPath 是本机 FLAC。',schema:z.object({abc:z.string().max(musicInputLimits.abc).optional(),ending:z.enum(musicEndings).optional(),style:z.string().min(1).max(musicInputLimits.style),lyrics:z.string().min(1).max(musicInputLimits.lyrics).default('[instrumental]'),preset:z.enum(['fast','quality']).default('fast'),instrumental:z.boolean().default(true),seed:z.number().int().min(0).max(2147483647).optional(),title:z.string().min(1).max(200).optional()}).strict()},
+  yue2_generate:{description:'使用本地真实 YuE2 模型生成音乐，立即返回 job.id。instrumental 默认 true，自动使用器乐适配器；lyrics 为段落结构（如 [instrumental]），cot=full。ending 默认 natural，引导完整尾声；as-described 关闭附加引导。targetDuration 可设 60/120/180/240/300 秒，先检查谱长并最多重规划两次，仍不符则失败；近似目标不保证音频精确长度。不会裁切或自动淡出。用 yue2_get_job 查询，done 后 audioPath 是本机 FLAC。',schema:z.object({targetDuration:z.number().refine(n=>musicDurations.some(value=>value===n),'目标时长请选择约 1–5 分钟').optional(),abc:z.string().max(musicInputLimits.abc).optional(),ending:z.enum(musicEndings).optional(),style:z.string().min(1).max(musicInputLimits.style),lyrics:z.string().min(1).max(musicInputLimits.lyrics).default('[instrumental]'),preset:z.enum(['fast','quality']).default('fast'),instrumental:z.boolean().default(true),seed:z.number().int().min(0).max(2147483647).optional(),title:z.string().min(1).max(200).optional()}).strict()},
   yue2_get_job:{description:'查询 YuE2 真实生成状态、失败原因及完成后音频路径。',schema:z.object({jobId:yue2JobId}).strict()},
   yue2_list_jobs:{description:'列出 YuE2 最近 30 个任务，网页重开后仍可查询和试听。',schema:z.object({}).strict()},
   yue2_cancel_job:{description:'取消 YuE2 排队或生成中的指定任务。',schema:z.object({jobId:yue2JobId}).strict()},
@@ -87,11 +99,12 @@ export type LibrarySnapshot = {projects:Project[];documents:Composition[];jobs:J
 export type AuthoringContext = {project?:Project;revision?:RevisionDocument;feedback:Feedback[];guide:string;example:Composition;prompt:string;rules:string;workflow:Operation[];tracks:string};
 export type ResourceStatus=Awaited<ReturnType<ResourceCoordinator['status']>>;
 export type OperationResults = {
+  studio_music_edit_open:MusicEditDraft;studio_music_edit_prepare:MusicEditDraft;studio_music_edit_brief:{text:string};studio_music_edit_generate:StudioVersion;
   resource_status:ResourceStatus;resource_pause:ResourceStatus;resource_resume:ResourceStatus;resource_cancel:ResourceStatus;resource_release:ResourceStatus;resource_set_limit:ResourceStatus;
   svc_library:ReturnType<ConversionService['snapshot']>&{voices:SpeechVoice[]};svc_create_version:ConversionJob;svc_cancel:ConversionJob;svc_retry:ConversionJob;
   studio_update_project:Project;studio_update_sound:StudioSound;studio_purge:{purged:true};
   studio_conversion_sources:Awaited<ReturnType<StudioService['conversionSources']>>;studio_convert_saved:Awaited<ReturnType<StudioService['convertSaved']>>;
-  studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_generate:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_save_mix:StudioVersion;studio_save_speed:StudioVersion;studio_import_score:StudioVersion;
+  studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_generate:StudioVersion;studio_retry_music:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_save_mix:StudioVersion;studio_save_speed:StudioVersion;studio_import_score:StudioVersion;
   tts_status:SpeechStatus;tts_prepare:SpeechStatus;tts_cancel_preparation:SpeechStatus;
   tts_library:ReturnType<SpeechService['snapshot']>;tts_add_voice:SpeechVoice;tts_clean_voice:SpeechVoice;tts_update_voice:SpeechVoice;tts_create_sound:SpeechSound;
   tts_generate:SpeechVersion;tts_get_version:SpeechVersion;tts_cancel:SpeechVersion;tts_update_version:SpeechVersion;

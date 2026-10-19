@@ -1,5 +1,5 @@
 import {inspectMusicContext} from './context.ts';
-import {yueServeProgramHash} from './worker.ts';
+import {yueServeProgramHash,musicRuntimeHashes} from './worker.ts';
 import {yueProfile} from '../resources/profiles.ts';
 import {ownedCommand} from '../resources/commands.ts';
 import {checkDisk,diskGuard} from '../resources/installation.ts';
@@ -81,7 +81,7 @@ export function createYuE2Driver(read:AssetReader,command=process.execPath,args=
       const text=await new Promise<string>((resolve,reject)=>execFile(join(root,'.venv/bin/python'),['-c',script,path],{timeout:10000,maxBuffer:16*1024*1024},(error,stdout)=>error?reject(error):resolve(stdout)));
       return JSON.parse(text).map((row:any)=>yue2JobSchema.parse({...row,title:JSON.parse(row.params_json).title}));
     },
-    inspectInput:inspectMusicContext,
+    inspectInput:(directory,input)=>inspectMusicContext(directory,input,read),
     chooseDirectory:async()=>{
       if(choosing)throw new Error('文件夹选择窗口已经打开');choosing=true;
       try{return await new Promise<string|undefined>((resolve,reject)=>execFile('/usr/bin/osascript',['-e','POSIX path of (choose folder with prompt "选择 YuE2 专用空文件夹：程序、模型及缓存将全部保存在这里")'],{timeout:300000,maxBuffer:16384},(error,stdout,stderr)=>{if(error){if(stderr.includes('(-128)'))resolve(undefined);else reject(new Error('无法打开文件夹选择窗口，请直接填写安装目录'));}else resolve(stdout.trim());}));}finally{choosing=false;}
@@ -106,6 +106,15 @@ export function createYuE2Driver(read:AssetReader,command=process.execPath,args=
       }
     },
     launch:async(root,context):Promise<YuE2Process>=>{
+      const runtime=join(root,'music-room-runtime');
+      if(existsSync(runtime)&&lstatSync(runtime).isSymbolicLink())throw new Error('音乐运行目录不能是符号链接');
+      mkdirSync(runtime,{recursive:true});
+      for(const [name,digest] of Object.entries(musicRuntimeHashes)){
+        const bytes=await read(['duration.py','recovery.py'].includes(name)?'yue2-runtime/'+name:'yue2-score/vendor/'+name);
+        if(createHash('sha256').update(bytes).digest('hex')!==digest)throw new Error('音乐运行文件校验失败');
+        const path=join(runtime,name);if(existsSync(path)&&lstatSync(path).isSymbolicLink())throw new Error('音乐运行文件不能是符号链接');
+        writeFileSync(path,bytes);
+      }
       const port=await freePort(),nonce=randomBytes(32).toString('hex'),url=`http://127.0.0.1:${port}`;
       const credential=randomBytes(32).toString('hex'),worker=startWorker(command,args,{directory:root,owner:context.owner,step:'serve',port,nonce,credential},context);
       const status=async()=>{const response=await fetch(url+'/api/status',{signal:AbortSignal.timeout(2000)});if(!response.ok||response.headers.get('x-music-room-engine')!==nonce)throw new Error('YuE2 服务身份或状态无效');const body=await response.json() as {models?:{present?:boolean};fake?:boolean};if(typeof body.fake!=='boolean')throw new Error('YuE2 状态格式无效');return {modelsPresent:body.models?.present===true,fake:body.fake};};

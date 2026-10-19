@@ -9,7 +9,33 @@ import {encodeWav} from '../../wav.ts';
 const unused={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
 const wav=new Uint8Array(encodeWav([Float32Array.from({length:22050},(_,i)=>Math.sin(i*.1)*.2)],22050));
 const speech={installed:()=>true,prepare:async()=>{},generate:async(_:string,r:{outputPath:string})=>{await writeFile(r.outputPath,wav);}};
+test('music retry keeps the exact request, inherits the best ancestor recovery point and deduplicates clicks',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-recovery-'));let svc=await open(root);const jobs:any[]=[],submitted:any[]=[];
+ const connect=()=>{svc.yue2.status=async()=>({canGenerate:true,directory:'/installed'} as any);svc.yue2Client.list=async()=>({jobs});svc.yue2Client.generate=async(input,resumeFrom)=>{submitted.push({input,resumeFrom});const job={id:String(submitted.length).repeat(32),kind:'create',status:'failed' as const,error:'interrupted',...(submitted.length===1?{recovery:{jobId:'1'.repeat(32),stage:'synthesis'}}:{})};jobs.push(job);return {job} as any;};};connect();
+ try{
+  await svc.call('create_project',{projectId:'recover',title:'恢复'});const sound=await svc.call('studio_create_sound',{projectId:'recover',title:'音乐',kind:'music'});
+  const original=await svc.call('studio_generate',{soundId:sound.id,text:'piano',instrumental:true,targetDuration:180,seed:42});
+  await svc.close();svc=await open(root);connect();
+  const a=await svc.call('studio_retry_music',{versionId:original.id}),again=await svc.call('studio_retry_music',{versionId:original.id});assert.equal(again.id,a.id);assert.equal(submitted.length,2);assert.equal(submitted[1].resumeFrom,'1'.repeat(32));assert.deepEqual(submitted[1].input,submitted[0].input);
+  const b=await svc.call('studio_retry_music',{versionId:a.id});assert.equal(submitted[2].resumeFrom,'1'.repeat(32));assert.equal(b.parentId,a.id);assert.equal(b.musicRetryOf,a.id);
+  await svc.close();svc=await open(root);connect();assert.equal((await svc.call('studio_retry_music',{versionId:a.id})).id,b.id);
+ }finally{await svc.close();await rm(root,{recursive:true,force:true});}
+});
 async function open(root:string){return MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,speech,undefined,testResources());}
+test('vocal and instrumental target duration reaches generation and persists with the original lyrics',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-duration-'));let svc=await open(root);const submitted:any[]=[];
+ try{
+  svc.yue2.status=async()=>({canGenerate:true} as any);
+  svc.yue2Client.generate=async input=>{submitted.push(input);return {job:{id:String(submitted.length).repeat(32),kind:'create',status:'queued'}};};
+  await svc.call('create_project',{projectId:'duration',title:'时长'});const s=await svc.call('studio_create_sound',{projectId:'duration',title:'音乐',kind:'music'});
+  for(const instrumental of [true,false]){
+   const v=await svc.call('studio_generate',{soundId:s.id,text:'民谣',lyrics:'[Verse]\n歌词原文',structure:'[Intro]\n[Outro]',instrumental,targetDuration:180});
+   assert.equal(v.input?.targetDuration,180);assert.equal(v.input?.lyrics,'[Verse]\n歌词原文');
+   assert.equal(submitted.at(-1).targetDuration,180);assert.equal(submitted.at(-1).instrumental,instrumental);assert.equal(submitted.at(-1).lyrics,instrumental?'[Intro]\n[Outro]':'[Verse]\n歌词原文');
+  }
+  await svc.close();svc=await open(root);const library=await svc.call('studio_library',{});assert.equal(library.versions.length,2);assert.ok(library.versions.every(v=>v.input?.targetDuration===180));
+ }finally{await svc.close();await rm(root,{recursive:true,force:true});}
+});
 test('one project owns music and speech; versions retain parent, final and trash across restart',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-'));let svc=await open(root);
  try{
@@ -152,6 +178,7 @@ test('music creation preserves independent structure, actual seed and ABC throug
   await svc.call('studio_generate',{...input,instrumental:false,seed:undefined,abc:undefined});
   assert.equal(calls[1].lyrics,input.lyrics);assert.ok(Number.isInteger(calls[1].seed));
   const draft=(await svc.call('studio_library',{})).versions.at(-1)!.input!;assert.equal(draft.seed,calls[1].seed);
+  for(const instrumental of [true,undefined]){await svc.call('studio_generate',{...input,structure:' ',instrumental});assert.equal(calls.at(-1).lyrics,'[instrumental]');assert.equal(calls.at(-1).instrumental,true);}
   await svc.close();svc=await open(root);const restored=(await svc.call('studio_library',{})).versions.find(x=>x.id===v.id)!;assert.equal(restored.input?.seed,0);assert.equal(restored.input?.abc,input.abc);
  }finally{await svc.close();await rm(root,{recursive:true,force:true});}
 });
@@ -169,5 +196,22 @@ test('music phase progress reaches both selected versions and global background 
   assert.equal(library.versions.find(v=>v.id===version.id)?.musicProgress?.completed,12);
   assert.equal(library.backgroundVersions.find(v=>v.id===version.id)?.musicProgress?.startedAt,Date.parse(job.started_at));
   job.status='done' as any;now+=3000;const done=await svc.call('studio_library',{});assert.equal(done.versions.find(v=>v.id===version.id)?.musicProgress,undefined);assert.equal(done.backgroundVersions.length,0);
+ }finally{await svc.close();await rm(root,{recursive:true,force:true});}
+});
+
+test('instrumental versions cannot start lyric alignment, including default mode and stale drafts',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-instrumental-lyrics-'));const svc=await open(root);
+ try{
+  svc.yue2.status=async()=>({canGenerate:true}) as any;
+  svc.yue2Client.generate=async()=>({job:{id:'a'.repeat(32),status:'done',kind:'create'}});
+  await svc.call('create_project',{projectId:'film',title:'短片'});
+  const sound=await svc.call('studio_create_sound',{projectId:'film',title:'配乐',kind:'music'});
+  for(const instrumental of [true,undefined]){
+   const v=await svc.call('studio_generate',{soundId:sound.id,text:'钢琴',instrumental,lyrics:'旧歌词'});
+   assert.equal(v.input?.instrumental,true);
+   assert.equal(svc.studio.lyrics(v.id).canGenerate,false);
+   assert.equal(svc.studio.lyrics(v.id).kind,'none');
+   assert.throws(()=>svc.studio.lyricSource(v.id),/参考歌词/);
+  }
  }finally{await svc.close();await rm(root,{recursive:true,force:true});}
 });

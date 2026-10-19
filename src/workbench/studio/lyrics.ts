@@ -4,7 +4,7 @@ import './lyrics.css';
 const mounted=new WeakSet<HTMLAudioElement>();
 /** The panel follows its audio element, including background playback. */
 export function mountLyrics(audio:HTMLAudioElement|null){
- if(!audio||mounted.has(audio)||!backend||!audio.dataset.version)return;
+ if(!audio||mounted.has(audio)||!backend||!audio.dataset.version||audio.dataset.instrumental==='true')return;
  mounted.add(audio);const version=audio.dataset.version;
  const section=document.createElement('section');section.className='player-lyrics';section.hidden=true;section.setAttribute('aria-label','歌词');audio.closest('.player-space')!.append(section);
  const header=document.createElement('div');header.className='lyrics-toolbar';

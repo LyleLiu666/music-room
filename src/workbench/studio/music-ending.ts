@@ -1,5 +1,5 @@
 /** Controls travel with the audio element when the player is preserved during polling. */
-export function endingPreviewControls(){return '<div class="ending-preview"><button type="button" class="quiet" id="preview-ending" disabled>试听结尾</button><span class="field-note">最后 15 秒；不足 15 秒则从头播放。</span><p id="ending-preview-error" class="field-note" role="alert" hidden></p></div>';}
+export function endingPreviewControls(){return '<div class="ending-preview"><button type="button" class="quiet" id="preview-ending" title="试听最后 15 秒；不足 15 秒则从头播放" aria-describedby="ending-preview-note" disabled>试听结尾</button><span class="sr-only" id="ending-preview-note">最后 15 秒；不足 15 秒则从头播放。</span><p id="ending-preview-error" class="field-note" role="alert" hidden></p></div>';}
 
 export function bindEndingPreview(audio:HTMLAudioElement){
  if(audio.dataset.endingBound)return;audio.dataset.endingBound='true';

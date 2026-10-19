@@ -962,7 +962,8 @@ audio::-webkit-media-controls-panel {
   align-items: center;
   flex-wrap: wrap;
   gap: 0 8px;
-  margin-top: 2px;
+  margin-top: 0;
+  flex-shrink: 0;
 }
 
 .ending-preview button {
@@ -2544,9 +2545,23 @@ pre {
     gap: 0 4px;
   }
 
-  .ending-preview > span {
-    flex: 1;
+  .speed-adjustment:has(.ending-preview) {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+  .speed-adjustment:has(.ending-preview) input[type="range"] {
+    grid-column: 2 / 4;
+  }
+  .speed-adjustment:has(.ending-preview) .ending-preview {
+    grid-column: 3;
+    grid-row: 2;
+  }
+  .speed-adjustment:has(.ending-preview) #save-speed {
+    grid-column: 4;
     min-width: 0;
+  }
+  .speed-adjustment:has(.ending-preview) button {
+    padding-inline: 4px;
+    white-space: normal;
   }
 
   .listening-actions {
