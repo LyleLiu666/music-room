@@ -33,8 +33,15 @@ export function renderWorkspace(workspace:HTMLElement,markup:string){
 
 /** Move the connected player without restarting native playback. */
 export function movePlayer(parent:HTMLElement,player:HTMLElement,before:Node|null=null){
- if(parent.moveBefore){parent.moveBefore(player,before);return;}
- // Older browsers lack state-preserving DOM moves.
+ if(parent.moveBefore){
+  try{parent.moveBefore(player,before);return;}
+  catch(error){
+   // Some browsers expose the API but reject a state-preserving move.
+   // Ordinary insertion below still validates the DOM relationship.
+   if(!(error instanceof DOMException))throw error;
+  }
+ }
+ // Older browsers lack state-preserving DOM moves, or cannot perform this one.
  const audio=player.querySelector('audio'),playing=audio&&!audio.paused;
  parent.insertBefore(player,before);
  if(playing)void audio.play().catch(()=>{});

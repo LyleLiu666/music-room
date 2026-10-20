@@ -1,4 +1,4 @@
-import {projectPage,taskHistoryPage} from './task-history.ts';
+import {projectPage,TaskHistoryView} from './task-history.ts';
 import {mountMusicEdits} from './music-edits.ts';
 import {SoundVisits,bindSoundOverflow} from './sound-navigation.ts';
 import {SoundLibraryView} from './sound-library.ts';
@@ -49,6 +49,7 @@ async function start(){
  bindPlaybackBar(root,audio=>{const v=data?.versions.find(v=>v.id===audio.dataset.version)??(backgroundVersion?.id===audio.dataset.version?backgroundVersion:undefined);const owner=data?.sounds.find(s=>s.id===v?.soundId);return v&&owner?`${owner.title} · V${v.number}`:audio.getAttribute('aria-label')??'正在播放';});
  updateThemeControls();
  const soundLibrary=new SoundLibraryView({api,workspace:$('#workspace'),modal,close,notify,refresh:()=>refresh(true),load:loadAudio,url:audioUrl,open:async item=>{pause();workspaceView='project';projectId=item.projectId;soundId=item.soundId;versionId=item.versionId;conversionPage=1;await refresh(true);}});
+ const taskHistory=new TaskHistoryView($('#workspace'));
  const dialog=$<HTMLDialogElement>('#dialog');let toastTimer:ReturnType<typeof setTimeout>;
  function notify(text:string,undo?:()=>Promise<unknown>){clearTimeout(toastTimer);const t=$('#toast');t.textContent=text;t.hidden=false;if(undo){const b=document.createElement('button');b.textContent='撤销';b.onclick=()=>void act(undo);t.append(b);}toastTimer=setTimeout(()=>t.hidden=true,9000);}
  let backgroundVersion:StudioVersion|undefined,backgroundProject='';
@@ -106,7 +107,7 @@ async function start(){
   const s=sound(),v=version(),vs=versions();selectedVersions=new Set([...selectedVersions].filter(id=>vs.some(v=>v.id===id&&selectable(v))));save();
   renderProjects();
   $('[data-action="task-list"]').setAttribute('aria-current',workspaceView==='tasks'?'page':'false');
-  if(workspaceView==='tasks'){parkPlayer();$('#workspace').innerHTML=taskHistoryPage(data);return;}
+  if(workspaceView==='tasks'){parkPlayer();taskHistory.render(data);return;}
   if(workspaceView==='sounds'){parkPlayer();soundLibrary.render(data.soundLibrary??[]);restoreMenus();return;}
   if(workspaceView==='voices'){parkPlayer();renderVoiceLibrary();restoreMenus();return;}
   parkPlayer(v);

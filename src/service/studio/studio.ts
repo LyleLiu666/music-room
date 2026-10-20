@@ -126,7 +126,7 @@ export class StudioService{
   const backgroundLyrics=this.service.lyricsGeneration.activeJobs().flatMap(job=>{
    const version=this.data.versions.find(v=>v.id===job.versionId);return version?[{job,soundId:version.soundId,number:version.number}]:[];
   });
-  const taskHistory=this.data.versions.filter(v=>!v.purged&&!v.deleted&&this.data.sounds.some(s=>s.id===v.soundId&&!s.deleted&&!s.purged&&projects.some(p=>p.id===s.projectId&&!p.deleted))).map(v=>({id:v.id,soundId:v.soundId,number:v.number,state:v.state,stage:v.stage,error:v.error,createdAt:v.createdAt,hasAudio:!!v.audioPath}));
+  const taskHistory=this.data.versions.filter(v=>!v.purged&&!v.deleted&&this.data.sounds.some(s=>s.id===v.soundId&&!s.deleted&&!s.purged&&projects.some(p=>p.id===s.projectId&&!p.deleted))).map(v=>({id:v.id,soundId:v.soundId,number:v.number,state:v.state,stage:v.stage,error:v.error,createdAt:v.createdAt,hasAudio:!!v.audioPath,duration:v.duration}));
   const lyricTaskHistory=this.service.lyricsGeneration.historyJobs().flatMap(job=>{const v=taskHistory.find(v=>v.id===job.versionId);return v?[{...v,taskId:job.taskId,state:job.state,stage:job.message,error:undefined,createdAt:job.startedAt?new Date(job.startedAt).toISOString():v.createdAt}]:[];});
   return {...this.data,taskHistory,lyricTaskHistory,soundLibrary,backgroundVersions,backgroundLyrics,sounds:this.data.sounds.filter(s=>!s.purged),versions:versions.map((v):StudioVersion=>({...v,musicRecovery:this.bestMusicRecovery(v)})),conversionPagination,projects,voices:this.service.speech.snapshot().voices,conversionVoices:this.service.speech.conversionVoices(),engines:{conversion:this.service.conversion.snapshot({page:1,pageSize:1}).status,speech:this.service.speech.status(),music:await this.service.yue2.status()}};
  });}
