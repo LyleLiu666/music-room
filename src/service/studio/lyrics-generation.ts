@@ -23,6 +23,7 @@ export class LyricsGeneration{
  }
  private save(){const file=join(this.directory,'jobs.json');writeFileSync(file+'.partial',JSON.stringify(this.jobs));renameSync(file+'.partial',file);}
  status(id:string){return {available:this.processor.ready(),job:this.jobs[id]?structuredClone(this.jobs[id]):undefined};}
+ historyJobs(){return structuredClone(Object.values(this.jobs));}
  activeJobs(){return structuredClone(Object.values(this.jobs).filter(busy));}
  start(id:string,requestId:string){
   if(this.closed)throw Error('服务正在退出');const source=this.source(id);if(!requestId||requestId.length>100)throw Error('生成请求无效');

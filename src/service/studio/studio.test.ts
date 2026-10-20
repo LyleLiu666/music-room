@@ -215,3 +215,17 @@ test('instrumental versions cannot start lyric alignment, including default mode
   }
  }finally{await svc.close();await rm(root,{recursive:true,force:true});}
 });
+test('task history survives reopening and conversion pagination without exposing generation inputs',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-task-history-'));let svc=await open(root);
+ try{
+  await svc.call('create_project',{projectId:'history',title:'任务历史'});
+  const sound=await svc.call('studio_create_sound',{projectId:'history',title:'音乐',kind:'music'});
+  await svc.close();
+  const file=join(root,'studio.json'),data=JSON.parse(await readFile(file,'utf8'));
+  data.versions.push({id:'history-version',soundId:sound.id,number:1,state:'failed',stage:'生成失败',createdAt:'2026-10-20T01:00:00Z',source:{kind:'music',id:''},input:{text:'private prompt'}});
+  await writeFile(file,JSON.stringify(data));svc=await open(root);
+  const snapshot=await svc.call('studio_library',{paginateConversions:true});
+  assert.equal(snapshot.taskHistory.length,1);assert.equal(snapshot.taskHistory[0].id,'history-version');assert.equal(snapshot.taskHistory[0].state,'failed');assert.equal('input' in snapshot.taskHistory[0],false);
+  await svc.call('studio_update_version',{versionId:'history-version',deleted:true});assert.equal((await svc.call('studio_library',{})).taskHistory.length,0);
+ }finally{await svc.close();await rm(root,{recursive:true,force:true});}
+});

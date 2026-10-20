@@ -2923,3 +2923,13 @@ body:has(#dialog[open]) #global-status-bar{visibility:hidden}
 .sound-overflow-list small { flex-shrink: 0; color: var(--muted); }
 .sound-overflow-list button:hover, .sound-overflow-list button[aria-pressed='true'] { background: var(--line); }
 .sound-search-empty { padding: 12px; color: var(--muted); }
+/* Persistent task history and bounded project navigation. */
+#project-search{width:100%;min-width:0;margin:0 0 8px;padding:8px 10px;font-size:13px}
+#project-pagination{display:flex;align-items:center;justify-content:space-between;gap:4px;font-size:12px;color:var(--muted);margin-bottom:12px}
+#project-pagination button{padding:4px 12px}
+.task-history-list{list-style:none;padding:0;margin:20px 0}
+.task-history-row{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.task-history-row>div{min-width:0}.task-history-row p{margin:6px 0;color:var(--muted)}.task-history-row small{color:var(--muted)}.task-history-row button{flex-shrink:0}
+@media(max-width:600px){.task-history-row{align-items:flex-start;flex-direction:column;gap:10px}}
+@media(min-width:651px){.sidebar{gap:12px;overflow-y:auto}.sidebar>.brand,.sidebar>.new-project,.sidebar>.nav-caption,.sidebar>#project-search,.sidebar>#project-pagination,.sidebar>.sidebar-libraries,.sidebar>.sidebar-bottom{flex-shrink:0}#projects{min-height:80px}.project-link{flex-shrink:0}}
+@media(max-width:650px){#project-search{grid-column:1;grid-row:2;margin:0}#project-pagination{grid-column:2;grid-row:2;margin:0}#projects{grid-row:3}.sidebar-libraries{grid-row:4}.sidebar-bottom{grid-row:4}}
