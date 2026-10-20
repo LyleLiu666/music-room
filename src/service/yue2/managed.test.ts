@@ -12,15 +12,15 @@ import {testResources} from '../resources/testing.ts';
 const delay=()=>new Promise(r=>setTimeout(r,5));
 async function fixture(t:any){
  const root=await mkdtemp(join(tmpdir(),'managed-yue-')),directory=join(root,'engine');
- let launches=0,stops=0,submits=0,done=false,progress:Record<string,unknown>|undefined;const bodies:any[]=[];
+ let launches=0,stops=0,submits=0,done=false,progress:Record<string,unknown>|undefined,apiTruncation:unknown;const bodies:any[]=[];
  const upstream='a'.repeat(32),resources=testResources(),store=await ProjectStore.open(join(root,'workspace'));
- const server=createServer(async(req,res)=>{let body='';for await(const p of req)body+=p;res.setHeader('content-type','application/json');if(req.url==='/api/jobs'&&req.method==='POST'){submits++;bodies.push(JSON.parse(body));}res.end(JSON.stringify({job:{id:upstream,kind:'create',status:done?'done':'running',progress}}));});
+ const server=createServer(async(req,res)=>{let body='';for await(const p of req)body+=p;res.setHeader('content-type','application/json');if(req.url==='/api/jobs'&&req.method==='POST'){submits++;bodies.push(JSON.parse(body));}res.end(JSON.stringify({job:{id:upstream,kind:'create',status:done?'done':'running',progress,truncated:apiTruncation}}));});
  await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
  const driver={unsupported:()=>undefined,installed:()=>true,modelsReady:()=>true,chooseDirectory:async()=>directory,prepare:async()=>{},launch:async()=>{launches++;let end!:(n:number)=>void;return {url:`http://127.0.0.1:${(server.address() as any).port}`,exited:new Promise<number>(r=>end=r),status:async()=>({modelsPresent:true,fake:false}),stop:async()=>{stops++;end(0);}};}};
  const engine=await YuE2Engine.open(store,driver,resources);await engine.prepare(directory,true);for(let i=0;i<100&&(await engine.status()).phase==='preparing';i++)await delay();
  const client=new YuE2Client(engine,store,resources);
  t.after(async()=>{await client.close();await resources.close();await engine.close();await store.close();await new Promise<void>(r=>server.close(()=>r()));await rm(root,{recursive:true,force:true});});
- return {root,directory,engine,client,resources,store,bodies,setProgress:(value:Record<string,unknown>)=>{progress=value;},counts:()=>({launches,stops,submits}),complete:async(truncated?:{abc:boolean;semantic:boolean})=>{await mkdir(join(directory,'data/songs',upstream,'song'),{recursive:true});await writeFile(join(directory,'data/songs',upstream,'song/audio.flac'),'fLaC test');if(truncated)await writeFile(join(directory,'data/songs',upstream,'summary.json'),JSON.stringify({truncated}));done=true;}};
+ return {root,directory,engine,client,resources,store,bodies,setTruncation:(value:unknown)=>{apiTruncation=value;},setProgress:(value:Record<string,unknown>)=>{progress=value;},counts:()=>({launches,stops,submits}),complete:async(truncated?:{abc:boolean;semantic:boolean})=>{await mkdir(join(directory,'data/songs',upstream,'song'),{recursive:true});await writeFile(join(directory,'data/songs',upstream,'song/audio.flac'),'fLaC test');if(truncated)await writeFile(join(directory,'data/songs',upstream,'summary.json'),JSON.stringify({truncated}));done=true;}};
 }
 test('managed music is lazy, serialized, and reads completed audio after unloading',async t=>{
  const f=await fixture(t);assert.equal((await f.engine.status()).canGenerate,true);await f.engine.start();assert.equal(f.counts().launches,0);
@@ -37,7 +37,7 @@ test('resume carries only verified matching artifacts through the normal queue a
  const f=await fixture(t),input={style:'piano',lyrics:'[instrumental]',preset:'fast' as const,instrumental:true,seed:42};
  const first=await f.client.generate(input);for(let i=0;i<100&&f.counts().submits<1;i++)await delay();await f.client.cancel(first.job.id);
  const plan=join(f.directory,'data/songs','a'.repeat(32),'plan');await mkdir(plan,{recursive:true});const manifest:Record<string,string>={};
- for(const name of ['plan.json','abc_tokens.npy','prefix.npy','score.abc']){await writeFile(join(plan,name),'fixture');manifest[name]=createHash('sha256').update('fixture').digest('hex');}await writeFile(join(plan,'plan_manifest.json'),JSON.stringify(manifest));
+ for(const name of ['plan.json','abc_tokens.npy','prefix.npy','score.abc']){const value=name==='plan.json'?'{"truncated":false}':'fixture';await writeFile(join(plan,name),value);manifest[name]=createHash('sha256').update(value).digest('hex');}await writeFile(join(plan,'plan_manifest.json'),JSON.stringify(manifest));
  assert.equal((await f.client.job(first.job.id)).job.recovery?.stage,'plan');
  await assert.rejects(f.client.generate({...input,seed:43},first.job.id),/恢复点不可用/);assert.equal(f.counts().submits,1);
  const block=new AbortController();f.resources.register('block',{resident:()=>undefined,unload:async()=>{}});const held=f.resources.run({id:'hold-recovery',engine:'block',demand:{verified:true,peak:{memory:1}},signal:block.signal,execute:async ctx=>new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}))}).catch(()=>{});
@@ -99,4 +99,11 @@ test('engine responses refresh independently of actual model progress',async t=>
  assert.ok(first.job.checkedAt);assert.equal(first.job.progress?.ts,progress.ts);
  await new Promise(r=>setTimeout(r,350));const next=await f.client.job(result.job.id);assert.ok(next.job.checkedAt!>first.job.checkedAt!);assert.deepEqual(next.job.progress,first.job.progress);
  assert.equal((await f.client.list()).jobs.find(j=>j.id===result.job.id)?.checkedAt,next.job.checkedAt);
+});
+
+test('native phase/reason truncation does not fail a completed audio job',async t=>{
+ const f=await fixture(t),result=await f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true});
+ f.setTruncation({phase:'abc',reason:'generation limit reached'});await f.complete({abc:true,semantic:false});
+ for(let i=0;i<200&&!['done','failed'].includes((await f.client.job(result.job.id)).job.status);i++)await delay();
+ const done=await f.client.job(result.job.id);assert.equal(done.job.status,'done');assert.deepEqual(done.job.truncated,{abc:true,semantic:false});assert.equal((await f.client.audio(result.job.id)).length,9);
 });

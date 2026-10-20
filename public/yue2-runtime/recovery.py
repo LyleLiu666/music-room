@@ -73,6 +73,7 @@ class Checkpoints:
   if self.source:
    if self.saved and self.saved.get('fingerprint')!=self.key:raise ValueError('恢复点与当前要求、模型或生成设置不一致，请从头重新生成')
    plan=SymbolicPlan.load(self.source_root/'plan')
+   if plan.truncated:raise ValueError('保存的乐谱未写完，不能跳过写谱；请重新生成')
    if request_fields(plan.request)!=request_fields(native) or token_prefixes(native,pipe.tokenizer,plan.abc_ids)!=plan.prefix:raise ValueError('恢复点与当前歌词或乐谱输入不一致')
    plan=replace(plan,request=native);pipe.log('已恢复旋律与和弦，跳过写谱')
   else:plan=generate()

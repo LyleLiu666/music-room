@@ -47,6 +47,10 @@ class RecoveryTests(unittest.TestCase):
  def test_plan_only_and_legacy_saved_plan_do_not_rewrite_the_score(self):
   p=Pipe();r=SongRequest('piano','[instrumental]',seed=42,id='a');p.plan(r).save(self.a/'plan')
   q=Pipe();plan,_,_=run(q,self.b,self.a);self.assertEqual(q.calls,['semantic','synthesis']);self.assertEqual(plan.abc,'ABC')
+ def test_truncated_legacy_plan_cannot_skip_planning(self):
+  from dataclasses import replace
+  p=Pipe();r=SongRequest('piano','[instrumental]',seed=42,id='a');replace(p.plan(r),truncated=True).save(self.a/'plan')
+  with self.assertRaisesRegex(ValueError,'未写完'):run(Pipe(),self.b,self.a)
  def test_changed_request_or_configuration_refuses_cache(self):
   with self.assertRaises(InterruptedError):run(Pipe(),self.a,stop='decode')
   with self.assertRaisesRegex(ValueError,'不一致'):run(Pipe(),self.b,self.a,SongRequest('changed','[instrumental]',seed=42,id='b'))

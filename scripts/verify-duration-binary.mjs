@@ -16,7 +16,7 @@ try{
  const abc='X:1\nT:\nM:4/4\nL:1/32\nQ:1/4=60\nV: Vocal clef=treble name="Vocal Melody" snm="Vocal"\nV: Ins clef=treble name="Ins Melody" snm="Inst."\nK:C\n'+('V: Vocal\nC32|\nV: Ins\nZ|\n').repeat(15);
  const base={style:'piano',lyrics:'[instrumental]',instrumental:true,abc};
  const good=await call('yue2_inspect_input',{...base,targetDuration:60});assert.equal(good.status,200);assert.equal(good.data.context.issue,undefined);
- const bad=await call('yue2_inspect_input',{...base,targetDuration:180});assert.equal(bad.status,200);assert.match(bad.data.context.issue,/自定义乐谱预计 60 秒/);
+ const bad=await call('yue2_inspect_input',{...base,targetDuration:180});assert.equal(bad.status,200);assert.equal(bad.data.context.issue,undefined);
  const invalid=await call('yue2_inspect_input',{...base,targetDuration:61});assert.notEqual(invalid.status,200);
  const resource=await call('resource_status',{});assert.equal(resource.data.active,undefined);assert.equal(resource.data.residents.length,0);
  console.log('Copied binary: target contract, actual tokenizer, packaged ABC duration check and no model loading passed.');

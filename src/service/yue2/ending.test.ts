@@ -31,3 +31,12 @@ test('truncation comes from saved generation evidence; missing, malformed or lin
  }
  await rm(path);const other=join(root,'other.json');await writeFile(other,'{"truncated":{"abc":true,"semantic":true}}');await symlink(other,path);assert.equal(readTruncation(path),undefined);
 });
+
+test('upstream phase truncation is normalized without losing its failure evidence',async()=>{
+ const {yue2JobSchema}=await import('./contracts.ts');
+ for(const phase of ['abc','semantic']){
+  const job=yue2JobSchema.parse({id:'a'.repeat(32),kind:'create',status:'done',truncated:{phase,reason:'generation limit reached'}});
+  assert.deepEqual(job.truncated,{abc:phase==='abc',semantic:phase==='semantic'});
+ }
+ assert.throws(()=>yue2JobSchema.parse({id:'a'.repeat(32),kind:'create',status:'done',truncated:{abc:false}}));
+});

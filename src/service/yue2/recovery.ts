@@ -21,6 +21,7 @@ export function readMusicRecovery(directory:string,id:string):MusicRecoveryStage
    const required=[...planFiles,...(stage!=='plan'?['semantic/result.json']:[]),...(stage==='synthesis'?['synthesis/latents.npy']:[])];if(required.some(n=>!Object.hasOwn(files,n)))return;
   }else{const manifest=JSON.parse(read('plan/plan_manifest.json').toString());files=Object.fromEntries(Object.entries(manifest).map(([n,v])=>['plan/'+n,v])) as Record<string,string>;if(planFiles.filter(n=>!n.endsWith('plan_manifest.json')).some(n=>!Object.hasOwn(files,n)))return;stage='plan';}
   for(const [name,digest] of Object.entries(files))if(!allowed.has(name)||createHash('sha256').update(read(name)).digest('hex')!==digest)return;
+  if(JSON.parse(read('plan/plan.json').toString()).truncated===true)return;
   return stage;
  }catch{return;}
 }
