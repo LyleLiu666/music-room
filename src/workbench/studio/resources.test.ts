@@ -33,4 +33,5 @@ test('music recovery states the saved boundary instead of promising chunk-level 
   assert.match(html,/继续生成/);assert.ok(html.includes(expected));assert.doesNotMatch(html,/从头生成/);
  }
  assert.match(resourceFailure({reason:'RESOURCE_TELEMETRY_UNAVAILABLE'},true),/尚无可用恢复点/);
+ assert.match(resourceFailure({reason:'RESOURCE_TELEMETRY_UNAVAILABLE'},true),/更换随机种子从头生成/);
 });

@@ -212,12 +212,24 @@ export class StudioService{
   }
   return best;
  }
+ private nextMusicRetrySeed(source:StudioVersion){
+  // duration.py tries seed, seed+1 and seed+2. Reserve the entire window,
+  // including deleted versions, so a fresh retry cannot replay a failed plan.
+  const range=2147483648,attempts=3,used=new Set<number>();
+  for(const v of this.data.versions){
+   if(v.soundId!==source.soundId||v.source.kind!=='music'||v.input?.seed===undefined)continue;
+   for(let i=0;i<attempts;i++)used.add((v.input.seed+i)%range);
+  }
+  let seed=((source.input?.seed??randomInt(0,range))+attempts)%range;
+  while(Array.from({length:attempts},(_,i)=>(seed+i)%range).some(s=>used.has(s)))seed=(seed+attempts)%range;
+  return seed;
+ }
  async retryMusic(args:{versionId:string}){return this.serial(async()=>{
   this.yueChecked=0;await this.sync();const source=this.version(args.versionId);this.activeSound(source.soundId);
   if(source.deleted||source.purged||source.purgePending||source.source.kind!=='music'||!source.input||!['failed','cancelled','interrupted'].includes(source.state))fail('请选择未删除的失败或已取消音乐版本');
   const previous=this.data.versions.find(v=>v.musicRetryOf===source.id&&!v.deleted&&!v.purged&&!v.purgePending);if(previous)return previous;
   const recovery=this.bestMusicRecovery(source);
-  return this.generateLocked({...clone(source.input!),parentId:source.id},undefined,{retryOf:source.id,recovery});
+  return this.generateLocked({...clone(source.input!),seed:recovery?source.input!.seed:this.nextMusicRetrySeed(source),parentId:source.id},undefined,{retryOf:source.id,recovery});
  });}
  private async generateLocked(args:StudioInput,musicEdit?:MusicEditProvenance,retry?:{retryOf:string;recovery?:MusicRecovery}){
   await this.sync();const s=this.activeSound(args.soundId);if(args.parentId){const parent=this.version(args.parentId);if(parent.soundId!==s.id||parent.deleted||parent.purged)fail('来源版本必须属于当前声音且未删除');}

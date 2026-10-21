@@ -4,7 +4,7 @@ import type {ResourceTaskState} from '../../service/resources/contracts.ts';
 export const resourceEngineNames:Record<string,string>={tts:'语音',reference:'参考清理',conversion:'音色转换',yue2:'音乐',render:'乐谱合成',speed:'调速',lyrics:'同步歌词',installation:'安装准备',import:'音频导入'};
 const escape=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 export function musicRecoveryNote(recovery?:MusicRecovery){
- return recovery?{plan:'已保存乐谱，将从音乐内容生成继续。',semantic:'已保存乐谱和音乐内容，将从声音合成继续。',synthesis:'已保存完整声音合成结果，将从音频导出继续。'}[recovery.stage]:'尚无可用恢复点，此次会从头生成。';
+ return recovery?{plan:'已保存乐谱，将从音乐内容生成继续。',semantic:'已保存乐谱和音乐内容，将从声音合成继续。',synthesis:'已保存完整声音合成结果，将从音频导出继续。'}[recovery.stage]:'尚无可用恢复点，将更换随机种子从头生成。创作要求保留，旋律可能变化。';
 }
 /** Recovery follows the backend reason code, never guesses from an error's wording. */
 export function resourceFailure(resource:Pick<ResourceTaskState,'reason'|'message'|'diagnostic'>|undefined,music:boolean,canRetry=true,recovery?:MusicRecovery){

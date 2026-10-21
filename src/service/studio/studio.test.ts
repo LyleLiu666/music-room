@@ -22,6 +22,30 @@ test('music retry keeps the exact request, inherits the best ancestor recovery p
  }finally{await svc.close();await rm(root,{recursive:true,force:true});}
 });
 async function open(root:string){return MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,speech,undefined,testResources());}
+test('fresh music retries skip all previous planning seeds, including deleted retries after restart',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-fresh-retry-'));let svc=await open(root);const jobs:any[]=[],submitted:any[]=[];
+ const connect=()=>{svc.yue2.status=async()=>({canGenerate:true} as any);svc.yue2Client.list=async()=>({jobs});svc.yue2Client.generate=async(input,resumeFrom)=>{submitted.push({input,resumeFrom});const job={id:submitted.length.toString(16).padStart(32,'0'),kind:'create',status:'failed' as const,error:'planning incomplete'};jobs.push(job);return {job} as any;};};connect();
+ try{
+  await svc.call('create_project',{projectId:'fresh',title:'重新写谱'});
+  for(const seed of [42,2147483647]){
+   const sound=await svc.call('studio_create_sound',{projectId:'fresh',title:'音乐',kind:'music'});
+   const original=await svc.call('studio_generate',{soundId:sound.id,text:'flute and harp',instrumental:seed===42,lyrics:'[Verse]\n原歌词',structure:'[Intro]\n[Outro]',targetDuration:180,seed});
+   const firstRequest=submitted.at(-1).input;
+   const a=await svc.call('studio_retry_music',{versionId:original.id});
+   assert.equal(a.input?.seed,(seed+3)%2147483648);assert.equal(submitted.at(-1).resumeFrom,undefined);
+   assert.deepEqual(submitted.at(-1).input,{...firstRequest,seed:a.input?.seed});
+   const count=submitted.length;assert.equal((await svc.call('studio_retry_music',{versionId:original.id})).id,a.id);assert.equal(submitted.length,count);
+   await svc.call('studio_update_version',{versionId:a.id,deleted:true});
+   await svc.close();svc=await open(root);connect();
+   const b=await svc.call('studio_retry_music',{versionId:original.id});
+   assert.equal(b.input?.seed,(seed+6)%2147483648);assert.equal(b.musicRetryOf,original.id);assert.equal(b.parentId,original.id);
+   assert.deepEqual(submitted.at(-1).input,{...firstRequest,seed:b.input?.seed});
+   const c=await svc.call('studio_retry_music',{versionId:b.id});assert.equal(c.input?.seed,(seed+9)%2147483648);
+   await svc.close();svc=await open(root);connect();
+   const saved=(await svc.call('studio_library',{})).versions.find(v=>v.id===c.id);assert.equal(saved?.input?.seed,c.input?.seed);
+  }
+ }finally{await svc.close();await rm(root,{recursive:true,force:true});}
+});
 test('vocal and instrumental target duration reaches generation and persists with the original lyrics',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-duration-'));let svc=await open(root);const submitted:any[]=[];
  try{
