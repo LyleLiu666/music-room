@@ -431,7 +431,9 @@ h3 {
   font-weight: 600;
 }
 
-.sidebar-libraries {margin-top:0;display:flex;flex-direction:column;gap:4px;}
+.sidebar-libraries {margin-top:auto;display:flex;flex-direction:column;gap:4px;}
+.sidebar-libraries .library-entry {font-size:16px;}
+.sidebar-libraries .library-entry > span::before {width:18px;height:18px;}
 .sound-library-entry > span::before {-webkit-mask:var(--icon-note) center / contain no-repeat;mask:var(--icon-note) center / contain no-repeat;}
 .task-list-entry > span::before {-webkit-mask:var(--icon-list) center / contain no-repeat;mask:var(--icon-list) center / contain no-repeat;}
 .sound-library-controls {display:flex;gap:20px;align-items:end;margin:28px 0;}
