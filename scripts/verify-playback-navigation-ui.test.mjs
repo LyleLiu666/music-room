@@ -9,6 +9,7 @@ for(const mode of ['native','rejected','missing'])test(`playing music permits pa
   await page.locator('[data-action="task-list"]').click();await page.getByRole('heading',{name:'任务列表',exact:true}).waitFor();
   await page.locator('[data-action="voice-library"]').click();await page.locator('#workspace').getByRole('heading',{name:'音色库',exact:true}).waitFor();
   await page.locator('[data-action="sound-library"]').click();await page.locator('#workspace').getByRole('heading',{name:'声音库',exact:true}).waitFor();
+  await page.locator('[data-action="monitor"]').click();await page.getByRole('heading',{name:'监控',exact:true}).waitFor();
   await page.locator('[data-action="project"][data-id="p"]').click();await page.locator('#version-audio').waitFor();
   assert.equal(await page.evaluate(()=>originalAudio.paused),false);assert.equal(await page.evaluate(()=>originalAudio===document.querySelector('#version-audio')),true);
  }

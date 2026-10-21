@@ -61,7 +61,7 @@ test('failed renewal pauses rejected polling then recovers on the next attempt',
  assert.equal(requests,3);assert.equal(renewals,2);
 });
 
-for(const operation of ['studio_library','resource_status'] as const)test(`${operation} has a deadline through body consumption and recovers after timeout`,async t=>{
+for(const operation of ['studio_library','resource_status','monitor_status'] as const)test(`${operation} has a deadline through body consumption and recovers after timeout`,async t=>{
  const deadline=new AbortController();let attempts=0;
  t.mock.method(AbortSignal,'timeout',(ms:number)=>{assert.equal(ms,10000);return deadline.signal.aborted?new AbortController().signal:deadline.signal;});
  t.mock.method(globalThis,'fetch',async(_path:string,init?:RequestInit)=>{

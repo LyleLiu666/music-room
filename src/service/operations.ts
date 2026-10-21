@@ -1,3 +1,4 @@
+import type {MonitorSnapshot} from './resources/monitor.ts';
 import {musicEditKinds,type MusicEditDraft} from './studio/music-edits.ts';
 import {musicInputLimits,type MusicContext} from './yue2/input.ts';
 import {musicDurations} from './yue2/duration.ts';
@@ -19,6 +20,7 @@ const ref={projectId:id,revisionId:id};
 const text=z.string().min(1).max(8000);
 const mixSchema=z.object({volume:z.number().optional(),lead:z.enum(['piano','rhodes','flute']).optional(),levels:z.partialRecord(z.enum(TRACK_IDS),z.number()).optional(),muted:z.array(z.enum(TRACK_IDS)).optional(),solo:z.array(z.enum(TRACK_IDS)).optional()}).strict();
 export const operations = {
+  monitor_status:{description:'只读采样整机及当前服务和子进程的 CPU、内存占用；不会启动模型。CPU 按整机总算力归一化。',schema:z.object({}).strict()},
   resource_status:{description:'查看同一服务的硬件、估计预算、实际任务采样、队列、等待原因及模型驻留。查询不会启动模型。',schema:z.object({}).strict()},
   resource_pause:{description:'暂停后续重型任务；当前已取得执行权的任务继续。作品浏览和播放可用。',schema:z.object({}).strict()},
   resource_resume:{description:'恢复后续重型任务调度；每项任务仍需重新检查资源。',schema:z.object({}).strict()},
@@ -100,6 +102,7 @@ export type AuthoringContext = {project?:Project;revision?:RevisionDocument;feed
 export type ResourceStatus=Awaited<ReturnType<ResourceCoordinator['status']>>;
 export type OperationResults = {
   studio_music_edit_open:MusicEditDraft;studio_music_edit_prepare:MusicEditDraft;studio_music_edit_brief:{text:string};studio_music_edit_generate:StudioVersion;
+  monitor_status:MonitorSnapshot;
   resource_status:ResourceStatus;resource_pause:ResourceStatus;resource_resume:ResourceStatus;resource_cancel:ResourceStatus;resource_release:ResourceStatus;resource_set_limit:ResourceStatus;
   svc_library:ReturnType<ConversionService['snapshot']>&{voices:SpeechVoice[]};svc_create_version:ConversionJob;svc_cancel:ConversionJob;svc_retry:ConversionJob;
   studio_update_project:Project;studio_update_sound:StudioSound;studio_purge:{purged:true};
