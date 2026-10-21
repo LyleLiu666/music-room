@@ -19,12 +19,14 @@ export function taskQueueRows(status:ResourceStatus|undefined,library?:Operation
  const tasks=status?[...(status.active?[status.active]:[]),...status.queued]:[];
  return tasks.map((t,index)=>{
   const lyric=library?.backgroundLyrics?.find(entry=>entry.job.taskId===t.id);
-  const v=library?.backgroundVersions?.find(v=>v.resource?.id===t.id||v.id===t.id||v.source?.id===t.id),sound=library?.sounds.find(s=>s.id===(lyric?.soundId??v?.soundId)),project=library?.projects.find(p=>p.id===sound?.projectId);
+  const v=library?.backgroundVersions?.find(v=>v.resource?.id===t.id||v.id===t.id||v.source?.id===t.id||v.renderJobId===t.id),sound=library?.sounds.find(s=>s.id===(lyric?.soundId??v?.soundId)),project=library?.projects.find(p=>p.id===sound?.projectId);
   const name=sound?`${project?.title??''} / ${sound.title} · V${lyric?.number??v!.number}${lyric?' · 同步歌词':''}`:resourceEngineNames[t.engine]??t.engine;
   const stage=t.stage==='running'&&v?v.stage:t.message??({queued:'排队中',waiting_resources:'等待资源',loading:'加载中',running:'处理中',cancelling:'正在取消'} as Record<string,string>)[t.stage]??t.stage;
   const queued=status?.queued.some(q=>q.id===t.id);
   const feedback=lyric&&t.stage==='running'?lyricProgressMarkup(lyric.job,now):v&&t.stage==='running'?musicProgressMarkup(v):'';
-  return `<li><strong>${esc(name)}</strong>${feedback||`<span>${esc(queued?`${stage} · 前面还有 ${index} 项`:stage)}</span>`}</li>`;
+  const versionId=lyric?.job.versionId??v?.id;
+  const title=versionId&&sound&&!sound.deleted&&!sound.purged&&project&&!project.deleted?`<button type="button" class="task-title-link" data-action="task-version" data-id="${esc(versionId)}" data-sound="${esc(sound.id)}">${esc(name)}</button>`:`<strong>${esc(name)}</strong>`;
+  return `<li>${title}${feedback||`<span>${esc(queued?`${stage} · 前面还有 ${index} 项`:stage)}</span>`}</li>`;
  }).join('');
 }
 export function renderTaskQueue(status:ResourceStatus|undefined,offline:boolean,library?:OperationResults['studio_library']){
@@ -41,7 +43,9 @@ export function renderTaskQueue(status:ResourceStatus|undefined,offline:boolean,
     const next=template.content.querySelector('details')!,label=current.querySelector('[role=status]')!,nextLabel=next.querySelector('[role=status]')!;
     if(label.textContent!==nextLabel.textContent)label.textContent=nextLabel.textContent;
     current.querySelector('.queue-dot')!.className=next.querySelector('.queue-dot')!.className;
+    const focused=current.contains(document.activeElement)?(document.activeElement as HTMLElement).dataset.id:undefined;
     current.querySelector('.queue-list')!.innerHTML=next.querySelector('.queue-list')!.innerHTML;
+    if(focused)Array.from(current.querySelectorAll<HTMLButtonElement>('.task-title-link')).find(b=>b.dataset.id===focused)?.focus({preventScroll:true});
    }
    host.dataset.queueContent=html;
   }

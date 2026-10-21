@@ -10,7 +10,7 @@ test('task page retains completed results, navigates across projects, and projec
  });
  try{
   page.setDefaultTimeout(10000);await page.goto(server.resolvedUrls.local[0]);await page.getByRole('button',{name:'任务列表',exact:true}).click();await page.locator('.task-history-row .task-state--running').waitFor();
-  completed=true;await page.getByRole('button',{name:'查看生成结果',exact:true}).waitFor();await page.reload();await page.getByRole('heading',{name:'任务列表',exact:true}).waitFor();await page.getByRole('button',{name:'查看生成结果',exact:true}).click();await page.locator('.listening .version-label').getByText('V3',{exact:true}).waitFor();assert.equal(await page.locator('.project-header h1').textContent(),'项目 18');
+  completed=true;await page.getByRole('button',{name:'查看生成结果',exact:true}).waitFor();await page.reload();await page.getByRole('heading',{name:'任务列表',exact:true}).waitFor();await page.getByRole('button',{name:'钢琴 · V3',exact:true}).click();await page.locator('.listening .version-label').getByText('V3',{exact:true}).waitFor();assert.equal(await page.locator('.project-header h1').textContent(),'项目 18');
   assert.equal(await page.locator('#projects button').count(),6);await page.getByRole('button',{name:'下一页项目'}).click();await page.locator('#projects').getByText('项目 6',{exact:true}).waitFor();
   await page.getByRole('searchbox',{name:'搜索项目'}).fill('项目 18');assert.equal(await page.locator('#projects button').count(),1);await page.locator('#projects').getByText('项目 18',{exact:true}).waitFor();
   await page.getByRole('searchbox',{name:'搜索项目'}).fill('不存在');assert.equal(await page.locator('#projects button').count(),0);await page.getByRole('searchbox',{name:'搜索项目'}).fill('');

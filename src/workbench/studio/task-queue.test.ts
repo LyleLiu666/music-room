@@ -24,3 +24,13 @@ test('loading has indeterminate progress and resource waiting keeps its reason',
  const waiting=taskQueueRows({active:{...task,stage:'waiting_resources',message:'等待可用内存'},queued:[],paused:false} as any,library);
  assert.match(waiting,/等待可用内存/);assert.doesNotMatch(waiting,/<progress/);
 });
+test('task titles navigate to the owned version, including queued music, lyrics and score renders',()=>{
+ const active={id:'native-job',engine:'yue2',stage:'running'},queued={id:'render-job',engine:'render',stage:'queued'};
+ const library={sounds:[{id:'s',projectId:'p',title:'音乐 <demo>'}],projects:[{id:'p',title:'项目'}],backgroundVersions:[
+  {id:'v1',soundId:'s',number:1,stage:'写谱',source:{kind:'music',id:'native-job'}},
+  {id:'v2',soundId:'s',number:2,renderJobId:'render-job',source:{kind:'score',id:'score'}}
+ ],backgroundLyrics:[{soundId:'s',number:3,job:{taskId:'lyrics-job',versionId:'v3'}}]} as any;
+ const html=taskQueueRows({active,queued:[queued,{id:'lyrics-job',engine:'lyrics',stage:'queued'},{id:'install-job',engine:'installation',stage:'queued'}]} as any,library);
+ for(const id of ['v1','v2','v3'])assert.match(html,new RegExp(`data-action="task-version" data-id="${id}" data-sound="s"`));
+ assert.match(html,/音乐 &lt;demo&gt;/);assert.equal((html.match(/data-action="task-version"/g)??[]).length,3);assert.match(html,/<strong>安装准备<\/strong>/);
+});
