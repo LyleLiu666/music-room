@@ -21,7 +21,8 @@ export type SoundKind='clip'|'music'|'speech'|'conversion';
 export type StudioSound={id:string;projectId:string;title:string;kind:SoundKind;createdAt:string;deleted?:boolean;purged?:boolean;finalVersionId?:string;legacyProject?:string;conversionSourceSha256?:string};
 import type {EmotionStrength} from '../tts/emotion.ts';
 export type StudioInput={targetDuration?:number;seed?:number;structure?:string;abc?:string;ending?:MusicEnding;pitchShiftSemitones?:number;soundId:string;text:string;voiceId?:string;emotion?:string;emotionStrength?:EmotionStrength;lyrics?:string;instrumental?:boolean;preset?:'fast'|'quality';parentId?:string};
-export type StudioVersion={musicRecovery?:MusicRecovery;musicResumedFrom?:MusicRecovery;musicRetryOf?:string;musicEdit?:MusicEditProvenance;musicProgress?:MusicProgress;musicTruncated?:MusicTruncation;scoreMix?:RenderMix;mixRequestId?:string;resource?:ResourceTaskState;speed?:SpeedEdit;audioHash?:string;id:string;soundId:string;number:number;parentId?:string;createdAt:string;state:SpeechVersion['state'];stage:string;kept:boolean;deleted:boolean;purged?:boolean;purgePending?:boolean;voiceName?:string;error?:string;duration?:number;input?:StudioInput;originalAudioPath?:string;vocalsAudioPath?:string;source:{kind:'speech'|'music'|'score'|'audio'|'conversion';id:string;projectId?:string};audioPath?:string;renderJobId?:string};
+export type MusicAttempt={jobId:string;input?:StudioInput;state:SpeechVersion['state'];stage:string;error?:string;resource?:ResourceTaskState;recovery?:MusicRecovery;resumedFrom?:MusicRecovery;startedAt:string;archivedAt:string;requestId?:string};
+export type StudioVersion={musicAttempts?:MusicAttempt[];musicAttemptStartedAt?:string;musicAttemptRequestId?:string;musicRecovery?:MusicRecovery;musicResumedFrom?:MusicRecovery;musicRetryOf?:string;musicEdit?:MusicEditProvenance;musicProgress?:MusicProgress;musicTruncated?:MusicTruncation;scoreMix?:RenderMix;mixRequestId?:string;resource?:ResourceTaskState;speed?:SpeedEdit;audioHash?:string;id:string;soundId:string;number:number;parentId?:string;createdAt:string;state:SpeechVersion['state'];stage:string;kept:boolean;deleted:boolean;purged?:boolean;purgePending?:boolean;voiceName?:string;error?:string;duration?:number;input?:StudioInput;originalAudioPath?:string;vocalsAudioPath?:string;source:{kind:'speech'|'music'|'score'|'audio'|'conversion';id:string;projectId?:string};audioPath?:string;renderJobId?:string};
 export type StudioLibraryOptions={paginateConversions?:boolean;includeDeletedConversions?:boolean;conversionSoundId?:string;conversionPage?:number;conversionPageSize?:number;selectedVersionId?:string};
 export type StudioConversionPagination={soundId:string;page:number;pageSize:number;total:number;totalPages:number;versionIds:string[]};
 type Data={format:'music-room-studio';version:1;sounds:StudioSound[];versions:StudioVersion[]};
@@ -84,6 +85,7 @@ export class StudioService{
   // Polling is bounded; an unavailable model never hides previously saved music.
   if(Date.now()-this.yueChecked>2000){this.yueChecked=Date.now();const status=await this.service.yue2.status();if(status.directory||status.canGenerate){
    try{const {jobs}=await this.service.yue2Client.list();for(const v of this.data.versions.filter(v=>v.source.kind==='music'&&v.source.id&&['running','queued'].includes(v.state)&&!jobs.some(j=>j.id===v.source.id))){try{jobs.push((await this.service.yue2Client.job(v.source.id)).job);}catch{}}for(const job of jobs){let v=this.data.versions.find(x=>x.source.kind==='music'&&x.source.id===job.id);
+    if(!v&&this.data.versions.some(owner=>owner.musicAttempts?.some(attempt=>attempt.jobId===job.id)))continue;
     if(!v){const projects=await this.service.store.projects(true);let p=projects.find(p=>!p.deleted&&!p.purged&&(p.id==='imported-music'||p.id.startsWith('imported-music-')));p??=await this.service.store.createProject(projects.some(p=>p.id==='imported-music')?`imported-music-${randomUUID()}`:'imported-music','以前生成的音乐');const s:StudioSound={id:`sound-${randomUUID()}`,projectId:p.id,title:job.title||'未命名音乐',kind:'music',createdAt:new Date().toISOString()};this.data.sounds.push(s);v={id:`version-${randomUUID()}`,soundId:s.id,number:1,createdAt:s.createdAt,state:'queued',stage:'',kept:false,deleted:false,source:{kind:'music',id:job.id}};this.data.versions.push(v);}
     if(v.purged||v.purgePending)continue;v.state=job.status==='done'?'succeeded':job.status;v.resource=job.resource as ResourceTaskState|undefined;v.stage=job.stage??({done:'生成完成',running:'正在生成',queued:'排队中',failed:'生成失败',cancelled:'已取消'}[job.status]);v.error=job.error??undefined;v.musicProgress=musicProgress(job);v.musicTruncated=job.truncated??undefined;v.musicRecovery=job.recovery;if(v.input&&v.input.seed===undefined&&Number.isSafeInteger(job.seed))v.input.seed=job.seed as number;if(v.state==='succeeded')v.audioPath=`/yue2-audio/${job.id}`;
    }}catch{/* Keep saved results visible while the engine reconnects. */}
@@ -103,7 +105,7 @@ export class StudioService{
   const scope=project?this.data.sounds.filter(s=>s.projectId===project.id&&!s.purged):[sound!];if(target){if([...this.speedTasks.values()].some(t=>t.sourceId===target.id)||['queued','running'].includes(target.state)||target.renderJobId)fail('请先取消或等待生成完成');}else this.assertIdle(scope);
   if(target?.source.kind==='music')this.assertIdle(scope);
   const versions=target?[target]:this.data.versions.filter(v=>scope.some(s=>s.id===v.soundId)&&!v.purged);
-  for(const v of versions){if(v.purged)continue;v.deleted=true;v.purgePending=true;this.save();if(v.source.kind==='speech')this.service.speech.purgeVersion(v.source.id);else if(v.source.kind==='score'){this.service.jobs.purge(v.source.projectId!,v.source.id);await this.service.store.purgeRevision(v.source.projectId!,v.source.id);}else if(v.source.kind==='conversion')this.service.conversion.purge(v.source.id);else if(v.source.kind==='audio'){const path=this.service.store.path('studio-audio',`${identity(v.id)}.wav`);if(existsSync(path))unlinkSync(path);}else if(v.source.id)await this.service.yue2Client.purgeAudio(v.source.id);this.musicEdits.purgeSource(v.id);const lyricPath=this.service.store.path('lyrics',`${identity(v.id)}.json`);if(existsSync(lyricPath))unlinkSync(lyricPath);v.purged=true;v.purgePending=undefined;v.deleted=true;v.audioPath=undefined;v.input=undefined;v.error=undefined;const s=this.sound(v.soundId);if(s.finalVersionId===v.id)s.finalVersionId=undefined;this.save();}
+  for(const v of versions){if(v.purged)continue;v.deleted=true;v.purgePending=true;this.save();if(v.source.kind==='speech')this.service.speech.purgeVersion(v.source.id);else if(v.source.kind==='score'){this.service.jobs.purge(v.source.projectId!,v.source.id);await this.service.store.purgeRevision(v.source.projectId!,v.source.id);}else if(v.source.kind==='conversion')this.service.conversion.purge(v.source.id);else if(v.source.kind==='audio'){const path=this.service.store.path('studio-audio',`${identity(v.id)}.wav`);if(existsSync(path))unlinkSync(path);}else if(v.source.kind==='music'){for(const jobId of new Set([v.source.id,...(v.musicAttempts??[]).map(a=>a.jobId)].filter(Boolean)))await this.service.yue2Client.purgeAudio(jobId);}this.musicEdits.purgeSource(v.id);const lyricPath=this.service.store.path('lyrics',`${identity(v.id)}.json`);if(existsSync(lyricPath))unlinkSync(lyricPath);v.purged=true;v.purgePending=undefined;v.deleted=true;v.audioPath=undefined;v.input=undefined;v.error=undefined;for(const attempt of v.musicAttempts??[]){attempt.input=undefined;attempt.error=undefined;attempt.resource=undefined;attempt.recovery=undefined;attempt.resumedFrom=undefined;}const s=this.sound(v.soundId);if(s.finalVersionId===v.id)s.finalVersionId=undefined;this.save();}
   if(!target)for(const s of scope){if(s.kind==='speech')this.service.speech.purgeSound(s.id);s.purged=true;s.deleted=true;s.title='已删除片段';s.finalVersionId=undefined;}
   this.save();if(project){this.service.jobs.purge(project.id);await this.service.store.purgeProject(project.id);}return {purged:true};
  },false);}
@@ -207,7 +209,10 @@ export class StudioService{
   while(candidate&&!visited.has(candidate.id)){
    visited.add(candidate.id);
    if(candidate.soundId!==source.soundId||!candidate.input||!sameMusicGeneration(musicRequest(source.input,''),musicRequest(candidate.input,'')))break;
-   if(!candidate.purged&&!candidate.purgePending&&candidate.musicRecovery&&(!best||musicRecoveryRank[candidate.musicRecovery.stage]>musicRecoveryRank[best.stage]))best=candidate.musicRecovery;
+   if(!candidate.purged&&!candidate.purgePending){
+    const points=[{input:candidate.input,recovery:candidate.musicRecovery},...(candidate.musicAttempts??[])];
+    for(const point of points)if(point.input&&point.recovery&&sameMusicGeneration(musicRequest(source.input,''),musicRequest(point.input,''))&&(!best||musicRecoveryRank[point.recovery.stage]>musicRecoveryRank[best.stage]))best=point.recovery;
+   }
    candidate=this.data.versions.find(v=>v.id===candidate!.parentId);
   }
   return best;
@@ -217,29 +222,40 @@ export class StudioService{
   // including deleted versions, so a fresh retry cannot replay a failed plan.
   const range=2147483648,attempts=3,used=new Set<number>();
   for(const v of this.data.versions){
-   if(v.soundId!==source.soundId||v.source.kind!=='music'||v.input?.seed===undefined)continue;
-   for(let i=0;i<attempts;i++)used.add((v.input.seed+i)%range);
+   if(v.soundId!==source.soundId||v.source.kind!=='music')continue;
+   for(const input of [v.input,...(v.musicAttempts??[]).map(a=>a.input)])if(input?.seed!==undefined)for(let i=0;i<attempts;i++)used.add((input.seed+i)%range);
   }
   let seed=((source.input?.seed??randomInt(0,range))+attempts)%range;
   while(Array.from({length:attempts},(_,i)=>(seed+i)%range).some(s=>used.has(s)))seed=(seed+attempts)%range;
   return seed;
  }
- async retryMusic(args:{versionId:string}){return this.serial(async()=>{
-  this.yueChecked=0;await this.sync();const source=this.version(args.versionId);this.activeSound(source.soundId);
-  if(source.deleted||source.purged||source.purgePending||source.source.kind!=='music'||!source.input||!['failed','cancelled','interrupted'].includes(source.state))fail('请选择未删除的失败或已取消音乐版本');
-  const previous=this.data.versions.find(v=>v.musicRetryOf===source.id&&!v.deleted&&!v.purged&&!v.purgePending);if(previous)return previous;
-  const recovery=this.bestMusicRecovery(source);
-  return this.generateLocked({...clone(source.input!),seed:recovery?source.input!.seed:this.nextMusicRetrySeed(source),parentId:source.id},undefined,{retryOf:source.id,recovery});
+ async retryMusic(args:{versionId:string;requestId?:string;expectedJobId?:string}){return this.serial(async()=>{
+  this.yueChecked=0;await this.sync();const v=this.version(args.versionId),sound=this.activeSound(v.soundId);
+  if(v.deleted||v.purged||v.purgePending||v.source.kind!=='music'||!v.input)fail('请选择未删除的失败或已取消音乐版本');
+  // A stale page or repeated HTTP request must not submit another attempt, even if the last one failed immediately.
+  if(args.requestId&&(v.musicAttemptRequestId===args.requestId||v.musicAttempts?.some(a=>a.requestId===args.requestId)))return v;
+  if(args.expectedJobId!==undefined&&args.expectedJobId!==v.source.id)return v;
+  if(['queued','running'].includes(v.state))return v;
+  if(!['failed','cancelled','interrupted'].includes(v.state))fail('请选择失败或已取消音乐版本');
+  if(!(await this.service.yue2.status()).canGenerate)fail('音乐模型尚未就绪，请在设置中准备');
+  const recovery=this.bestMusicRecovery(v),input={...clone(v.input!),seed:recovery?v.input!.seed:this.nextMusicRetrySeed(v)},now=new Date().toISOString();
+  (v.musicAttempts??=[]).push({jobId:v.source.id,input:clone(v.input),state:v.state,stage:v.stage,error:v.error,resource:clone(v.resource),recovery:v.musicRecovery,resumedFrom:v.musicResumedFrom,startedAt:v.musicAttemptStartedAt??v.createdAt,archivedAt:now,requestId:v.musicAttemptRequestId});
+  Object.assign(v,{input,source:{kind:'music',id:''},state:'queued',stage:'正在提交',error:undefined,resource:undefined,audioPath:undefined,duration:undefined,musicProgress:undefined,musicTruncated:undefined,musicRecovery:undefined,musicResumedFrom:recovery,musicAttemptStartedAt:now,musicAttemptRequestId:args.requestId});
+  // Persist the old job ownership before submitting, so restart/polling cannot import it as a new version.
+  this.save();await this.submitMusic(v,sound.title,recovery);return v;
  });}
- private async generateLocked(args:StudioInput,musicEdit?:MusicEditProvenance,retry?:{retryOf:string;recovery?:MusicRecovery}){
+ private async submitMusic(v:StudioVersion,title:string,recovery?:MusicRecovery){
+  try{const {job}=await this.service.yue2Client.generate(musicRequest(v.input!,title),recovery?.jobId);v.source.id=job.id;v.musicProgress=musicProgress(job);v.musicTruncated=job.truncated??undefined;v.musicRecovery=job.recovery;v.resource=job.resource as ResourceTaskState|undefined;v.error=job.error??undefined;v.state=job.status==='done'?'succeeded':job.status;v.stage=job.stage??(v.state==='succeeded'?'生成完成':v.state==='failed'?'生成失败':'已提交，等待生成');if(v.state==='succeeded')v.audioPath=`/yue2-audio/${job.id}`;}
+  catch(e){v.state='failed';v.stage='提交失败';v.error=(e as Error).message;}
+ }
+ private async generateLocked(args:StudioInput,musicEdit?:MusicEditProvenance){
   await this.sync();const s=this.activeSound(args.soundId);if(args.parentId){const parent=this.version(args.parentId);if(parent.soundId!==s.id||parent.deleted||parent.purged)fail('来源版本必须属于当前声音且未删除');}
   if(s.kind==='conversion')fail('音色转换请上传原始音频');
   if(s.kind==='speech'){if(!args.voiceId)fail('请选择参考声音');const v=await this.service.speech.generate({soundId:s.id,voiceId:args.voiceId!,text:args.text,emotion:args.emotion,emotionStrength:args.emotionStrength,parentId:args.parentId});await this.sync();return this.version(v.id);}
   if(!(await this.service.yue2.status()).canGenerate)fail('音乐模型尚未就绪，请在设置中准备');
   args={...args,instrumental:args.instrumental!==false,seed:args.seed??randomInt(0,2147483648)};
-  const v:StudioVersion={id:`version-${randomUUID()}`,soundId:s.id,number:this.data.versions.filter(x=>x.soundId===s.id).length+1,parentId:args.parentId,createdAt:new Date().toISOString(),state:'queued',stage:'正在提交',kept:false,deleted:false,input:{...clone(args),ending:args.ending??'natural'},musicEdit,musicRetryOf:retry?.retryOf,musicResumedFrom:retry?.recovery,source:{kind:'music',id:''}};this.data.versions.push(v);this.save();
-  try{const {job}=await this.service.yue2Client.generate(musicRequest(args,s.title),retry?.recovery?.jobId);v.source.id=job.id;v.musicProgress=musicProgress(job);v.musicTruncated=job.truncated??undefined;v.musicRecovery=job.recovery;v.state=job.status==='done'?'succeeded':job.status;v.stage=v.state==='succeeded'?'生成完成':'已提交，等待生成';if(v.state==='succeeded')v.audioPath=`/yue2-audio/${job.id}`;}
-  catch(e){v.state='failed';v.stage='提交失败';v.error=(e as Error).message;}return v;
+  const v:StudioVersion={id:`version-${randomUUID()}`,soundId:s.id,number:this.data.versions.filter(x=>x.soundId===s.id).length+1,parentId:args.parentId,createdAt:new Date().toISOString(),state:'queued',stage:'正在提交',kept:false,deleted:false,input:{...clone(args),ending:args.ending??'natural'},musicEdit,source:{kind:'music',id:''}};this.data.versions.push(v);this.save();
+  await this.submitMusic(v,s.title);return v;
  }
  audio(id:string){
   const v=this.version(identity(id));this.activeSound(v.soundId);

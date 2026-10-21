@@ -21,7 +21,7 @@ for(const action of ['retry','delete-selected-failure','delete-unselected-failur
   if(name==='studio_retry_music'||name==='studio_update_version'){
    attempts++;
    if(rejectAction)return r.fulfill({status:400,json:{message:'模拟请求失败'}});
-   if(name==='studio_retry_music'){const next={...failure,id:'retry',number:20,state:'queued',stage:'排队中'};versions.push(next);return r.fulfill({json:next});}
+   if(name==='studio_retry_music'){Object.assign(failure,{state:'queued',stage:'排队中',source:{kind:'music',id:'job-retry'}});return r.fulfill({json:failure});}
    const removed=failures.find(v=>v.id===r.request().postDataJSON().versionId);assert.ok(removed);removed.deleted=true;return r.fulfill({json:removed});
   }
   if(name==='studio_lyrics')return r.fulfill({json:{lines:[],canGenerate:false}});
@@ -37,7 +37,7 @@ for(const action of ['retry','delete-selected-failure','delete-unselected-failur
   await submit();await page.locator('#toast').filter({hasText:'模拟请求失败'}).waitFor();
   assert.equal(await page.evaluate(()=>originalAudio.paused),false,'failed request preserves playback');
   rejectAction=false;await submit();
-  await page.locator('#toast').filter({hasText:action==='retry'?'已创建 V20':'已移入回收站'}).waitFor();
+  await page.locator('#toast').filter({hasText:action==='retry'?'正在重试 V17':'已移入回收站'}).waitFor();
   assert.equal(attempts,action==='retry'?2:failures.length*2);
   assert.equal(await page.evaluate(()=>originalAudio.isConnected),true,'keep the same player connected');
   assert.equal(await page.evaluate(()=>originalAudio.paused),false,'successful action preserves playback');

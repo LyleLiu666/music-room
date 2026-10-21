@@ -2928,3 +2928,5 @@ body:has(#dialog[open]) #global-status-bar{visibility:hidden}
 .task-title-link{display:inline-block;max-width:100%;align-self:flex-start;padding:4px 0;border:0;background:none;color:var(--text-strong);font:inherit;font-weight:600;text-align:left;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
 .task-title-link:hover{color:var(--accent);text-decoration:underline;text-underline-offset:3px}
 .task-title-link:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
+
+.music-attempts{list-style:none;padding:0;margin:0}.music-attempts li{padding:1rem 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.music-attempts li:last-child{border-bottom:0}.music-attempts p{margin:.5rem 0}
