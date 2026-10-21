@@ -15,7 +15,7 @@ export class MachineMonitorView{
  private busy=false;private last=-Infinity;
  constructor(private readonly host:HTMLElement,private readonly call:ServiceCaller){}
  mount(){
-  this.host.innerHTML=`<section id="machine-monitor" aria-label="电脑与本程序资源"><div class="monitor-values">${monitorMarkup()}</div><details class="monitor-help"><summary aria-label="资源统计说明">统计说明</summary><p>CPU 以整机总算力为 100%。整机内存包含系统缓存；本程序包含当前服务及生成任务，不包含浏览器或其他实例。两种内存统计口径不同，不宜直接相减。</p><p>页面可见时约每 2 秒更新，首次 CPU 采样需稍等。</p><p class="monitor-sampled"></p></details></section>`;
+  this.host.innerHTML=`<section id="machine-monitor" aria-label="电脑与本程序资源"><div class="monitor-values">${monitorMarkup()}</div></section>`;
   void this.refresh();
  }
  async refresh(){
@@ -24,8 +24,8 @@ export class MachineMonitorView{
   this.busy=true;
   try{
    const value=await this.call('monitor_status',{});if(!value.system||!value.application)throw Error('监控暂不可用，请确认服务已更新');
-   if(target.isConnected){target.innerHTML=monitorMarkup(value);this.host.querySelector('.monitor-sampled')!.textContent='更新于 '+new Date(value.sampledAt).toLocaleTimeString('zh-CN',{hour12:false});}
-  }catch(error){if(target.isConnected){target.innerHTML=monitorMarkup(undefined,error instanceof Error?error.message:'暂时无法读取监控数据');this.host.querySelector('.monitor-sampled')!.textContent='等待重新采样';}}
+   if(target.isConnected){target.innerHTML=monitorMarkup(value);}
+  }catch(error){if(target.isConnected){target.innerHTML=monitorMarkup(undefined,error instanceof Error?error.message:'暂时无法读取监控数据');}}
   finally{this.busy=false;this.last=performance.now();}
  }
 }

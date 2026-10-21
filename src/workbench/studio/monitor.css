@@ -5,8 +5,5 @@
 #machine-monitor th:first-child{text-align:left;width:30%}
 #machine-monitor tbody td{color:var(--text-strong);font-weight:600}
 #machine-monitor tbody th{color:var(--text)}
-.monitor-help{margin-top:5px;font-size:10px;line-height:1.6}
-.monitor-help summary{cursor:pointer;width:fit-content}
-.monitor-help p{margin:6px 0;overflow-wrap:anywhere}
 .monitor-error{font-size:10px;margin:5px 0 0;color:var(--muted)}
-@media(max-width:650px){#sidebar-monitor{grid-column:1 / -1;grid-row:5;margin-top:0}#machine-monitor{padding:6px 0}#machine-monitor table{max-width:360px}#machine-monitor th,#machine-monitor td{font-size:12px;padding:3px 0}.monitor-help{font-size:11px}}
+@media(max-width:650px){#sidebar-monitor{grid-column:1 / -1;grid-row:5;margin-top:0}#machine-monitor{padding:6px 0}#machine-monitor table{max-width:360px}#machine-monitor th,#machine-monitor td{font-size:12px;padding:3px 0}}

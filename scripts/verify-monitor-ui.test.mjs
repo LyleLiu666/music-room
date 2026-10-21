@@ -29,8 +29,7 @@ test('sidebar monitor stays visible across pages, keeps navigation above it and 
  await mkdir('test-results/monitor',{recursive:true});
  for(const theme of ['light','dark']){await page.locator(`[data-theme-choice="${theme}"]`).first().click();await page.screenshot({path:`test-results/monitor/sidebar-${theme}-desktop.png`,fullPage:true});}
  await page.getByRole('button',{name:'任务列表',exact:true}).click();await page.getByRole('heading',{name:'任务列表',exact:true}).waitFor();const before=samples;await page.waitForFunction(()=>document.querySelector('.sidebar #machine-monitor'));await page.waitForTimeout(2300);assert.ok(samples>before,'monitor keeps sampling on other pages');
- await page.locator('.monitor-help summary').click();await page.waitForTimeout(2300);assert.equal(await page.locator('.monitor-help').getAttribute('open'),'','sampling preserves expanded explanation');
- await page.locator('.monitor-help summary').click();
+ assert.equal(await page.getByText('统计说明',{exact:true}).count(),0);
  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'test-results/monitor/sidebar-mobile.png',fullPage:true});
  await page.reload();await page.locator('.sidebar #machine-monitor').waitFor();await page.getByText('12.0 GB',{exact:true}).waitFor();
  offline=true;await page.getByText('暂不可用',{exact:true}).first().waitFor();assert.equal(await page.getByText('12.0 GB',{exact:true}).count(),0);
