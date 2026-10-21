@@ -388,7 +388,7 @@ async function start(){
    const source=version();if(!source?.input||!['speech','music'].includes(source.source.kind)||!['failed','cancelled','interrupted'].includes(source.state))throw Error('此版本无法直接重试，请先修改要求');
    const request=versionCreationDraft(source.soundId,source.id,structuredClone(source.input));
    if(b instanceof HTMLButtonElement){b.disabled=true;b.textContent='正在提交…';}
-   try{const saved=source.source.kind==='music'?await api.call('studio_retry_music',{versionId:source.id}):await api.call('studio_generate',request);if(versionId===source.id){pause();versionId=saved.id;}await refresh(true);notify(saved.state==='failed'?saved.error??'提交失败':`已创建 V${saved.number}。${saved.musicResumedFrom?musicRecoveryNote(saved.musicResumedFrom):'正在重新生成。'}`);}
+   try{const saved=source.source.kind==='music'?await api.call('studio_retry_music',{versionId:source.id}):await api.call('studio_generate',request);if(versionId===source.id){parkPlayer();versionId=saved.id;}await refresh(true);notify(saved.state==='failed'?saved.error??'提交失败':`已创建 V${saved.number}。${saved.musicResumedFrom?musicRecoveryNote(saved.musicResumedFrom):'正在重新生成。'}`);}
    finally{if(b instanceof HTMLButtonElement){b.disabled=false;b.textContent=source.musicRecovery?'继续生成':'重试生成';}}
   }
   else if(action==='toggle-playback'){const audio=$<HTMLAudioElement>('#background-audio');if(audio){if(audio.paused)await audio.play();else audio.pause();updateBackground();}}
