@@ -37,7 +37,9 @@ test('two rounds use the selected Cloudflare model, retain history, cache valida
    calls++;const body=JSON.parse(String(init?.body));assert.equal(body.stream,false);assert.ok(body.max_completion_tokens);assert.equal(body.chat_template_kwargs.enable_thinking,false);assert.equal(body.response_format.type,'json_object');assert.equal(body.messages.length,calls===1?2:4);
    return Response.json({success:true,result:{response:mapping(),choices:[{finish_reason:'stop'}],usage:{neurons:10}}});
   }});
-  const result=await reviewer.review(reference,[chunk],new AbortController().signal,()=>{});
+  const progress:{message:string;percent:number}[]=[];
+  const result=await reviewer.review(reference,[chunk],new AbortController().signal,(message,percent)=>progress.push({message,percent}));
+  assert.deepEqual(progress,[{message:'正在核对歌词 · 1 / 1 段',percent:55}]);
   assert.equal(result.chunks[0].parts[1],'野餐垫鼓起一面帆');assert.equal(result.summary.model,'@cf/qwen/qwen3.8-27b');assert.equal(calls,2);
   await reviewer.review(reference,[chunk],new AbortController().signal,()=>{});assert.equal(calls,2);
   assert.ok(!readFileSync(join(directory,'usage.json'),'utf8').includes('private-test-token'));

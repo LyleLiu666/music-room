@@ -12,7 +12,7 @@ const duration=(seconds:number)=>{const s=Math.max(0,Math.floor(seconds));return
 function lyricProgressMarkup(job:LyricJob,now:number){
  const percent=Number.isFinite(job.progress)&&job.progress>0?Math.min(99,job.progress):undefined;
  const age=job.updatedAt===undefined?undefined:Math.max(0,Math.floor((now-job.updatedAt)/1000));
- const timing=[job.startedAt===undefined?'':`已运行 ${duration((now-job.startedAt)/1000)}`,age===undefined?'':age>120?`${age} 秒内未收到新进度；仍在等待模型处理`:`最近推进：${age} 秒前`].filter(Boolean).join(' · ');
+ const timing=[job.startedAt===undefined?'':`已运行 ${duration((now-job.startedAt)/1000)}`,age===undefined?'':age>120?`${age} 秒内未收到新进度；仍在等待处理结果`:`最近推进：${age} 秒前`].filter(Boolean).join(' · ');
  return `<div class="task-progress"><span>${esc(job.message)}${percent===undefined?'':` · ${percent}%`}</span><progress aria-label="同步歌词处理进度"${percent===undefined?'':` max="100" value="${percent}"`} title="按已处理音频分段估算，不代表耗时比例"></progress>${timing?`<span>${esc(timing)}</span>`:''}</div>`;
 }
 export function taskQueueRows(status:ResourceStatus|undefined,library?:OperationResults['studio_library'],now=Date.now()){

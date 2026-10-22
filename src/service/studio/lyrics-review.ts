@@ -21,27 +21,27 @@ export function cloudflareLyricsCredentials():Credentials{
  if(existsSync(file))for(const row of readFileSync(file,'utf8').split('\n')){const match=row.match(/^\s*(CLOUDFLARE_ACCOUNT_ID|CLOUDFLARE_API_TOKEN)\s*=\s*(.*?)\s*$/u);if(match)values[match[1]]=match[2].replace(/^(['"])(.*)\1$/u,'$2');}
  for(const key of ['CLOUDFLARE_ACCOUNT_ID','CLOUDFLARE_API_TOKEN'])if(process.env[key])values[key]=process.env[key];
  const account=values.CLOUDFLARE_ACCOUNT_ID,token=values.CLOUDFLARE_API_TOKEN;
- if(!account||!/^[a-f0-9]{32}$/iu.test(account)||!token||/[\r\n]/u.test(token))throw Error('请先配置 Cloudflare Workers AI 凭据，再使用 27B 核对歌词');
+ if(!account||!/^[a-f0-9]{32}$/iu.test(account)||!token||/[\r\n]/u.test(token))throw Error('请先配置歌词核对服务的 Cloudflare 账号和令牌');
  return {account,token};
 }
 
 /** Validate references and coverage only. Semantic matching remains the model's job. */
 export function parseLyricMapping(content:string,reference:string,heard:string[],allowed?:Set<number>):Mapping{
- const original=referenceLines(reference);let data;try{data=JSON.parse(content);}catch{throw Error('27B 未返回完整的歌词映射，旧歌词已保留');}if(!Array.isArray(data?.groups)||!data.groups.length)throw Error('27B 歌词核对输出缺少分组');
+ const original=referenceLines(reference);let data;try{data=JSON.parse(content);}catch{throw Error('歌词核对结果不完整，旧歌词已保留');}if(!Array.isArray(data?.groups)||!data.groups.length)throw Error('未收到有效的歌词核对结果，旧歌词已保留');
  const coverage:number[]=[];
  const groups:Group[]=data.groups.map((group:unknown)=>{
   const g=group as {ids:unknown[];status:Group['status'];matches:{line:number;text?:string}[]};
-  if(!Array.isArray(g.ids)||!g.ids.length||!g.ids.every(Number.isInteger)||!['matched','new','uncertain'].includes(g.status)||!Array.isArray(g.matches)||(g.status==='matched')!==(g.matches.length>0))throw Error('27B 歌词核对分组无效');
+  if(!Array.isArray(g.ids)||!g.ids.length||!g.ids.every(Number.isInteger)||!['matched','new','uncertain'].includes(g.status)||!Array.isArray(g.matches)||(g.status==='matched')!==(g.matches.length>0))throw Error('歌词核对结果无效，旧歌词已保留');
   coverage.push(...g.ids as number[]);
   const parts=g.matches.map(match=>{
-   if(!match||!Number.isInteger(match.line)||allowed&&!allowed.has(match.line))throw Error('27B 引用了候选段落之外的歌词');
-   const row=original[match.line];if(!row)throw Error('27B 引用了不存在的歌词');
-   if(match.text!==undefined&&(typeof match.text!=='string'||!match.text.trim()||!row.text.includes(match.text)))throw Error('27B 输出了原歌词之外的文字');
+   if(!match||!Number.isInteger(match.line)||allowed&&!allowed.has(match.line))throw Error('核对结果与当前歌词段落不符，旧歌词已保留');
+   const row=original[match.line];if(!row)throw Error('核对结果与原歌词不符，旧歌词已保留');
+   if(match.text!==undefined&&(typeof match.text!=='string'||!match.text.trim()||!row.text.includes(match.text)))throw Error('核对结果包含原歌词之外的文字，旧歌词已保留');
    return match.text??row.text;
   });
   return {ids:g.ids as number[],status:g.status,parts};
  });
- if(JSON.stringify(coverage)!==JSON.stringify(heard.map((_,id)=>id)))throw Error('27B 歌词核对遗漏、重复或重排了识别句');
+ if(JSON.stringify(coverage)!==JSON.stringify(heard.map((_,id)=>id)))throw Error('核对结果存在遗漏、重复或顺序错误，旧歌词已保留');
  return {groups};
 }
 
@@ -96,7 +96,7 @@ export function createLyricsReviewer(options:Options):LyricsReviewer{
   const result=envelope.result;if(!envelope.success||!result)throw Error('Cloudflare 歌词核对未返回有效结果，旧歌词已保留');
   const measured=result.usage?.neurons;if(typeof measured==='number'&&Number.isFinite(measured)&&measured>=0)accountUsage(auth.account,current=>Math.max(0,current-reservation+measured));
   const content=result.response??result.choices?.[0]?.message?.content;
-  if(result.choices?.[0]?.finish_reason==='length'||typeof content!=='string')throw Error('27B 歌词核对输出被截断，旧歌词已保留');
+  if(result.choices?.[0]?.finish_reason==='length'||typeof content!=='string')throw Error('歌词核对结果不完整，旧歌词已保留');
   const mapping=parseLyricMapping(content,reference,parts,allowed);atomicJSON(cache,{version:1,model:LYRIC_REVIEW_MODEL,content});return {content,mapping};
  }
  return {ready:()=>!reason(),reason,review:async(reference,chunks,signal,progress)=>{
@@ -106,7 +106,7 @@ export function createLyricsReviewer(options:Options):LyricsReviewer{
    const context=referenceLines(chunk.referenceContext).map(row=>row.text),start=context.length?original.findIndex((_row,start)=>context.every((text,offset)=>original[start+offset]?.text===text)):-1;
    const candidates=start>=0?original.slice(start,start+context.length):original,allowed=new Set(candidates.map(row=>row.line));
    const messages=[{role:'system',content:system},{role:'user',content:JSON.stringify({reference:candidates,heard:chunk.parts.map((text,id)=>({id,text}))})}];
-   progress(`27B 正在核对歌词 · ${index+1} / ${chunks.length} 段`,55+Math.floor(index/chunks.length*4));
+   progress(`正在核对歌词 · ${index+1} / ${chunks.length} 段`,55+Math.floor(index/chunks.length*4));
    const first=await call(messages,reference,chunk.parts,allowed,signal);
    const second=await call([...messages,{role:'assistant',content:first.content},{role:'user',content:audit}],reference,chunk.parts,allowed,signal);
    reviewed.push(applyReviewedMapping(chunk,first.mapping,second.mapping));

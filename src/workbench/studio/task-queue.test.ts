@@ -14,7 +14,8 @@ test('lyrics queue shows owner, actual progress, elapsed time and queue position
  ]} as any;
  const html=taskQueueRows({active,queued:[queued],paused:false} as any,library,now);
  assert.match(html,/歌曲项目 \/ 春风 &lt;demo&gt; · V9 · 同步歌词/);assert.match(html,/value="74"/);assert.match(html,/已运行 2 分 0 秒/);assert.match(html,/最近推进：5 秒前/);assert.match(html,/排队中 · 前面还有 1 项/);assert.equal((html.match(/<progress/g)??[]).length,1);
- assert.match(taskQueueRows({active,queued:[],paused:false} as any,library,310000),/135 秒内未收到新进度/);
+ const delayed=taskQueueRows({active,queued:[],paused:false} as any,library,310000);
+ assert.match(delayed,/135 秒内未收到新进度；仍在等待处理结果/);
 });
 test('loading has indeterminate progress and resource waiting keeps its reason',()=>{
  const task={id:'lyrics-one',engine:'lyrics',stage:'running',submittedAt:10000};
