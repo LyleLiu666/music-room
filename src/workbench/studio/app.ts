@@ -1,3 +1,4 @@
+import {readAudioBlob} from '../audio-response.ts';
 import {musicAttemptsMarkup} from './music-attempts.ts';
 import './monitor.css';
 import {MachineMonitorView} from './monitor.ts';
@@ -168,8 +169,21 @@ async function start(){
   return refreshTask;
  }
  async function blobUrl(v:Pick<StudioVersion,'audioPath'>){if(!v.audioPath)throw Error('这个版本还没有音频');return audioUrl(v.audioPath);}
- async function audioUrl(path:string){const found=cache.get(path);if(found){cache.delete(path);cache.set(path,found);return found;}const res=await api.request(path,{});if(!res.ok)throw Error('音频暂时无法读取，请检查文件是否完整');const blob=await res.blob();if(blob.size>120_000_000)throw Error('音频文件超出播放器处理范围');const url=URL.createObjectURL(blob);cache.set(path,url);cacheBytes.set(path,blob.size);cachedBytes+=blob.size;for(const [key,value] of cache){if(cachedBytes<=64*1048576&&cache.size<=6)break;if(key===path||[...document.querySelectorAll<HTMLAudioElement>('audio')].some(a=>a.src===value))continue;URL.revokeObjectURL(value);cachedBytes-=cacheBytes.get(key)??0;cacheBytes.delete(key);cache.delete(key);}return url;}
- async function loadAudio(a:HTMLAudioElement,v:Pick<StudioVersion,'audioPath'>,play=false){const epoch=mediaEpoch;try{const url=await blobUrl(v);if(!a.isConnected||epoch!==mediaEpoch||(a.dataset.audioPath&&a.dataset.audioPath!==v.audioPath))return;a.src=url;a.onplay=()=>{document.querySelectorAll<HTMLAudioElement>('audio').forEach(x=>{if(x!==a)x.pause();});if(a.id!=='background-audio'&&backgroundVersion)clearBackground();};if(a.id==='version-audio')$('#audio-placeholder').hidden=true;if(play)await a.play();}catch(e){notify((e as Error).message);}}
+ async function audioUrl(path:string){const found=cache.get(path);if(found){cache.delete(path);cache.set(path,found);return found;}const res=await api.request(path,{});if(!res.ok)throw Error('音频暂时无法读取，请检查文件是否完整');const blob=await readAudioBlob(res,120_000_000);const url=URL.createObjectURL(blob);cache.set(path,url);cacheBytes.set(path,blob.size);cachedBytes+=blob.size;for(const [key,value] of cache){if(cachedBytes<=64*1048576&&cache.size<=6)break;if(key===path||[...document.querySelectorAll<HTMLAudioElement>('audio')].some(a=>a.src===value))continue;URL.revokeObjectURL(value);cachedBytes-=cacheBytes.get(key)??0;cacheBytes.delete(key);cache.delete(key);}return url;}
+ async function loadAudio(a:HTMLAudioElement,v:Pick<StudioVersion,'audioPath'>,play=false){
+  const epoch=mediaEpoch,placeholder=a.id==='version-audio'?$('#audio-placeholder'):null;
+  if(placeholder&&!a.src){placeholder.hidden=false;placeholder.textContent='正在读取声音…';}
+  try{
+   const url=await blobUrl(v);if(!a.isConnected||epoch!==mediaEpoch||(a.dataset.audioPath&&a.dataset.audioPath!==v.audioPath))return;
+   if(a.src!==url)a.src=url;a.onplay=()=>{document.querySelectorAll<HTMLAudioElement>('audio').forEach(x=>{if(x!==a)x.pause();});if(a.id!=='background-audio'&&backgroundVersion)clearBackground();};
+   if(a.id==='version-audio')$('#audio-placeholder').hidden=true;if(play)await a.play();
+  }catch(e){
+   if(!a.isConnected||a.dataset.audioPath&&a.dataset.audioPath!==v.audioPath)return;
+   if(placeholder&&!a.src){placeholder.hidden=false;placeholder.textContent='音频读取失败 ';placeholder.title=(e as Error).message;const retry=document.createElement('button');retry.type='button';retry.className='quiet';retry.textContent='重新读取';retry.onclick=()=>void loadAudio(a,v,play);placeholder.append(retry);}
+   else notify((e as Error).message);
+  }
+ }
+
  async function saveSpeed(sourceId:string,rate:number,requestId:string){
   const saved=await api.call('studio_save_speed',{versionId:sourceId,rate,requestId});
   if(workspaceView==='project'&&versionId===sourceId){pause();versionId=saved.id;}

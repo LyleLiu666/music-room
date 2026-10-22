@@ -5,9 +5,31 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {LyricsGeneration,localLyricsProcessor,type LyricProcessor} from './lyrics-generation.ts';
 import {testResources} from '../resources/testing.ts';
+import {ResourceCoordinator} from '../resources/coordinator.ts';
 import type {LyricsReviewer} from './lyrics-review.ts';
 const result={duration:10,lines:[{text:'参考句',start:1,end:2},{text:'新增段落',start:3,end:4},{text:'参考句',start:5,end:6}]};
 async function wait(manager:LyricsGeneration,id='v8'){for(let n=0;n<200;n++){const job=manager.status(id).job;if(job&&!['queued','running'].includes(job.state))return job;await new Promise(r=>setTimeout(r,5));}throw Error('job did not finish');}
+for(const scenario of [
+ {name:'starts with exactly 4 GiB while retaining 8 GiB runtime protection',available:4*2**30,pressure:'normal' as const,starts:true,applicationLimit:16*2**30,runtimeLimit:8*2**30},
+ {name:'waits below the 4 GiB startup requirement',available:4*2**30-1,pressure:'normal' as const,starts:false,applicationLimit:16*2**30,runtimeLimit:8*2**30},
+ {name:'still waits under warning pressure with enough memory',available:4*2**30,pressure:'warning' as const,starts:false,applicationLimit:16*2**30,runtimeLimit:8*2**30},
+ {name:'starts under a 4 GiB application limit and clamps runtime protection to that limit',available:4*2**30,pressure:'normal' as const,starts:true,applicationLimit:4*2**30,runtimeLimit:4*2**30},
+])test(`lyrics ${scenario.name}`,async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'lyrics-admission-'));
+ const resources=new ResourceCoordinator({policy:{reserveFraction:0,reserveMinimum:0,headroom:0,limits:{memory:scenario.applicationLimit},maxSnapshotAgeMs:1000,maxWaitMs:30,retryMs:1,maxQueue:8},
+  probe:async()=>({supported:true,topology:'unified',sampledAt:Date.now(),pressure:scenario.pressure,pools:[{id:'memory',capacity:16*2**30,available:scenario.available,owned:0}]})});
+ let reads=0,budget:number|undefined;
+ const jobs=new LyricsGeneration(dir,resources,()=>({id:'v8',audioPath:'/a/8',reference:'参考句',audio:async()=>{reads++;return new Uint8Array([1]);}}),
+  {ready:()=>true,run:async(_source,_bytes,execution)=>{budget=execution.budgets.memory;return result;}});
+ try{
+  jobs.start('v8',scenario.name);const job=await wait(jobs);
+  assert.equal(job.resource?.demand?.startup?.memory,4*2**30);
+  assert.equal(job.resource?.demand?.peak.memory,8*2**30);
+  assert.equal(job.state,scenario.starts?'succeeded':'failed',job.message);
+  assert.equal(reads,scenario.starts?1:0);
+  assert.equal(budget,scenario.starts?scenario.runtimeLimit:undefined);
+ }finally{await jobs.close();await resources.close();rmSync(dir,{recursive:true,force:true});}
+});
 test('background progress retains timestamps and drops finished tasks',async()=>{
  const dir=mkdtempSync(join(tmpdir(),'lyrics-progress-')),resources=testResources();resources.pause();let report:(message:string,percent:number)=>void=()=>{},release!:()=>void;
  const gate=new Promise<void>(r=>release=r),jobs=new LyricsGeneration(dir,resources,()=>({id:'v8',audioPath:'/a/8',reference:'x',audio:async()=>new Uint8Array([1])}),{ready:()=>true,run:async(_source,_bytes,_execution,progress)=>{report=progress;report('识别完成 1 / 3 段',22);await gate;return result;}});

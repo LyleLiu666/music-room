@@ -1,3 +1,4 @@
+import {readAudioBlob} from './audio-response.ts';
 import type {Composition} from '../music/authoring/validate.mjs';
 import type {Mix} from '../audio.ts';
 import type {Job} from '../service/jobs/jobs.ts';
@@ -57,7 +58,7 @@ export class WorkbenchService {
   }
   async artifact(job:Job) {
     const response=await this.request(`/artifacts/${job.request.projectId}/${job.request.revisionId}/${job.id}`);
-    if(!response.ok)throw new Error('无法读取后台音频产物');return response.blob();
+    if(!response.ok)throw new Error('无法读取后台音频产物');return readAudioBlob(response);
   }
   render(doc:Composition,mix:Mix) {return this.call('render_revision',{projectId:doc.work.id,revisionId:doc.revision.id,idempotencyKey:crypto.randomUUID(),mix:{volume:mix.volume,lead:mix.lead,levels:{...mix.levels},muted:[...mix.muted],solo:[...mix.solo]}});}
 }

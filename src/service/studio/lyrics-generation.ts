@@ -32,7 +32,7 @@ export class LyricsGeneration{
   const previous=this.jobs[id];if(this.tasks.has(id)||busy(previous)||previous?.requestId===requestId)return this.status(id);
   if(!this.processor.ready())throw Error(this.processor.reason?.()??'本机尚未准备歌词模型，请先安装歌词引擎');
   const job:LyricJob={versionId:id,requestId,taskId:'lyrics-'+randomUUID(),state:'queued',message:'等待生成同步歌词',progress:0};this.jobs[id]=job;this.save();const controller=new AbortController();
-  const done=this.resources.run({id:job.taskId,engine:'lyrics',demand:{verified:true,peak:{memory:8*2**30}},signal:controller.signal,
+  const done=this.resources.run({id:job.taskId,engine:'lyrics',demand:{verified:true,startup:{memory:4*2**30},peak:{memory:8*2**30}},signal:controller.signal,
    onState:state=>{job.resource=state;if(['queued','waiting_resources','loading'].includes(state.stage)){job.state='queued';job.message=state.message??'等待生成同步歌词';}this.save();},
    execute:async execution=>{
     execution.running();job.state='running';job.startedAt=job.updatedAt=Date.now();job.message='正在读取音频';this.save();const bytes=await source.audio();execution.signal.throwIfAborted();

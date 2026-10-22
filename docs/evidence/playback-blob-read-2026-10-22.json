@@ -1,0 +1,132 @@
+{
+  "date": "2026-10-22",
+  "problem": "用户原 Chrome 的所有音乐片段停在读取中，原生播放按钮不可用",
+  "observed": {
+    "userBrowser": "Chrome Edde profile",
+    "originalPlayer": {
+      "src": null,
+      "readyState": 0,
+      "networkError": "net::ERR_FAILED / TypeError Failed to fetch"
+    },
+    "sameFileProbe": {
+      "bytes": 47200100,
+      "responseBlob": "TypeError Failed to fetch",
+      "responseArrayBuffer": "success",
+      "arrayBufferThenNewBlob": "success; native play enabled"
+    },
+    "diskAvailableGiB": 3.7,
+    "causalLimit": "确认失败集中在 Response.blob 路径；磁盘余量不足是可能因素，未直接读取 Chrome 内部缓存状态"
+  },
+  "changes": [
+    "音频以有界字节流读取后建立内存 Blob；超限取消读取，不完整缓存大文件",
+    "统一音乐、语音、转换和乐谱试听的读取方式",
+    "主播放器读取失败时保留重新读取按钮，不继续假报读取中"
+  ],
+  "verification": {
+    "frontendTests": {
+      "tests": 63,
+      "passed": 63
+    },
+    "browserRegression": {
+      "tests": 21,
+      "passed": 17,
+      "failed": 4,
+      "failures": [
+        {
+          "test": "music pressure failure preserves quality requirements and submits a fast retry with history intact",
+          "finding": "旧断言期待第三个版本；当前重试在原版本记录尝试，repeated 未找到。此次没有修改重试逻辑。"
+        },
+        {
+          "test": "unified production UI",
+          "finding": "语音生成等待超时；本机磁盘不足，参考清理需要6 GiB及额外2 GiB。"
+        },
+        {
+          "test": "reference voices cleaned and reused",
+          "finding": "等待参考清理状态超时；受同一磁盘检查限制。"
+        },
+        {
+          "test": "themes and global voice library preserve drafts",
+          "finding": "等待处理后人声超时；受同一磁盘检查限制。"
+        }
+      ]
+    },
+    "newRegressionRedBeforeFix": {
+      "blobFailure": true,
+      "persistentRetryMissing": true
+    },
+    "newRegressionPassAfterFix": {
+      "blobFailure": true,
+      "persistentRetry": true
+    },
+    "buildBinary": true,
+    "installedApplication": {
+      "installedAt": "2026-10-22T03:21:52.976Z",
+      "commit": "8e364d226754f12c8bfbc68d26cc6140872082ff",
+      "workingTreeChanges": true,
+      "executable": "/Users/liu_y/Applications/MusicRoom/music-room",
+      "pid": 58602,
+      "url": "http://127.0.0.1:5174",
+      "backup": "/Users/liu_y/Applications/MusicRoom/backups/audio-loading-1792639305983",
+      "binarySha256": "a9bcefa4cb263eda83b1dfa60d8fe437d7b5c10d7067e4001ae781036328973f",
+      "pendingRestart": false,
+      "change": "Read bounded audio bytes into memory before Blob creation; show persistent playback retry after read failures",
+      "validation": {
+        "httpHealthy": true,
+        "savedVersionsAndLyricsPreserved": true,
+        "nativeSystemCounters": true,
+        "monitorBudget": true
+      },
+      "observed": {
+        "pressure": "warning",
+        "additionalBudgetGiB": 12.759999999776483
+      }
+    },
+    "originalChromePlayback": [
+      {
+        "song": "方向盘",
+        "duration": 197.078667,
+        "readyState": 4,
+        "paused": false,
+        "observedCurrentTime": 0.222098
+      },
+      {
+        "song": "把周末铺在湖边 V2",
+        "duration": 252.398667,
+        "readyState": 4,
+        "paused": false,
+        "observedCurrentTime": 0.13049,
+        "screenshotCurrentTime": "0:38",
+        "pausedAfterVerification": true
+      }
+    ],
+    "screenshot": "test-results/audio-loading-fixed-chrome.png"
+  },
+  "source": "https://chromium.googlesource.com/chromium/src.git/+/refs/heads/main/storage/browser/blob",
+  "prePushVerification": {
+    "date": "2026-10-22",
+    "frontend": {
+      "passed": 63,
+      "failed": 0
+    },
+    "resourcesAndLyrics": {
+      "passed": 71,
+      "failed": 0
+    },
+    "targetedBrowserRegression": {
+      "passed": 9,
+      "failed": 0,
+      "suites": [
+        "monitor",
+        "audio-loading",
+        "playback-navigation",
+        "lyrics",
+        "speed",
+        "conversion"
+      ]
+    },
+    "buildBinary": "passed",
+    "experimentTypeCheck": "passed",
+    "experimentPythonCompile": "passed",
+    "scope": "Targeted pre-push regression; does not replace the historical broader regression with four failures recorded above."
+  }
+}

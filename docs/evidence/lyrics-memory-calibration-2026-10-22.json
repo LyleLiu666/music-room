@@ -1,0 +1,245 @@
+{
+  "date": "2026-10-22",
+  "machine": {
+    "cpu": "Apple M4",
+    "memoryGiB": 32,
+    "os": "macOS 27.0.1"
+  },
+  "models": [
+    "Qwen3-ASR-0.6B",
+    "Qwen3-ForcedAligner-0.6B"
+  ],
+  "workerSha256": "1db939958d49eec5a313e0a05642578610b27fcf783bc41f9c8972c9753353b8",
+  "method": {
+    "physical": "kernel proc_pid_rusage ri_phys_footprint; 200ms sampling, includes load and inference",
+    "diagnostics": "RSS and Metal sampled separately at 100ms; never added to physical footprint",
+    "guards": "8 GiB physical footprint, production worker 8 GiB RSS+Metal guard, critical pressure or 512 MiB swap-out/growth while warning",
+    "admission": "Explicit isolated calibration may run under warning pressure; normal application admission policy is unchanged",
+    "cloudReview": "Not invoked: existing reviewed passages for real songs; raw ASR passages for synthetic input. No accuracy claim."
+  },
+  "scope": {
+    "realSongs": 2,
+    "syntheticDurationSeconds": 600,
+    "repeatRuns": 1,
+    "phases": 8,
+    "concurrency": 1,
+    "productionLyricsWritten": false,
+    "productionAdmissionChanged": false,
+    "cloudReviewerCalled": false
+  },
+  "sources": [
+    {
+      "id": "direction",
+      "versionId": "version-ed5e6547-66d8-46bd-81c7-a7229075436a",
+      "audioSha256": "f77b69c6d535a16baa2c11712730a0018b1e085ad435e28e0e2bbcc9f0c9fc90"
+    },
+    {
+      "id": "lakeside",
+      "versionId": "version-1e56948b-6690-4721-be4b-6e06f10976fb",
+      "audioSha256": "7f5f1802be56cf129c77d3a2463e6ea3e45fe9d3b689b3a3cbe2f0d2b2c4fe6a"
+    },
+    {
+      "id": "synthetic-600s",
+      "basis": "Repeat and trim lakeside audio to 600 seconds; synthetic duration boundary, not a third real song"
+    },
+    {
+      "id": "lakeside-repeat",
+      "basis": "Same lakeside bytes in new model processes"
+    }
+  ],
+  "runs": [
+    {
+      "sample": "direction",
+      "phase": "transcribe",
+      "duration": 197.07866666666666,
+      "elapsedSeconds": 48.8491775,
+      "physicalPeak": 4023764960,
+      "rssPeak": 2485878784,
+      "metalDriverPeak": 3156328448,
+      "productionGuardPeak": 4273127424,
+      "samples": 239,
+      "exitCode": 0
+    },
+    {
+      "sample": "direction",
+      "phase": "align",
+      "duration": 197.07866666666666,
+      "elapsedSeconds": 11.455316958000003,
+      "physicalPeak": 3844261760,
+      "rssPeak": 2862284800,
+      "metalDriverPeak": 2975875072,
+      "productionGuardPeak": 4683087872,
+      "samples": 56,
+      "exitCode": 0
+    },
+    {
+      "sample": "lakeside",
+      "phase": "transcribe",
+      "duration": 252.39866666666666,
+      "elapsedSeconds": 35.170796499999994,
+      "physicalPeak": 3066234632,
+      "rssPeak": 2952019968,
+      "metalDriverPeak": 2078343168,
+      "productionGuardPeak": 4839931904,
+      "samples": 172,
+      "exitCode": 0
+    },
+    {
+      "sample": "lakeside",
+      "phase": "align",
+      "duration": 252.39866666666666,
+      "elapsedSeconds": 11.449421084,
+      "physicalPeak": 3915122656,
+      "rssPeak": 2893348864,
+      "metalDriverPeak": 3042983936,
+      "productionGuardPeak": 4714151936,
+      "samples": 56,
+      "exitCode": 0
+    },
+    {
+      "sample": "synthetic-600s",
+      "phase": "transcribe",
+      "duration": 600,
+      "elapsedSeconds": 74.46572020800001,
+      "physicalPeak": 4127377448,
+      "rssPeak": 2987982848,
+      "metalDriverPeak": 3167059968,
+      "productionGuardPeak": 4877991936,
+      "samples": 364,
+      "exitCode": 0
+    },
+    {
+      "sample": "synthetic-600s",
+      "phase": "align",
+      "duration": 600,
+      "elapsedSeconds": 19.160143125,
+      "physicalPeak": 4018407488,
+      "rssPeak": 2634268672,
+      "metalDriverPeak": 3043278848,
+      "productionGuardPeak": 4439719936,
+      "samples": 93,
+      "exitCode": 0
+    },
+    {
+      "sample": "lakeside-repeat",
+      "phase": "transcribe",
+      "duration": 252.39866666666666,
+      "elapsedSeconds": 35.99391416700001,
+      "physicalPeak": 3014903536,
+      "rssPeak": 2913796096,
+      "metalDriverPeak": 2084536320,
+      "productionGuardPeak": 4768153600,
+      "samples": 176,
+      "exitCode": 0
+    },
+    {
+      "sample": "lakeside-repeat",
+      "phase": "align",
+      "duration": 252.39866666666666,
+      "elapsedSeconds": 13.327870040999988,
+      "physicalPeak": 3916842952,
+      "rssPeak": 2730672128,
+      "metalDriverPeak": 3042983936,
+      "productionGuardPeak": 4417257472,
+      "samples": 65,
+      "exitCode": 0
+    }
+  ],
+  "conclusion": {
+    "maxObservedProcessFootprintBytes": 4127377448,
+    "recommendedStartupGiB": 5,
+    "runtimeProtectionGiB": 8,
+    "recommendationApplied": false,
+    "basis": "Observed process peak 3.844 GiB plus service/audio buffers and uncertainty margin. Startup 5 GiB is a candidate for this fixed configuration, not a universal minimum. Runtime guard stays separate."
+  },
+  "limitations": [
+    "200ms sampling gives observed peaks; very brief peaks may be missed.",
+    "One Apple M4 32 GiB machine and two real songs; the 600-second case repeats existing audio.",
+    "Models run in fresh processes using unchanged production worker. Existing reviewed passages feed real-song alignment; synthetic alignment uses raw ASR passages. This is memory calibration, not lyric-accuracy evaluation.",
+    "The isolated benchmark held the shared model lease and allowed warning pressure under explicit footprint/swap/critical-pressure guards; normal application pressure admission is unchanged.",
+    "System counters include unrelated apps. Maximum per-phase system swap-out increase was 52.4375 MiB; no protective threshold was reached.",
+    "RSS and Metal diagnostic allocations can overlap and are not added to kernel physical footprint."
+  ],
+  "verification": {
+    "workerUnitTests": 12,
+    "generationTests": 6,
+    "typeCheck": "passed",
+    "phaseExitCodes": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "allOutputDurationsAndNonemptyResultsValidated": true
+  },
+  "rawReport": "/Users/liu_y/code/music/test-results/lyrics-memory-2026-10-22/report.json",
+  "reproduce": "node scripts/experiments/measure-lyrics-memory.ts /Users/liu_y/Music/MusicRoom test-results/lyrics-memory-NEW-RUN",
+  "configurationUpdate": {
+    "selectedByUser": true,
+    "startupGiB": 4,
+    "maximumRuntimeProtectionGiB": 8,
+    "runtimeProtectionPreallocatesMemory": false,
+    "runtimeProtectionClampedToApplicationHeadroom": true,
+    "tests": {
+      "relatedPassed": 30,
+      "exactly4GiBStarts": true,
+      "below4GiBWaits": true,
+      "warningPressureStillWaits": true,
+      "applicationLimit4GiBAlsoStartsWithProtectionClampedTo4GiB": true,
+      "redBeforeImplementation": true
+    },
+    "installation": {
+      "installedAt": "2026-10-22T06:13:15.189Z",
+      "commit": "8e364d226754f12c8bfbc68d26cc6140872082ff",
+      "workingTreeChanges": true,
+      "executable": "/Users/liu_y/Applications/MusicRoom/music-room",
+      "pid": 67046,
+      "url": "http://127.0.0.1:5174",
+      "backup": "/Users/liu_y/Applications/MusicRoom/backups/lyrics-startup-4g-1792649592920",
+      "binarySha256": "2981af9679e6289b7c7d94f718d9c0a17ef7a6ee6f6ae3a708d8ef1b93abd799",
+      "pendingRestart": false,
+      "change": "Lyrics startup reservation is 4 GiB; independent runtime protection remains capped at 8 GiB and application headroom",
+      "validation": {
+        "httpHealthy": true,
+        "savedVersionsAndLyricsPreserved": true,
+        "nativeSystemCounters": true,
+        "monitorBudget": true
+      },
+      "observed": {
+        "pressure": "normal",
+        "additionalBudgetGiB": 16.279999999329448
+      }
+    }
+  },
+  "prePushVerification": {
+    "date": "2026-10-22",
+    "frontend": {
+      "passed": 63,
+      "failed": 0
+    },
+    "resourcesAndLyrics": {
+      "passed": 71,
+      "failed": 0
+    },
+    "targetedBrowserRegression": {
+      "passed": 9,
+      "failed": 0,
+      "suites": [
+        "monitor",
+        "audio-loading",
+        "playback-navigation",
+        "lyrics",
+        "speed",
+        "conversion"
+      ]
+    },
+    "buildBinary": "passed",
+    "experimentTypeCheck": "passed",
+    "experimentPythonCompile": "passed",
+    "scope": "Targeted pre-push regression; does not replace the historical broader regression with four failures recorded above."
+  }
+}

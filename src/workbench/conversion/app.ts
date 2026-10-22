@@ -1,3 +1,4 @@
+import {readAudioBlob} from '../audio-response.ts';
 import '../studio/style.css';
 import './style.css';
 import '../studio/theme.ts';
@@ -25,7 +26,7 @@ function button(label:string,action:()=>Promise<void>){const b=document.createEl
 async function audio(job:Job,kind:'original'|'converted'|'vocals',download:boolean){
  if(!backend)return;const sequence=download?0:++audioSequence;
  const response=await backend.request(`/conversion/audio/${encodeURIComponent(job.id)}/${kind}`,{});
- if(!response.ok)throw Error('音频暂时无法读取，请稍后重试');const blob=await response.blob();if(!download&&sequence!==audioSequence)return;const url=URL.createObjectURL(blob);
+ if(!response.ok)throw Error('音频暂时无法读取，请稍后重试');const blob=await readAudioBlob(response);if(!download&&sequence!==audioSequence)return;const url=URL.createObjectURL(blob);
  const label={original:'原始音频',converted:'转换结果',vocals:'转换人声'}[kind];
  if(download){const a=document.createElement('a');a.href=url;a.download=kind==='original'?job.name:`${job.name.replace(/\.[^.]+$/,'')}-${label}.wav`;a.click();setTimeout(()=>URL.revokeObjectURL(url),60000);return;}
  player.pause();if(audioUrl)URL.revokeObjectURL(audioUrl);audioUrl=url;player.src=url;document.querySelector('#listening-title')!.textContent=`${job.name} · ${label}`;document.querySelector<HTMLElement>('#conversion-listening')!.hidden=false;await player.play();
