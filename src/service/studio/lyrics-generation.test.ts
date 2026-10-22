@@ -5,6 +5,7 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {LyricsGeneration,localLyricsProcessor,type LyricProcessor} from './lyrics-generation.ts';
 import {testResources} from '../resources/testing.ts';
+import type {LyricsReviewer} from './lyrics-review.ts';
 const result={duration:10,lines:[{text:'参考句',start:1,end:2},{text:'新增段落',start:3,end:4},{text:'参考句',start:5,end:6}]};
 async function wait(manager:LyricsGeneration,id='v8'){for(let n=0;n<200;n++){const job=manager.status(id).job;if(job&&!['queued','running'].includes(job.state))return job;await new Promise(r=>setTimeout(r,5));}throw Error('job did not finish');}
 test('background progress retains timestamps and drops finished tasks',async()=>{
@@ -32,12 +33,14 @@ test('local worker progress failures reject the job and preserve the previous ti
  const processor=localLyricsProcessor(engine,async()=>Buffer.from(`
   const fs=require('node:fs');
   require('node:readline').createInterface({input:process.stdin}).once('line',line=>{
-   const task=JSON.parse(line);fs.writeFileSync(task.output,JSON.stringify(${JSON.stringify(result)}));
+   const task=JSON.parse(line);
+   if(task.phase==='transcribe')fs.writeFileSync(task.output,JSON.stringify({duration:10,chunks:[{start:0,end:10,text:'参考句',rawText:'参考句',referenceContext:'参考句',parts:['参考句']}]}));
+   else {const reviewed=JSON.parse(fs.readFileSync(task.transcription,'utf8'));if(!reviewed.review)throw Error('missing review');fs.writeFileSync(task.output,JSON.stringify(${JSON.stringify(result)}));}
    console.log('Model loading diagnostic');
    console.log(JSON.stringify({message:'识别进度',progress:${invalid?101:22}}));
    process.exit(0);
   });
- `));
+ `),{ready:()=>true,reason:()=>undefined,review:async(_reference,chunks)=>({chunks:chunks.map(chunk=>({...chunk,review:{confirmedGroups:1,needsReview:0,unconfirmed:[]}})),summary:{model:'@cf/qwen/qwen3.8-27b',confirmedGroups:1,needsReview:0}})});
  processor.ready=()=>true;
  const jobs=new LyricsGeneration(dir,resources,()=>({id:'v8',audioPath:'/a/8',reference:'参考句',audio:async()=>new Uint8Array([1])}),processor);
  try{
@@ -45,6 +48,30 @@ test('local worker progress failures reject the job and preserve the previous ti
   const previous=readFileSync(join(dir,'v8.json'),'utf8');invalid=true;jobs.start('v8','invalid-worker');
   const failed=await wait(jobs);assert.equal(failed.state,'failed');assert.match(failed.message,/歌词进度无效/);
   assert.equal(readFileSync(join(dir,'v8.json'),'utf8'),previous);
+ }finally{await jobs.close();await resources.close();rmSync(root,{recursive:true,force:true});}
+});
+
+test('local processing sends reviewed source words to alignment; a failed review never launches alignment',async()=>{
+ const root=mkdtempSync(join(tmpdir(),'lyrics-reviewed-worker-')),engine=join(root,'engine'),log=join(root,'phases.jsonl'),resources=testResources();
+ mkdirSync(join(engine,'venv/bin'),{recursive:true});symlinkSync(process.execPath,join(engine,'venv/bin/python'));let fail=false;
+ const reviewer:LyricsReviewer={ready:()=>true,reason:()=>undefined,review:async(_reference,chunks)=>{
+  if(fail)throw Error('Cloudflare quota exhausted');
+  return {chunks:chunks.map(chunk=>({...chunk,parts:['野餐垫鼓起一面帆'],review:{confirmedGroups:1,needsReview:0,unconfirmed:[]}})),summary:{model:'@cf/qwen/qwen3.8-27b',confirmedGroups:1,needsReview:0}};
+ }};
+ const processor=localLyricsProcessor(engine,async()=>Buffer.from(`
+  const fs=require('node:fs');require('node:readline').createInterface({input:process.stdin}).once('line',line=>{
+   const task=JSON.parse(line);fs.appendFileSync(${JSON.stringify(log)},JSON.stringify({phase:task.phase,hasSecret:'token' in task})+'\\n');
+   if(task.phase==='transcribe')fs.writeFileSync(task.output,JSON.stringify({duration:10,chunks:[{start:0,end:10,text:'夜三点的起面粉',rawText:'夜三点的起面粉',referenceContext:'野餐垫鼓起一面帆',parts:['夜三点的起面粉']}]}));
+   else {const doc=JSON.parse(fs.readFileSync(task.transcription,'utf8'));fs.writeFileSync(task.output,JSON.stringify({duration:10,lines:doc.chunks[0].parts.map(text=>({text,start:1,end:2})),referenceReview:doc.review}));}process.exit(0);
+  });
+ `),reviewer);processor.ready=()=>true;
+ const jobs=new LyricsGeneration(join(root,'lyrics'),resources,()=>({id:'v8',audioPath:'/a/8',reference:'野餐垫鼓起一面帆',audio:async()=>new Uint8Array([1])}),processor);
+ try{
+  jobs.start('v8','first');assert.equal((await wait(jobs)).state,'succeeded');const file=join(root,'lyrics/v8.json'),saved=readFileSync(file,'utf8');
+  assert.equal(JSON.parse(saved).lines[0].text,'野餐垫鼓起一面帆');assert.equal(JSON.parse(saved).referenceReview.model,'@cf/qwen/qwen3.8-27b');
+  fail=true;jobs.start('v8','failed');assert.equal((await wait(jobs)).state,'failed');assert.equal(readFileSync(file,'utf8'),saved);
+  assert.deepEqual(readFileSync(log,'utf8').trim().split('\n').map(line=>JSON.parse(line).phase),['transcribe','align','transcribe']);
+  assert.ok(!readFileSync(log,'utf8').includes('"hasSecret":true'));
  }finally{await jobs.close();await resources.close();rmSync(root,{recursive:true,force:true});}
 });
 test('failed retry retains the last timeline and cancelled jobs publish no result',async()=>{

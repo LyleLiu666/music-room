@@ -3,7 +3,7 @@ import {existsSync,readFileSync,lstatSync} from 'node:fs';
 import {join} from 'node:path';
 import {identity,ServiceError} from '../projects/store.ts';
 export type LyricLine={text:string;start:number;end:number};
-export type LyricsResult={canGenerate?:boolean;available?:boolean;job?:LyricJob;kind:'none'|'plain'|'synced';reference:string;lines:LyricLine[];draft:boolean};
+export type LyricsResult={canGenerate?:boolean;available?:boolean;unavailableReason?:string;job?:LyricJob;kind:'none'|'plain'|'synced';reference:string;lines:LyricLine[];draft:boolean};
 export function referenceLyrics(input?:{instrumental?:boolean;lyrics?:string}){return input?.instrumental===true?'':input?.lyrics??'';}
 /** Sidecars belong to one immutable audio version; input lyrics never imply a timeline. */
 export function readLyrics(directory:string,v:{id:string;audioPath?:string;input?:{instrumental?:boolean;lyrics?:string};audioHash?:string}):LyricsResult{

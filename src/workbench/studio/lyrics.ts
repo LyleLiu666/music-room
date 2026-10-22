@@ -41,9 +41,10 @@ export function mountLyrics(audio:HTMLAudioElement|null){
   try{
    const value=await(await request(path)).json() as LyricsResult;if(!audio!.isConnected)return;
    result=value;retry.hidden=true;section.hidden=value.kind==='none'&&!value.canGenerate;if(section.hidden)return;
-   generate.hidden=!value.canGenerate;generate.disabled=busy()||!value.available;generate.title=value.available?'':'本机尚未准备歌词引擎';generate.textContent=busy()?'生成中…':value.kind==='synced'?'重新生成歌词':'生成同步歌词';cancel.hidden=!busy();
+   generate.hidden=!value.canGenerate;generate.disabled=busy()||!value.available;generate.title=value.available?'':value.unavailableReason??'本机尚未准备歌词引擎';generate.textContent=busy()?'生成中…':value.kind==='synced'?'重新生成歌词':'生成同步歌词';cancel.hidden=!busy();
    download.hidden=value.kind!=='synced';note.textContent=busy()?`${value.job!.message} · ${value.job!.progress}%`:value.job&&value.job.state!=='succeeded'?value.job.message:value.kind==='plain'?'参考歌词 · 暂无同步时间':value.draft?'同步歌词 · 自动草稿，请试听核对':'同步歌词';
    if(value.job?.state==='succeeded')note.textContent=value.job.message;
+   if(value.canGenerate&&!value.available&&value.unavailableReason)note.textContent=value.unavailableReason;
    const next=JSON.stringify([value.kind,value.reference,value.lines]);
    if(next!==signature){
     signature=next;body.replaceChildren();last=-2;

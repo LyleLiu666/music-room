@@ -1,0 +1,182 @@
+{
+  "date": "2026-10-21",
+  "model": "@cf/qwen/qwen3.8-27b",
+  "status": "installed for future lyric generation; existing saved lyrics preserved",
+  "pipeline": [
+    "local ASR subprocess exits",
+    "Cloudflare two-round reference mapping",
+    "only agreeing source references replace ASR words; other phrases remain marked for listening",
+    "local forced alignment subprocess consumes reviewed text"
+  ],
+  "modelParameters": {
+    "stream": false,
+    "temperature": 0,
+    "chat_template_kwargs": {
+      "enable_thinking": false,
+      "preserve_thinking": false
+    },
+    "response_format": {
+      "type": "json_object"
+    },
+    "outputLimit": "bounded max_completion_tokens derived from phrase count"
+  },
+  "liveApiVerification": {
+    "inputMishearings": [
+      "夜三点的起面粉",
+      "夜三点顾七面饭"
+    ],
+    "correctedOccurrences": 2,
+    "result": {
+      "chunks": [
+        {
+          "start": 0,
+          "end": 30,
+          "text": "把周末铺在湖边。夜三点的起面粉。你追着帽子跑一圈。把周末铺在湖边。夜三点顾七面饭。你追着帽子跑一圈",
+          "rawText": "把周末铺在湖边。夜三点的起面粉。你追着帽子跑一圈。把周末铺在湖边。夜三点顾七面饭。你追着帽子跑一圈",
+          "referenceContext": "把周末铺在湖边\n野餐垫鼓起一面帆\n你追着帽子跑一圈",
+          "parts": [
+            "把周末铺在湖边",
+            "野餐垫鼓起一面帆",
+            "你追着帽子跑一圈",
+            "把周末铺在湖边",
+            "野餐垫鼓起一面帆",
+            "你追着帽子跑一圈"
+          ],
+          "review": {
+            "confirmedGroups": 6,
+            "needsReview": 0,
+            "unconfirmed": []
+          }
+        }
+      ],
+      "summary": {
+        "model": "@cf/qwen/qwen3.8-27b",
+        "confirmedGroups": 6,
+        "needsReview": 0
+      }
+    },
+    "returnedRequests": [
+      {
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 392,
+          "completion_tokens": 307,
+          "total_tokens": 699,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "neurons": 105.34545135498047
+        }
+      },
+      {
+        "finish": "stop",
+        "usage": {
+          "prompt_tokens": 777,
+          "completion_tokens": 307,
+          "total_tokens": 1084,
+          "prompt_tokens_details": {
+            "cached_tokens": 0
+          },
+          "neurons": 121.09545135498047
+        }
+      }
+    ],
+    "limitations": [
+      "Initial thinking-mode reply was truncated and rejected.",
+      "An intervening connection failed; the valid first response was reused from cache for the successful second-round retry.",
+      "The additional new-mode unrelated-line live probe failed at transport and was not scored; disagreement preservation is covered by regression tests."
+    ]
+  },
+  "realLocalAudioVerification": {
+    "realAsrAndAlignmentPassed": true,
+    "reviewTransport": "replay of the actual two-round Cloudflare response, no additional inference charged",
+    "lines": [
+      {
+        "text": "把周末铺在湖边",
+        "start": 0.16,
+        "end": 2.56
+      },
+      {
+        "text": "野餐垫鼓起一面帆",
+        "start": 2.56,
+        "end": 4.4
+      },
+      {
+        "text": "你追着帽子跑一圈",
+        "start": 4.88,
+        "end": 6.88
+      }
+    ],
+    "duration": 7.2
+  },
+  "validation": {
+    "lyricServiceTests": {
+      "passed": 15,
+      "failed": 0
+    },
+    "pythonWorkerTests": {
+      "passed": 12,
+      "failed": 0
+    },
+    "productionPlayer": {
+      "passed": 1,
+      "failed": 0
+    },
+    "typeCheck": "passed",
+    "standaloneBuild": "passed",
+    "fullServiceTests": {
+      "passed": 298,
+      "failed": 2,
+      "environmentBlockers": [
+        {
+          "test": "official MCP exposes managed install/start/stop and strict generation contracts",
+          "diskRequirementGiB": 30,
+          "reserveGiB": 2,
+          "code": "INSUFFICIENT_DISK"
+        },
+        {
+          "test": "conversion waits for reference cleanup, and new speech queues without deadlock",
+          "diskRequirementGiB": 6,
+          "reserveGiB": 2,
+          "code": "INSUFFICIENT_DISK"
+        }
+      ],
+      "availableDiskApproxGiB": 5.7
+    }
+  },
+  "budget": {
+    "dailyLimitNeurons": 9500,
+    "reset": "00:00 UTC / 08:00 Asia/Shanghai",
+    "chargedAndUnknownRequestsReservedLocally": true,
+    "scope": "local Music Room counter; other applications account usage is not known",
+    "noPaidPlanUpgradeOrCreditPurchase": true
+  },
+  "installation": {
+    "installedAt": "2026-10-21T14:55:04.353Z",
+    "commit": "47e7839412d2ea65d2a68f6c2e05547671368eda",
+    "workingTreeChanges": true,
+    "executable": "/Users/liu_y/Applications/MusicRoom/music-room",
+    "pid": 28367,
+    "url": "http://127.0.0.1:5174",
+    "backup": "/Users/liu_y/Applications/MusicRoom/backups/lyrics-qwen38-cloudflare-1792594501725",
+    "binarySha256": "46a4f0a34e439b9612195189e3bfdadabca75b85ea0ce35eda090bb0e0a27b6f",
+    "pendingRestart": false,
+    "change": "Cloudflare Qwen3.8-27B two-round source review between local ASR and local alignment; agreement required for replacements",
+    "validation": {
+      "standaloneBinary": true,
+      "httpHealthy": true,
+      "background": true,
+      "savedVersionsPreserved": true,
+      "confirmedCorrectionsPreserved": true,
+      "canonicalOccurrences": 3,
+      "embeddedWorkerVerified": true,
+      "liveCloudflareTwoRoundCoreCorrection": true,
+      "realAsrAndAlignmentWithRecordedReview": true
+    }
+  },
+  "installedHttpVerification": {
+    "available": true,
+    "canonicalOccurrences": 3,
+    "savedLyricsNotRegenerated": true
+  }
+}

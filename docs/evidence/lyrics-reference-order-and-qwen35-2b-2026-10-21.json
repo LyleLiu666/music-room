@@ -1,0 +1,112 @@
+{
+  "date": "2026-10-21",
+  "versionId": "version-055f4aa4-4aa1-483f-81e0-069d6c88823c",
+  "audioSha256": "f052a8ca79013b2e9fd9da99778a8456ec2b517aa20c52f5b3833302e1d0e4ad",
+  "confirmedCorrection": {
+    "canonical": "野餐垫鼓起一面帆",
+    "correctedLines": [
+      13,
+      48
+    ],
+    "starts": [
+      64.96,
+      188.72
+    ],
+    "canonicalOccurrences": 3,
+    "timingChanged": false,
+    "oldDraftPreserved": true,
+    "httpAndLrcVerified": true
+  },
+  "orderedRecall": {
+    "query": "把周末铺在湖边。夜三点的起面粉。你追着帽子跑一圈",
+    "before": "你追着帽子跑一圈\n我喊慢一点 慢一点\n把周末铺在湖边",
+    "after": "把周末铺在湖边\n野餐垫鼓起一面帆\n你追着帽子跑一圈",
+    "realChunkCount": 7,
+    "realRecallSeconds": 0.186,
+    "contexts": [
+      "周六的阳光爬上窗沿\n你把帐篷绑在车后架\n两瓶汽水在车筐里晃",
+      "车铃一响 我们出发\n穿过两排高高的树\n树影从鞋尖往后溜\n你说九十年代的人\n骑着单车就能吹一下午风\n绕过最后一个弯\n湖面一下亮在眼前\n你指着树荫旁的草地\n说今晚就住在这边",
+      "把周末铺在湖边\n野餐垫鼓起一面帆\n你追着帽子跑一圈\n我喊慢一点 慢一点\n把周末铺在湖边\n让水光跳上我们的脸\n等太阳在湖面打个盹\n再把好天气带回家\n午饭刚吃到一半",
+      "风就替我们翻书页\n你说唐朝的那些官员\n也爱去乐游原转转\n我说欧阳修到醉翁亭\n想来也会多坐一会儿\n我们举汽水碰个杯\n泡沫沾上你的指尖\n湖边的小船晃晃悠悠",
+      "你脱了鞋踩进浅滩\n一圈圈水纹追着脚踝\n我们忘了看几点\n把周末铺在湖边\n野餐垫鼓起一面帆\n你追着帽子跑一圈\n我喊慢一点 慢一点\n把周末铺在湖边\n让水光跳上我们的脸\n等太阳在湖面打个盹\n再把好天气带回家",
+      "夜里帐篷亮起小灯\n湿鞋并排靠在门边\n翻过那么多年的故事\n人还是会为一阵风出门",
+      "把周末铺在湖边\n野餐垫鼓起一面帆\n你追着帽子跑一圈\n我喊慢一点 慢一点\n把周末铺在湖边\n旧书翻到今天这一篇\n等清晨的风吹过湖面\n再把好天气带回家"
+    ],
+    "asrRerun": {
+      "2": {
+        "text": "把周末铺在湖边，夜三点的起面粉。你追着帽子跑一圈，我喊慢一点，慢一点。不在湖面打个盹，再把好天气带回家。问太阳在湖面打个盹，再把好天气带回家。午饭刚吃到一半。",
+        "original": "把周末铺在湖边，夜三点的起面粉。你追着帽子跑一圈，我喊慢一点，慢一点。不在乎面打的，再把好天气带回家。问太阳在湖面打的，再把好天气带回家。午饭刚吃到一半。"
+      },
+      "6": {
+        "text": "把周末铺在湖边，夜三点鼓起面帆。你追着帽子跑一圈，我喊慢一点，慢一点。把周末铺在湖边。旧书翻到今天这一篇，等清晨的风吹过湖面，再把好天气带回家。呜。",
+        "original": "把周末铺在湖边，夜三点顾七面饭。你追着帽子跑一圈，我喊慢一点慢一点。把周末煮简单。这书翻到今天这一篇，等清晨的风吹过湖面。再把好天气带回家。"
+      }
+    },
+    "asrRerunConclusion": "Context retrieval is fixed, but ASR still mishears the reported line; the two saved lyric edits are explicit reference corrections, not proof that future automatic transcription is fixed."
+  },
+  "reviewTrial": {
+    "model": "Qwen3.5-2B",
+    "calls": "independent single-turn requests; no conversation history",
+    "backends": [
+      "ONNX Q4 / Transformers.js 4.3.1 / ONNX Runtime 1.30.0 / native WebGPU",
+      "Ollama 0.40.1 / Q8_0"
+    ],
+    "accepted": false,
+    "productionIntegration": false,
+    "reasons": [
+      "Matching the wrong source line",
+      "Rejecting intended homophone corrections",
+      "Accepting an unrelated new line as an existing line",
+      "Invalid or incomplete structured output in batch trials"
+    ],
+    "onnxTextPositionProbe": {
+      "inputLength": 3,
+      "expectedDelta": 0,
+      "observedDelta": 6,
+      "expectedNextPosition": 3,
+      "observedNextPosition": 9,
+      "compatibilityFixTested": true,
+      "fixDidNotResolveSemanticFailures": true
+    },
+    "selectedIntegrationDirection": "TypeScript, independent single-turn calls, ONNX preferred, Ollama fallback; Go Agent SDK not adopted"
+  },
+  "validation": {
+    "workerTests": {
+      "passed": 10
+    },
+    "lyricServiceTests": {
+      "passed": 8
+    },
+    "productionPlayerIntegration": {
+      "passed": 1
+    },
+    "buildAndStandaloneBinary": "passed",
+    "fullServiceSuite": {
+      "passed": 293,
+      "failed": 1,
+      "failedTest": "src/server/yue2.test.ts / official MCP exposes managed install/start/stop and strict generation contracts",
+      "cause": "Installation guard requires 30 GiB plus 2 GiB reserve; available disk space was already below the requirement before these changes."
+    }
+  },
+  "installation": {
+    "installedAt": "2026-10-21T10:02:34.086Z",
+    "commit": "47e7839412d2ea65d2a68f6c2e05547671368eda",
+    "workingTreeChanges": true,
+    "executable": "/Users/liu_y/Applications/MusicRoom/music-room",
+    "pid": 89992,
+    "url": "http://127.0.0.1:5174",
+    "backup": "/Users/liu_y/Applications/MusicRoom/backups/lyrics-ordered-context-1792576951796",
+    "binarySha256": "d493cd8f1351eae90b532eb45ab50909a5c06ecfc0ad2d754c90f859b4925603",
+    "pendingRestart": false,
+    "change": "Ordered lyric reference retrieval; Qwen3.5-2B review remains experimental",
+    "validation": {
+      "standaloneBinary": true,
+      "httpHealthy": true,
+      "background": true,
+      "savedVersionsPreserved": true,
+      "confirmedCorrectionsPreserved": true,
+      "canonicalOccurrences": 3,
+      "embeddedWorkerVerified": true
+    }
+  }
+}

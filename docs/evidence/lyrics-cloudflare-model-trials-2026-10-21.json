@@ -1,0 +1,1709 @@
+{
+  "date": "2026-10-21",
+  "scope": "Cloudflare Workers AI lyric-reference mapping experiments; production lyric generation was not changed.",
+  "fixtureFile": "scripts/experiments/cloudflare-lyrics-review.fixtures.json",
+  "fixtures": {
+    "focused": 6,
+    "realAsrPassages": 7,
+    "additionalPassageControls": 2,
+    "sourceVersion": "version-055f4aa4-4aa1-483f-81e0-069d6c88823c",
+    "notes": [
+      "One ambiguous fragment (passage-2 heard id 5) has no asserted semantic label.",
+      "Equivalent repeated source text is accepted without claiming an exact chorus occurrence.",
+      "Labels test mapping back to input lyrics; they are not independent proof of every word actually sung.",
+      "Legal many-line groups are scored together. All runs were rescored with the same corrected evaluator."
+    ]
+  },
+  "transport": "Non-streaming native Workers AI REST. Independent messages for baseline; previous assistant draft plus a gold-free review request for two-turn tests.",
+  "goldLabelsSentAsFeedback": false,
+  "runs": [
+    {
+      "mode": "single-turn",
+      "model": "@cf/qwen/qwen3-30b-a3b-fp8",
+      "rawReport": "/Users/liu_y/code/music/test-results/cloudflare-lyrics-review/2026-10-21T10-26-06.572Z/report.json",
+      "startedAt": "2026-10-21T10:26:06.576Z",
+      "total": 13,
+      "passed": 3,
+      "common13": {
+        "completed": 13,
+        "passed": 3
+      },
+      "failures": [],
+      "trials": [
+        {
+          "id": "focused-0",
+          "seconds": 1.353,
+          "content": "\n\n夜三点的起面粉",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 252,
+            "completion_tokens": 10,
+            "total_tokens": 262,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 1.4701422452926636
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Output differs from the exact expected source fragment."
+            ]
+          }
+        },
+        {
+          "id": "focused-1",
+          "seconds": 0.429,
+          "content": "\n\n夜三点吹七面饭",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 254,
+            "completion_tokens": 11,
+            "total_tokens": 265,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 1.5098661184310913
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Output differs from the exact expected source fragment."
+            ]
+          }
+        },
+        {
+          "id": "focused-2",
+          "seconds": 1.205,
+          "content": "\n\n我喊慢一点",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 240,
+            "completion_tokens": 9,
+            "total_tokens": 249,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 1.3841724395751953
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-3",
+          "seconds": 0.816,
+          "content": "\n\n你说九十年代的人；骑着单车就能吹一下午风",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 273,
+            "completion_tokens": 19,
+            "total_tokens": 292,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 1.8415313959121704
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Output differs from the exact expected source fragment."
+            ]
+          }
+        },
+        {
+          "id": "focused-4",
+          "seconds": 1.084,
+          "content": "\n\n周六的阳光爬上窗沿",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 243,
+            "completion_tokens": 11,
+            "total_tokens": 254,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 1.4589958190917969
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-5",
+          "seconds": 0.516,
+          "content": "\n\n<unmatched>",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 252,
+            "completion_tokens": 9,
+            "total_tokens": 261,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 1.4396674633026123
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-0",
+          "seconds": 1.024,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":0}]},\"matched\",\"matches\":[{\"line\":1}]},\"matched\",\"matches\":[{\"line\":2}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1450,
+            "completion_tokens": 44,
+            "total_tokens": 1494,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 8.046533584594727
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Expected ',' or ']' after array element in JSON at position 86 (line 3 column 85)"
+            ]
+          }
+        },
+        {
+          "id": "passage-1",
+          "seconds": 1.981,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":3}]},\"matched\",\"matches\":[{\"line\":4}]},\"matched\",\"matches\":[{\"line\":5}]},\"matched\",\"matches\":[{\"line\":6}]},\"matched\",\"matches\":[{\"line\":7}]},\"matched\",\"matches\":[{\"line\":8}]},\"matched\",\"matches\":[{\"line\":9}]},\"matched\",\"matches\":[{\"line\":10}]},\"matched\",\"matches\":[{\"line\":11}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1524,
+            "completion_tokens": 106,
+            "total_tokens": 1630,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 10.27818775177002
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Expected ',' or ']' after array element in JSON at position 86 (line 3 column 85)"
+            ]
+          }
+        },
+        {
+          "id": "passage-2",
+          "seconds": 0.994,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":12}]},\"matched\":[{\"line\":32}]}],\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":12}]},\"matched\":[{\"line\":32}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1526,
+            "completion_tokens": 62,
+            "total_tokens": 1588,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 8.94654655456543
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Expected ',' or ']' after array element in JSON at position 77 (line 3 column 76)"
+            ]
+          }
+        },
+        {
+          "id": "passage-3",
+          "seconds": 1.463,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":21}]},\"matched\",\"matches\":[{\"line\":22}]},\"matched\",\"matches\":[{\"line\":24}]},\"matched\",\"matches\":[{\"line\":26}]},\"matched\",\"matches\":[{\"line\":27}]},\"matched\",\"matches\":[{\"line\":28}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1500,
+            "completion_tokens": 80,
+            "total_tokens": 1580,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 9.374853134155273
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Expected ',' or ']' after array element in JSON at position 87 (line 3 column 86)"
+            ]
+          }
+        },
+        {
+          "id": "passage-4",
+          "seconds": 3.655,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":29}]},\"matched\",\"matches\":[{\"line\":30}]}],\"matched\",\"matches\":[{\"line\":31}]}],\"matched\",\"matches\":[{\"line\":32}]}],\"matched\",\"matches\":[{\"line\":33}]}],\"matched\",\"matches\":[{\"line\":34}]}],\"matched\",\"matches\":[{\"line\":35}]}],\"matched\",\"matches\":[{\"line\":35}]}],\"matched\",\"matches\":[{\"line\":36}]}],\"matched\",\"matches\":[{\"line\":37}]}],\"matched\",\"matches\":[{\"line\":38}]}],\"matched\",\"matches\":[{\"line\":39}]}],\"matched\",\"matches\":[{\"line\":40}]}],\"matched\",\"matches\":[{\"line\":41}]}],\"matched\",\"matches\":[{\"line\":42}]}],\"matched\",\"matches\":[{\"line\":43}]}],\"matched\",\"matches\":[{\"line\":44}]}],\"matched\",\"matches\":[{\"line\":45}]}],\"matched\",\"matches\":[{\"line\":46}]}],\"matched\",\"matches\":[{\"line\":47}]}],\"matched\",\"matches\":[{\"line\":47}]}],\"matched\",\"matches\":[{\"line\":48}]}],\"matched\",\"matches\":[{\"line\":49}]}],\"matched\",\"matches\":[{\"line\":50}]}],\"matched\",\"matches\":[{\"line\":51}]}],\"matched\",\"matches\":[{\"line\":52}]}],\"matched\",\"matches\":[{\"line\":53}]}],\"matched\",\"matches\":[{\"line\":54}]}],\"matched\",\"matches\":[{\"line\":55}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1602,
+            "completion_tokens": 333,
+            "total_tokens": 1935,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 17.556678771972656
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Expected ',' or ']' after array element in JSON at position 87 (line 3 column 86)"
+            ]
+          }
+        },
+        {
+          "id": "passage-5",
+          "seconds": 1.05,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":40}]},\"matched\",\"matches\":[{\"line\":41}]},\"matched\",\"matches\":[{\"line\":42}]},\"matched\",\"matches\":[{\"line\":43}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1459,
+            "completion_tokens": 58,
+            "total_tokens": 1517,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 8.514801025390625
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Expected ',' or ']' after array element in JSON at position 87 (line 3 column 86)"
+            ]
+          }
+        },
+        {
+          "id": "passage-6",
+          "seconds": 1.716,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":12}]},\"matched\",\"matches\":[{\"line\":32}]},\"matched\",\"matches\":[{\"line\":36}]},\"matched\",\"matches\":[{\"line\":37}]},\"matched\",\"matches\":[{\"line\":38}]},\"matched\",\"matches\":[{\"line\":39}]},\"matched\",\"matches\":[{\"line\":49}]},\"matched\",\"matches\":[{\"line\":50}]},\"matched\",\"matches\":[{\"line\":51}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1510,
+            "completion_tokens": 113,
+            "total_tokens": 1623,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 10.426767349243164
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Expected ',' or ']' after array element in JSON at position 87 (line 3 column 86)"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "mode": "single-turn",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "rawReport": "/Users/liu_y/code/music/test-results/cloudflare-lyrics-review/2026-10-21T10-26-06.572Z/report.json",
+      "startedAt": "2026-10-21T10:26:06.576Z",
+      "total": 13,
+      "passed": 11,
+      "common13": {
+        "completed": 13,
+        "passed": 11
+      },
+      "failures": [],
+      "trials": [
+        {
+          "id": "focused-0",
+          "seconds": 5.799,
+          "content": "\n\n野餐垫鼓起一面帆",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 263,
+            "completion_tokens": 247,
+            "total_tokens": 510,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 82.61363220214844
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-1",
+          "seconds": 11.864,
+          "content": "\n\n野餐垫鼓起一面帆",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 265,
+            "completion_tokens": 192,
+            "total_tokens": 457,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 66.6954574584961
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-2",
+          "seconds": 3.759,
+          "content": "\n\n我喊慢一点",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 254,
+            "completion_tokens": 139,
+            "total_tokens": 393,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 50.8272705078125
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-3",
+          "seconds": 8.643,
+          "content": "\n\n你说九十年代的人骑着单车就能吹一下午风",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 282,
+            "completion_tokens": 138,
+            "total_tokens": 420,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 51.68181610107422
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-4",
+          "seconds": 6.429,
+          "content": "\n\n周六的阳光爬上窗沿",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 255,
+            "completion_tokens": 91,
+            "total_tokens": 346,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 36.904544830322266
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-5",
+          "seconds": 24.091,
+          "content": "\n\n野餐垫鼓起一面帆",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 263,
+            "completion_tokens": 530,
+            "total_tokens": 793,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 164.94090270996094
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Output differs from the exact expected source fragment."
+            ]
+          }
+        },
+        {
+          "id": "passage-0",
+          "seconds": 11.067,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":0}]},{\"ids\":[1],\"status\":\"matched\",\"matches\":[{\"line\":1}]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":2}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1391,
+            "completion_tokens": 203,
+            "total_tokens": 1594,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 115.95909118652344
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-1",
+          "seconds": 38.914,
+          "content": "\n\n{\"groups\":[{\"ids\":[0,1],\"status\":\"matched\",\"matches\":[{\"line\":3}]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":4}]},{\"ids\":[3],\"status\":\"matched\",\"matches\":[{\"line\":5}]},{\"ids\":[4],\"status\":\"matched\",\"matches\":[{\"line\":6},{\"line\":7}]},{\"ids\":[5],\"status\":\"matched\",\"matches\":[{\"line\":8}]},{\"ids\":[6],\"status\":\"matched\",\"matches\":[{\"line\":9}]},{\"ids\":[7],\"status\":\"matched\",\"matches\":[{\"line\":10}]},{\"ids\":[8],\"status\":\"matched\",\"matches\":[{\"line\":11}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1462,
+            "completion_tokens": 539,
+            "total_tokens": 2001,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 216.60906982421875
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-2",
+          "seconds": 39.011,
+          "content": "",
+          "finishReason": "length",
+          "usage": {
+            "prompt_tokens": 1461,
+            "completion_tokens": 2048,
+            "total_tokens": 3509,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 655.5499877929688
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Unexpected end of JSON input"
+            ]
+          }
+        },
+        {
+          "id": "passage-3",
+          "seconds": 9.557,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":21}]},{\"ids\":[1],\"status\":\"matched\",\"matches\":[{\"line\":22},{\"line\":23}]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":24},{\"line\":25}]},{\"ids\":[3],\"status\":\"matched\",\"matches\":[{\"line\":26}]},{\"ids\":[4],\"status\":\"matched\",\"matches\":[{\"line\":27}]},{\"ids\":[5],\"status\":\"matched\",\"matches\":[{\"line\":28}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1438,
+            "completion_tokens": 437,
+            "total_tokens": 1875,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 185.95452880859375
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-4",
+          "seconds": 31.279,
+          "content": "\n\n{\"groups\":[{\"ids\":[0,1],\"status\":\"matched\",\"matches\":[{\"line\":29}]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":30}]},{\"ids\":[3],\"status\":\"matched\",\"matches\":[{\"line\":31}]},{\"ids\":[4],\"status\":\"matched\",\"matches\":[{\"line\":32}]},{\"ids\":[5],\"status\":\"matched\",\"matches\":[{\"line\":33}]},{\"ids\":[6],\"status\":\"matched\",\"matches\":[{\"line\":34}]},{\"ids\":[7,8],\"status\":\"matched\",\"matches\":[{\"line\":35}]},{\"ids\":[9],\"status\":\"matched\",\"matches\":[{\"line\":36}]},{\"ids\":[10],\"status\":\"matched\",\"matches\":[{\"line\":37}]},{\"ids\":[11],\"status\":\"matched\",\"matches\":[{\"line\":38}]},{\"ids\":[12],\"status\":\"matched\",\"matches\":[{\"line\":39}]},{\"ids\":[13],\"status\":\"matched\",\"matches\":[{\"line\":38}]},{\"ids\":[14],\"status\":\"matched\",\"matches\":[{\"line\":39}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1531,
+            "completion_tokens": 926,
+            "total_tokens": 2457,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 332.01361083984375
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-5",
+          "seconds": 5.861,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":40}]},{\"ids\":[1],\"status\":\"matched\",\"matches\":[{\"line\":41}]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":42}]},{\"ids\":[3],\"status\":\"matched\",\"matches\":[{\"line\":43}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1401,
+            "completion_tokens": 245,
+            "total_tokens": 1646,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 128.58636474609375
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-6",
+          "seconds": 26.786,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":44}]},{\"ids\":[1],\"status\":\"matched\",\"matches\":[{\"line\":45}]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":46}]},{\"ids\":[3],\"status\":\"matched\",\"matches\":[{\"line\":47}]},{\"ids\":[4],\"status\":\"matched\",\"matches\":[{\"line\":48}]},{\"ids\":[5],\"status\":\"matched\",\"matches\":[{\"line\":49}]},{\"ids\":[6],\"status\":\"matched\",\"matches\":[{\"line\":50}]},{\"ids\":[7],\"status\":\"matched\",\"matches\":[{\"line\":51}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1448,
+            "completion_tokens": 1036,
+            "total_tokens": 2484,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 360.6181640625
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        }
+      ]
+    },
+    {
+      "mode": "two-turn-partial",
+      "model": "@cf/qwen/qwen3.8-27b",
+      "rawReport": "/Users/liu_y/code/music/test-results/cloudflare-lyrics-review/2026-10-21T10-33-15.844Z-two-turn/report.json",
+      "startedAt": "2026-10-21T10:33:15.844Z",
+      "total": 8,
+      "passed": 8,
+      "common13": {
+        "completed": 8,
+        "passed": 8
+      },
+      "failures": [
+        {
+          "id": "passage-2",
+          "model": "@cf/qwen/qwen3.8-27b",
+          "round": 2,
+          "error": "Client request timed out after 120 seconds. No final response received.",
+          "qualityResult": "indeterminate",
+          "reservedNeurons": 2000,
+          "reservationBasis": "Conservative upper allowance for the unresolved 4096-token request; not claimed as measured usage."
+        }
+      ],
+      "trials": [
+        {
+          "id": "focused-0",
+          "seconds": 15.603,
+          "content": "\n\n野餐垫鼓起一面帆",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 394,
+            "completion_tokens": 396,
+            "total_tokens": 790,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 131.31817626953125
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-1",
+          "seconds": 16.514,
+          "content": "\n\n野餐垫鼓起一面帆",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 396,
+            "completion_tokens": 557,
+            "total_tokens": 953,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 178.23635864257812
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-2",
+          "seconds": 11.179,
+          "content": "\n\n我喊慢一点",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 384,
+            "completion_tokens": 177,
+            "total_tokens": 561,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 67.19999694824219
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-3",
+          "seconds": 5.118,
+          "content": "\n\n你说九十年代的人骑着单车就能吹一下午风",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 419,
+            "completion_tokens": 210,
+            "total_tokens": 629,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 78.23181915283203
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-4",
+          "seconds": 4.017,
+          "content": "\n\n周六的阳光爬上窗沿",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 386,
+            "completion_tokens": 75,
+            "total_tokens": 461,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 37.609092712402344
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-5",
+          "seconds": 7.826,
+          "content": "\n\n<unmatched>",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 394,
+            "completion_tokens": 268,
+            "total_tokens": 662,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 94.0818099975586
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-0",
+          "seconds": 56.111,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":0}]},{\"ids\":[1],\"status\":\"matched\",\"matches\":[{\"line\":1}]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":2}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1566,
+            "completion_tokens": 275,
+            "total_tokens": 1841,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 144.06362915039062
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-1",
+          "seconds": 18.357,
+          "content": "\n\n{\"groups\":[{\"ids\":[0,1],\"status\":\"matched\",\"matches\":[{\"line\":3}]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":4}]},{\"ids\":[3],\"status\":\"matched\",\"matches\":[{\"line\":5}]},{\"ids\":[4],\"status\":\"matched\",\"matches\":[{\"line\":6},{\"line\":7}]},{\"ids\":[5],\"status\":\"matched\",\"matches\":[{\"line\":8}]},{\"ids\":[6],\"status\":\"matched\",\"matches\":[{\"line\":9}]},{\"ids\":[7],\"status\":\"matched\",\"matches\":[{\"line\":10}]},{\"ids\":[8],\"status\":\"matched\",\"matches\":[{\"line\":11}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1720,
+            "completion_tokens": 697,
+            "total_tokens": 2417,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 273.12725830078125
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        }
+      ]
+    },
+    {
+      "mode": "single-turn",
+      "model": "@cf/openai/gpt-oss-120b",
+      "rawReport": "/Users/liu_y/code/music/test-results/cloudflare-lyrics-review/2026-10-21T10-37-31.148Z/report.json",
+      "startedAt": "2026-10-21T10:37:31.151Z",
+      "total": 15,
+      "passed": 10,
+      "common13": {
+        "completed": 13,
+        "passed": 9
+      },
+      "failures": [],
+      "trials": [
+        {
+          "id": "focused-0",
+          "seconds": 4.265,
+          "content": "野餐垫鼓起一面帆",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 343,
+            "completion_tokens": 132,
+            "total_tokens": 475,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 19.913570404052734
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-1",
+          "seconds": 3.431,
+          "content": "野餐垫鼓起一面帆",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 343,
+            "completion_tokens": 163,
+            "total_tokens": 506,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 22.027206420898438
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-2",
+          "seconds": 1.822,
+          "content": "我喊慢一点",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 321,
+            "completion_tokens": 53,
+            "total_tokens": 374,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 13.8272123336792
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-3",
+          "seconds": 1.507,
+          "content": "你说九十年代的人骑着单车就能吹一下午风",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 368,
+            "completion_tokens": 208,
+            "total_tokens": 576,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 25.890838623046875
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-4",
+          "seconds": 0.544,
+          "content": "周六的阳光爬上窗沿",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 337,
+            "completion_tokens": 33,
+            "total_tokens": 370,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 12.972664833068848
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-5",
+          "seconds": 1.791,
+          "content": "<unmatched>",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 345,
+            "completion_tokens": 108,
+            "total_tokens": 453,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 18.340843200683594
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-0",
+          "seconds": 2.871,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 0}\n      ]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 1}\n      ]\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 2}\n      ]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1575,
+            "completion_tokens": 132,
+            "total_tokens": 1707,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 59.113346099853516
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-1",
+          "seconds": 9.447,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0, 1],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 3 }]\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 4 }]\n    },\n    {\n      \"ids\": [3],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 5 }]\n    },\n    {\n      \"ids\": [4],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 7 }]\n    },\n    {\n      \"ids\": [5],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 8 }]\n    },\n    {\n      \"ids\": [6],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 9 }]\n    },\n    {\n      \"ids\": [7],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 10 }]\n    },\n    {\n      \"ids\": [8],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 11 }]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1656,
+            "completion_tokens": 462,
+            "total_tokens": 2118,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 84.19059753417969
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 4: wrong reference mapping."
+            ]
+          }
+        },
+        {
+          "id": "passage-2",
+          "seconds": 6.747,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 12 }]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"new\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 14 }]\n    },\n    {\n      \"ids\": [3],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 15 }]\n    },\n    {\n      \"ids\": [4],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 15, \"text\": \"慢一点\" }]\n    },\n    {\n      \"ids\": [5],\n      \"status\": \"new\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [6],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 39 }]\n    },\n    {\n      \"ids\": [7],\n      \"status\": \"uncertain\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [8],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 51 }]\n    },\n    {\n      \"ids\": [9],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 20 }]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1655,
+            "completion_tokens": 660,
+            "total_tokens": 2315,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 97.65876770019531
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 1: wrong reference mapping.",
+              "Heard 3,4: wrong reference mapping.",
+              "Heard 7: wrong reference mapping."
+            ]
+          }
+        },
+        {
+          "id": "passage-3",
+          "seconds": 8.429,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 21}\n      ]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 22},\n        {\"line\": 23}\n      ]\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 24},\n        {\"line\": 25}\n      ]\n    },\n    {\n      \"ids\": [3],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 26}\n      ]\n    },\n    {\n      \"ids\": [4],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 27}\n      ]\n    },\n    {\n      \"ids\": [5],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 28}\n      ]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1630,
+            "completion_tokens": 388,
+            "total_tokens": 2018,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 78.31787872314453
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-4",
+          "seconds": 22.121,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0, 1],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 29 }]\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 30 }]\n    },\n    {\n      \"ids\": [3],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 31 }]\n    },\n    {\n      \"ids\": [4],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 32 }]\n    },\n    {\n      \"ids\": [5],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 33 }]\n    },\n    {\n      \"ids\": [6],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 34 }]\n    },\n    {\n      \"ids\": [7, 8],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 35 }]\n    },\n    {\n      \"ids\": [9],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 36 }]\n    },\n    {\n      \"ids\": [10],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 37 }]\n    },\n    {\n      \"ids\": [11],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 38 }]\n    },\n    {\n      \"ids\": [12],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 39 }]\n    },\n    {\n      \"ids\": [13],\n      \"status\": \"new\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [14],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 39 }]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1728,
+            "completion_tokens": 1065,
+            "total_tokens": 2793,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 127.59512329101562
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 13: wrong reference mapping."
+            ]
+          }
+        },
+        {
+          "id": "passage-5",
+          "seconds": 2.981,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 40 }]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 41 }]\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 42 }]\n    },\n    {\n      \"ids\": [3],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 43 }]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1583,
+            "completion_tokens": 155,
+            "total_tokens": 1738,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 60.936073303222656
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-6",
+          "seconds": 10.219,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 12 }]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"new\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 14 }]\n    },\n    {\n      \"ids\": [3],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 15 }]\n    },\n    {\n      \"ids\": [4],\n      \"status\": \"new\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [5],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 49 }]\n    },\n    {\n      \"ids\": [6],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 50 }]\n    },\n    {\n      \"ids\": [7],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 39 }]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1636,
+            "completion_tokens": 525,
+            "total_tokens": 2161,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 87.84968566894531
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 1: wrong reference mapping.",
+              "Heard 4: wrong reference mapping."
+            ]
+          }
+        },
+        {
+          "id": "control-negative-passage",
+          "seconds": 5.622,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 12}\n      ]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"new\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 14}\n      ]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1567,
+            "completion_tokens": 196,
+            "total_tokens": 1763,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 63.222434997558594
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "control-half-passage",
+          "seconds": 3.811,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 14}\n      ]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 15}\n      ]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1549,
+            "completion_tokens": 166,
+            "total_tokens": 1715,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 60.60425567626953
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 1: wrong reference mapping."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "mode": "single-turn",
+      "model": "@cf/nvidia/nemotron-3-120b-a12b",
+      "rawReport": "/Users/liu_y/code/music/test-results/cloudflare-lyrics-review/2026-10-21T10-39-04.236Z/report.json",
+      "startedAt": "2026-10-21T10:39:04.241Z",
+      "total": 15,
+      "passed": 10,
+      "common13": {
+        "completed": 13,
+        "passed": 8
+      },
+      "failures": [],
+      "trials": [
+        {
+          "id": "focused-0",
+          "seconds": 29.495,
+          "content": "\n野餐垫鼓起一面帆",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 346,
+            "completion_tokens": 91,
+            "total_tokens": 437,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 27.946
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-1",
+          "seconds": 1.604,
+          "content": "\n野餐垫鼓起一面帆",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 344,
+            "completion_tokens": 93,
+            "total_tokens": 437,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 28.128
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-2",
+          "seconds": 0.679,
+          "content": "\n\n我喊慢一点",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 319,
+            "completion_tokens": 20,
+            "total_tokens": 339,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 17.075
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-3",
+          "seconds": 1.006,
+          "content": "\n你说九十年代的人；骑着单车就能吹一下午风",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 371,
+            "completion_tokens": 53,
+            "total_tokens": 424,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 23.903
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Output differs from the exact expected source fragment."
+            ]
+          }
+        },
+        {
+          "id": "focused-4",
+          "seconds": 0.831,
+          "content": "\n\n周六的阳光爬上窗沿",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 340,
+            "completion_tokens": 40,
+            "total_tokens": 380,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 20.74
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "focused-5",
+          "seconds": 1.355,
+          "content": "\n野餐垫鼓起一面帆",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 348,
+            "completion_tokens": 93,
+            "total_tokens": 441,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 28.308
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Output differs from the exact expected source fragment."
+            ]
+          }
+        },
+        {
+          "id": "passage-0",
+          "seconds": 2.031,
+          "content": "\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":0}]},{\"ids\":[1],\"status\":\"matched\",\"matches\":[{\"line\":1}]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":2}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1823,
+            "completion_tokens": 155,
+            "total_tokens": 1978,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 103.115
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-1",
+          "seconds": 5.014,
+          "content": "\n{\"groups\":[{\"ids\":[0,1],\"status\":\"matched\",\"matches\":[{\"line\":3}]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":4}]},{\"ids\":[3],\"status\":\"matched\",\"matches\":[{\"line\":5}]},{\"ids\":[4],\"status\":\"matched\",\"matches\":[{\"line\":6},{\"line\":7}]},{\"ids\":[5],\"status\":\"matched\",\"matches\":[{\"line\":8}]},{\"ids\":[6],\"status\":\"matched\",\"matches\":[{\"line\":9}]},{\"ids\":[7],\"status\":\"matched\",\"matches\":[{\"line\":10}]},{\"ids\":[8],\"status\":\"matched\",\"matches\":[{\"line\":11}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1914,
+            "completion_tokens": 583,
+            "total_tokens": 2497,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 165.418
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-2",
+          "seconds": 6.859,
+          "content": "\n\n{\n  \"groups\": [\n    {\"ids\": [0], \"status\": \"matched\", \"matches\": [{\"line\": 12}]},\n    {\"ids\": [1], \"status\": \"uncertain\", \"matches\": []},\n    {\"ids\": [2], \"status\": \"matched\", \"matches\": [{\"line\": 14}]},\n    {\"ids\": [3, 4], \"status\": \"matched\", \"matches\": [{\"line\": 15}]},\n    {\"ids\": [5], \"status\": \"uncertain\", \"matches\": []},\n    {\"ids\": [6], \"status\": \"matched\", \"matches\": [{\"line\": 19}]},\n    {\"ids\": [7], \"status\": \"uncertain\", \"matches\": []},\n    {\"ids\": [8], \"status\": \"matched\", \"matches\": [{\"line\": 19}]},\n    {\"ids\": [9], \"status\": \"matched\", \"matches\": [{\"line\": 20}]}\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1911,
+            "completion_tokens": 627,
+            "total_tokens": 2538,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 171.267
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 1: wrong reference mapping.",
+              "Heard 7: wrong reference mapping."
+            ]
+          }
+        },
+        {
+          "id": "passage-3",
+          "seconds": 4.274,
+          "content": "\n\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":21}]},{\"ids\":[1],\"status\":\"matched\",\"matches\":[{\"line\":22},{\"line\":23}]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":24},{\"line\":25}]},{\"ids\":[3],\"status\":\"matched\",\"matches\":[{\"line\":26}]},{\"ids\":[4],\"status\":\"matched\",\"matches\":[{\"line\":27}]},{\"ids\":[5],\"status\":\"matched\",\"matches\":[{\"line\":28}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1885,
+            "completion_tokens": 376,
+            "total_tokens": 2261,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 135.961
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-4",
+          "seconds": 8.711,
+          "content": "\n{\"groups\":[{\"ids\":[0,1],\"status\":\"matched\",\"matches\":[{\"line\":29}]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":30}]},{\"ids\":[3],\"status\":\"matched\",\"matches\":[{\"line\":31}]},{\"ids\":[4],\"status\":\"matched\",\"matches\":[{\"line\":32}]},{\"ids\":[5],\"status\":\"matched\",\"matches\":[{\"line\":33}]},{\"ids\":[6],\"status\":\"matched\",\"matches\":[{\"line\":34}]},{\"ids\":[7,8],\"status\":\"matched\",\"matches\":[{\"line\":35}]},{\"ids\":[9],\"status\":\"matched\",\"matches\":[{\"line\":36}]},{\"ids\":[10],\"status\":\"matched\",\"matches\":[{\"line\":37}]},{\"ids\":[11],\"status\":\"matched\",\"matches\":[{\"line\":38}]},{\"ids\":[12],\"status\":\"matched\",\"matches\":[{\"line\":39}]},{\"ids\":[13],\"status\":\"uncertain\",\"matches\":[]},{\"ids\":[14],\"status\":\"matched\",\"matches\":[{\"line\":39}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 2005,
+            "completion_tokens": 794,
+            "total_tokens": 2799,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 198.209
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 13: wrong reference mapping."
+            ]
+          }
+        },
+        {
+          "id": "passage-5",
+          "seconds": 1.844,
+          "content": "\n{\"groups\":[{\"ids\":[0,1,2,3],\"status\":\"matched\",\"matches\":[{\"line\":40},{\"line\":41},{\"line\":42},{\"line\":43}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1833,
+            "completion_tokens": 110,
+            "total_tokens": 1943,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 97.445
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-6",
+          "seconds": 7.552,
+          "content": "\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":12}]},{\"ids\":[1],\"status\":\"uncertain\",\"matches\":[]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":14}]},{\"ids\":[3],\"status\":\"matched\",\"matches\":[{\"line\":15}]},{\"ids\":[4],\"status\":\"uncertain\",\"matches\":[]},{\"ids\":[5],\"status\":\"matched\",\"matches\":[{\"line\":49}]},{\"ids\":[6],\"status\":\"matched\",\"matches\":[{\"line\":50}]},{\"ids\":[7],\"status\":\"matched\",\"matches\":[{\"line\":51}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1887,
+            "completion_tokens": 653,
+            "total_tokens": 2540,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 173.723
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 1: wrong reference mapping.",
+              "Heard 4: wrong reference mapping."
+            ]
+          }
+        },
+        {
+          "id": "control-negative-passage",
+          "seconds": 3.085,
+          "content": "\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":12}]},{\"ids\":[1],\"status\":\"new\",\"matches\":[]},{\"ids\":[2],\"status\":\"matched\",\"matches\":[{\"line\":14}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1813,
+            "completion_tokens": 266,
+            "total_tokens": 2079,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 117.761
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "control-half-passage",
+          "seconds": 3.211,
+          "content": "\n{\"groups\":[{\"ids\":[0],\"status\":\"matched\",\"matches\":[{\"line\":14}]},{\"ids\":[1],\"status\":\"matched\",\"matches\":[{\"line\":15,\"text\":\"我喊慢一点\"}]}]}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1792,
+            "completion_tokens": 204,
+            "total_tokens": 1996,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 108.384
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        }
+      ]
+    },
+    {
+      "mode": "two-turn-passages",
+      "model": "@cf/openai/gpt-oss-120b",
+      "rawReport": "/Users/liu_y/code/music/test-results/cloudflare-lyrics-review/2026-10-21T10-42-07.292Z-two-turn/report.json",
+      "startedAt": "2026-10-21T10:42:07.293Z",
+      "total": 9,
+      "passed": 4,
+      "common13": {
+        "completed": 7,
+        "passed": 3
+      },
+      "failures": [],
+      "trials": [
+        {
+          "id": "passage-0",
+          "seconds": 2.588,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 0}\n      ]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 1}\n      ]\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 2}\n      ]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1826,
+            "completion_tokens": 148,
+            "total_tokens": 1974,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 68.1905746459961
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-1",
+          "seconds": 8.426,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0, 1],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 3 }]\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 4 }]\n    },\n    {\n      \"ids\": [3],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 5 }]\n    },\n    {\n      \"ids\": [4],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 7 }]\n    },\n    {\n      \"ids\": [5],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 8 }]\n    },\n    {\n      \"ids\": [6],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 9 }]\n    },\n    {\n      \"ids\": [7],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 10 }]\n    },\n    {\n      \"ids\": [8],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 11 }]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 2046,
+            "completion_tokens": 429,
+            "total_tokens": 2475,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 94.34961700439453
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 4: wrong reference mapping."
+            ]
+          }
+        },
+        {
+          "id": "passage-2",
+          "seconds": 14.185,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 12 }]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"new\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 14 }]\n    },\n    {\n      \"ids\": [3],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 15 }]\n    },\n    {\n      \"ids\": [4],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 15, \"text\": \"慢一点\" }]\n    },\n    {\n      \"ids\": [5],\n      \"status\": \"new\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [6],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 39 }]\n    },\n    {\n      \"ids\": [7],\n      \"status\": \"uncertain\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [8],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 51 }]\n    },\n    {\n      \"ids\": [9],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 20 }]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 2091,
+            "completion_tokens": 714,
+            "total_tokens": 2805,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 115.21324157714844
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 1: wrong reference mapping.",
+              "Heard 3,4: wrong reference mapping.",
+              "Heard 7: wrong reference mapping."
+            ]
+          }
+        },
+        {
+          "id": "passage-3",
+          "seconds": 7.844,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 21}\n      ]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 22},\n        {\"line\": 23}\n      ]\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 24},\n        {\"line\": 25}\n      ]\n    },\n    {\n      \"ids\": [3],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 26}\n      ]\n    },\n    {\n      \"ids\": [4],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 27}\n      ]\n    },\n    {\n      \"ids\": [5],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 28}\n      ]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1991,
+            "completion_tokens": 355,
+            "total_tokens": 2346,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 87.5541763305664
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-4",
+          "seconds": 15.115,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0, 1],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 29 }]\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 30 }]\n    },\n    {\n      \"ids\": [3],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 31 }]\n    },\n    {\n      \"ids\": [4],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 32 }]\n    },\n    {\n      \"ids\": [5],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 33 }]\n    },\n    {\n      \"ids\": [6],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 34 }]\n    },\n    {\n      \"ids\": [7, 8],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 35 }]\n    },\n    {\n      \"ids\": [9],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 36 }]\n    },\n    {\n      \"ids\": [10],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 37 }]\n    },\n    {\n      \"ids\": [11],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 38 }]\n    },\n    {\n      \"ids\": [12],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 39 }]\n    },\n    {\n      \"ids\": [13],\n      \"status\": \"uncertain\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [14],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 39 }]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 2260,
+            "completion_tokens": 842,
+            "total_tokens": 3102,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 129.3177490234375
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 13: wrong reference mapping."
+            ]
+          }
+        },
+        {
+          "id": "passage-5",
+          "seconds": 1.915,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 40 }]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 41 }]\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 42 }]\n    },\n    {\n      \"ids\": [3],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 43 }]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1854,
+            "completion_tokens": 168,
+            "total_tokens": 2022,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 70.44511413574219
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "passage-6",
+          "seconds": 10.359,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 12 }]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"new\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 14 }]\n    },\n    {\n      \"ids\": [3],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 15 }]\n    },\n    {\n      \"ids\": [4],\n      \"status\": \"new\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [5],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 49 }]\n    },\n    {\n      \"ids\": [6],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 50 }]\n    },\n    {\n      \"ids\": [7],\n      \"status\": \"matched\",\n      \"matches\": [{ \"line\": 39 }]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 2011,
+            "completion_tokens": 520,
+            "total_tokens": 2531,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 99.44053649902344
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 1: wrong reference mapping.",
+              "Heard 4: wrong reference mapping."
+            ]
+          }
+        },
+        {
+          "id": "control-negative-passage",
+          "seconds": 12.071,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 12}\n      ]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"new\",\n      \"matches\": []\n    },\n    {\n      \"ids\": [2],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 14}\n      ]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1809,
+            "completion_tokens": 219,
+            "total_tokens": 2028,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 72.4905776977539
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        },
+        {
+          "id": "control-half-passage",
+          "seconds": 1.345,
+          "content": "{\n  \"groups\": [\n    {\n      \"ids\": [0],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 14}\n      ]\n    },\n    {\n      \"ids\": [1],\n      \"status\": \"matched\",\n      \"matches\": [\n        {\"line\": 15}\n      ]\n    }\n  ]\n}",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 1768,
+            "completion_tokens": 152,
+            "total_tokens": 1920,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 66.61785888671875
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Heard 1: wrong reference mapping."
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "mode": "two-turn-core-diagnostic",
+      "model": "@cf/nvidia/nemotron-3-120b-a12b",
+      "rawReport": "/Users/liu_y/code/music/test-results/cloudflare-lyrics-review/2026-10-21T10-44-12.612Z-two-turn/report.json",
+      "startedAt": "2026-10-21T10:44:12.612Z",
+      "total": 3,
+      "passed": 1,
+      "common13": {
+        "completed": 3,
+        "passed": 1
+      },
+      "failures": [],
+      "trials": [
+        {
+          "id": "focused-0",
+          "seconds": 3.182,
+          "content": "\n<unmatched>",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 537,
+            "completion_tokens": 195,
+            "total_tokens": 732,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 50.685
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Output differs from the exact expected source fragment."
+            ]
+          }
+        },
+        {
+          "id": "focused-1",
+          "seconds": 3.083,
+          "content": "\n<unmatched>",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 535,
+            "completion_tokens": 200,
+            "total_tokens": 735,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 51.275000000000006
+          },
+          "evaluation": {
+            "passed": false,
+            "errors": [
+              "Output differs from the exact expected source fragment."
+            ]
+          }
+        },
+        {
+          "id": "focused-5",
+          "seconds": 1.028,
+          "content": "\n<unmatched>",
+          "finishReason": "stop",
+          "usage": {
+            "prompt_tokens": 539,
+            "completion_tokens": 71,
+            "total_tokens": 610,
+            "prompt_tokens_details": {
+              "cached_tokens": 0
+            },
+            "neurons": 33.911
+          },
+          "evaluation": {
+            "passed": true,
+            "errors": []
+          }
+        }
+      ]
+    }
+  ],
+  "usage": {
+    "measuredReturnedCallsNeurons": 6787.064723900792,
+    "unknownRemoteUsageReservedNeurons": 2100,
+    "experimentReservedNeurons": 8887.064723900792,
+    "dailyFreeAllocation": 10000,
+    "accountOtherUsageVerified": false,
+    "paidPlanEnabledByThisTask": false,
+    "creditsPurchasedByThisTask": false
+  },
+  "modelCatalog": {
+    "eligibleTextModelEntries": 31,
+    "definition": "Cloudflare-hosted Text Generation entries without require_workers_paid=true; includes LoRA and specialized models; availability not exhaustively tested.",
+    "eligible": [
+      "@cf/aisingapore/gemma-sea-lion-v4-27b-it",
+      "@cf/cloudflare/clairic",
+      "@cf/cloudflare/clef",
+      "@cf/cloudflare/clef-flash",
+      "@cf/cloudflare/clef-omni",
+      "@cf/daily-co/phonellm-mini-alpha-2",
+      "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+      "@cf/google/gemma-2b-it-lora",
+      "@cf/google/gemma-4-26b-a4b-it",
+      "@cf/google/gemma-7b-it-lora",
+      "@cf/ibm-granite/granite-4.0-h-micro",
+      "@cf/meta-llama/llama-2-7b-chat-hf-lora",
+      "@cf/meta/llama-3.1-8b-instruct-fp8",
+      "@cf/meta/llama-3.2-11b-vision-instruct",
+      "@cf/meta/llama-3.2-1b-instruct",
+      "@cf/meta/llama-3.2-3b-instruct",
+      "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+      "@cf/meta/llama-4-scout-17b-16e-instruct",
+      "@cf/meta/llama-guard-3-8b",
+      "@cf/mistral/mistral-7b-instruct-v0.2-lora",
+      "@cf/mistralai/mistral-small-3.1-24b-instruct",
+      "@cf/nvidia/nemotron-3-120b-a12b",
+      "@cf/openai/gpt-oss-120b",
+      "@cf/openai/gpt-oss-20b",
+      "@cf/qwen/qwen2.5-coder-32b-instruct",
+      "@cf/qwen/qwen3-30b-a3b-fp8",
+      "@cf/qwen/qwen3.8-27b",
+      "@cf/qwen/qwq-32b",
+      "@cf/swiss-ai/apertus-v1.5-8b",
+      "@cf/utter-project/eurollm-9b-it",
+      "@cf/zai-org/glm-4.7-flash"
+    ],
+    "paidModelsSuggestedButNotCalled": [
+      "meta/muse-spark-open",
+      "@cf/deepseek-ai/deepseek-v4.1-flash-1017",
+      "anthropic/claude-haiku-5.5"
+    ],
+    "pricingSource": "https://developers.cloudflare.com/workers-ai/platform/pricing/"
+  },
+  "preflightNotes": [
+    "Official Playground streaming duplicated response text; those outputs were excluded from model scores.",
+    "A first direct-API connection failed; the report includes an allowance for unknown usage.",
+    "Initial 30B thinking-mode probing and a truncated response are preserved in ignored raw reports and included in returned-call usage."
+  ],
+  "validation": {
+    "evaluatorRegressionTestsPassed": 8,
+    "typeCheckPassed": true,
+    "productionWrites": false
+  },
+  "conclusion": "Qwen3.8-27B remains the strongest single-turn result on this narrow sample. A two-turn review fixed its unrelated-line control but the complex chorus review timed out. GPT-OSS-120B and Nemotron-3-120B still mis-map real passages; self-review did not consistently improve them. No model has passed an automatic-write acceptance gate."
+}

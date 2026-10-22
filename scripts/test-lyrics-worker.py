@@ -35,4 +35,12 @@ class LyricsWorker(unittest.TestCase):
  def test_passage_recall_does_not_depend_on_asr_punctuation(self):
   reference='楼道的灯一亮一灭\n金属门在身后一声锁死\n他们说孩子听话\n我听见的是归我管三个字'
   self.assertEqual(worker.reference_candidates(reference,reference),worker.reference_candidates(reference.replace('\n',''),reference))
+ def test_ordered_context_retains_the_middle_line_between_repeated_chorus_anchors(self):
+  reference='把周末铺在湖边\n野餐垫鼓起一面帆\n你追着帽子跑一圈\n我喊慢一点 慢一点\n把周末铺在湖边\n让水光跳上我们的脸\n等太阳在湖面打个盹\n再把好天气带回家'
+  self.assertEqual(worker.reference_candidates('把周末铺在湖边。夜三点的起面粉。你追着帽子跑一圈',reference),'把周末铺在湖边\n野餐垫鼓起一面帆\n你追着帽子跑一圈')
+ def test_alignment_uses_reviewed_parts_without_resplitting_original_line_punctuation(self):
+  self.assertEqual(worker.alignment_parts({'text':'夜三点的起面粉','parts':['野餐垫鼓起一面帆','我喊慢一点，慢一点']}),['野餐垫鼓起一面帆','我喊慢一点，慢一点'])
+  with self.assertRaises(ValueError):worker.alignment_parts({'parts':['一行\n另一行']})
+ def test_unrecognized_phase_is_rejected_before_loading_models(self):
+  with self.assertRaises(ValueError):worker.run({'phase':'unexpected'})
 if __name__=='__main__':unittest.main()

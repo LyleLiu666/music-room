@@ -1,4 +1,4 @@
-"""Local lyric transcription. Reference words are model context, not a required sequence."""
+"""Local transcription and alignment; the TS service reviews words between phases."""
 import os,sys,json,threading,time,gc,re,pathlib
 os.environ['HF_HUB_OFFLINE']='1';os.environ['TRANSFORMERS_OFFLINE']='1'
 
@@ -12,20 +12,25 @@ def reference_candidates(transcript,reference):
     # decides what was sung, including novel and repeated sections.
     def grams(text):
         chars=''.join(c for c in text if c.isalnum())
-        return {chars[i:i+2] for i in range(len(chars)-1)}
+        return [chars[i:i+2] for i in range(len(chars)-1)]
     candidates=[line.strip() for line in reference.splitlines() if line.strip() and not line.strip().startswith('[')]
     query=grams(transcript)
     if not query:return ''
     candidate_grams=[grams(line) for line in candidates];best_score=0.;best=None
-    # Rank complete, contiguous passages against the entire audio transcript.
-    # F2 recall gives missing/misheard words some room, while penalising unrelated
-    # reference material. This is retrieval ranking, not a semantic match or a
-    # permission to insert the passage into the performed lyrics.
+    # Rank contiguous passages by ordered recall. A bag of shared grams loses
+    # the order of repeated chorus anchors and can retrieve the wrong side of
+    # a repeated line, excluding the misheard sentence between those anchors.
+    # LCS only ranks context candidates; it never substitutes performed lyrics.
     for start in range(len(candidates)):
-        passage=set()
+        lengths=[0]*(len(query)+1);size=0
         for end in range(start,len(candidates)):
-            passage.update(candidate_grams[end])
-            score=5*len(query & passage)/(4*len(query)+len(passage))
+            for gram in candidate_grams[end]:
+                size+=1;previous=0
+                for i,query_gram in enumerate(query,1):
+                    old=lengths[i]
+                    lengths[i]=previous+1 if gram==query_gram else max(lengths[i],lengths[i-1])
+                    previous=old
+            score=5*lengths[-1]/(4*len(query)+size)
             if score>best_score:best_score=score;best=(start,end)
     if best is None:return ''
     start,end=best
@@ -44,19 +49,14 @@ def segments(audio,rate):
         result.append((start,end));start=end
     return result
 
-def run(task):
-    import numpy as np,soundfile as sf,torch,psutil
-    from qwen_asr import Qwen3ASRModel,Qwen3ForcedAligner
-    torch.set_num_threads(4);torch.manual_seed(0)
-    audio,rate=sf.read(task['audio'],dtype='float32',always_2d=True);audio=audio.mean(axis=1);duration=len(audio)/rate
-    if not 0<duration<=600:raise ValueError('目前支持 10 分钟以内的歌曲')
-    def monitor():
-        while True:
-            if psutil.Process().memory_info().rss+torch.mps.driver_allocated_memory()>task['budget']:
-                print(json.dumps({'error':'歌词模型内存超过预算'}),flush=True);os._exit(75)
-            time.sleep(.5)
-    threading.Thread(target=monitor,daemon=True).start()
-    def progress(message,percent):print(json.dumps({'message':message,'progress':percent},ensure_ascii=False),flush=True)
+def alignment_parts(chunk):
+    parts=chunk.get('parts',phrases(chunk.get('text','')))
+    if not isinstance(parts,list) or any(not isinstance(part,str) or not part.strip() or len(part)>2000 or '\n' in part or '\r' in part for part in parts):raise ValueError('核对后的歌词句子无效')
+    return parts
+
+def transcribe_audio(audio,rate,task,progress):
+    import torch
+    from qwen_asr import Qwen3ASRModel
     progress('正在加载歌词识别模型',0)
     model=Qwen3ASRModel.from_pretrained(task['asr'],dtype=torch.float16,device_map='mps',attn_implementation='sdpa',max_inference_batch_size=1,max_new_tokens=512)
     chunks=[];windows=segments(audio,rate)
@@ -68,13 +68,19 @@ def run(task):
         result=raw
         if context:
             with torch.inference_mode():result=model.transcribe(audio=(part,rate),language='Chinese',context=context)[0]
-        chunks.append({'start':start,'end':end,'text':result.text,'rawText':raw.text,'referenceContext':context});progress(f'正在识别实际演唱段落 · 已完成 {i+1} / {len(windows)} 段',round(5+50*(i+1)/len(windows)))
+        chunks.append({'start':start,'end':end,'text':result.text,'rawText':raw.text,'referenceContext':context,'parts':phrases(result.text)});progress(f'正在识别实际演唱段落 · 已完成 {i+1} / {len(windows)} 段',round(5+50*(i+1)/len(windows)))
     del model;gc.collect();torch.mps.empty_cache()
-    progress('正在加载歌词时间定位模型',55)
+    return chunks
+
+def align_audio(audio,rate,chunks,task,progress):
+    import torch
+    from qwen_asr import Qwen3ForcedAligner
+    progress('正在加载歌词时间定位模型',60)
     model=Qwen3ForcedAligner.from_pretrained(task['aligner'],dtype=torch.float16,device_map='mps',attn_implementation='sdpa');lines=[];unresolved=[]
     progress(f'正在定位每句起止时间 · 已完成 0 / {len(chunks)} 段',60)
     for i,chunk in enumerate(chunks):
-        parts=phrases(chunk['text'])
+        if not 0<=chunk['start']<chunk['end']<=len(audio)/rate+.001:raise ValueError('歌词段落时间范围无效')
+        parts=alignment_parts(chunk)
         if parts:
             with torch.inference_mode():words=model.align(audio=(audio[round(chunk['start']*rate):round(chunk['end']*rate)],rate),text='\n'.join(parts),language='Chinese')[0]
             cursor=0
@@ -87,8 +93,34 @@ def run(task):
         if parts and cursor!=len(words):raise ValueError('模型输出的歌词字数不一致')
         progress(f'正在定位每句起止时间 · 已完成 {i+1} / {len(chunks)} 段',round(60+35*(i+1)/len(chunks)))
     if not lines or len(unresolved)>len(lines):raise ValueError('本次识别不稳定，未覆盖已有歌词，请重试')
-    pathlib.Path(task['output']).write_text(json.dumps({'duration':duration,'lines':lines,'unresolved':unresolved,'transcription':chunks,'method':'reference-context-asr-then-local-alignment'},ensure_ascii=False))
-    progress('歌词分析完成，等待校验与保存',95)
+    return {'duration':len(audio)/rate,'lines':lines,'unresolved':unresolved,'transcription':chunks}
+
+def run(task):
+    phase=task.get('phase','full')
+    if phase not in ('full','transcribe','align'):raise ValueError('歌词处理阶段无效')
+    import numpy as np,soundfile as sf,torch,psutil
+    torch.set_num_threads(4);torch.manual_seed(0)
+    audio,rate=sf.read(task['audio'],dtype='float32',always_2d=True);audio=audio.mean(axis=1);duration=len(audio)/rate
+    if not 0<duration<=600:raise ValueError('目前支持 10 分钟以内的歌曲')
+    def monitor():
+        while True:
+            if psutil.Process().memory_info().rss+torch.mps.driver_allocated_memory()>task['budget']:
+                print(json.dumps({'error':'歌词模型内存超过预算'}),flush=True);os._exit(75)
+            time.sleep(.5)
+    threading.Thread(target=monitor,daemon=True).start()
+    def progress(message,percent):print(json.dumps({'message':message,'progress':percent},ensure_ascii=False),flush=True)
+    if phase=='align':
+        reviewed=json.loads(pathlib.Path(task['transcription']).read_text())
+        if abs(reviewed['duration']-duration)>.001:raise ValueError('核对歌词与音频时长不一致')
+        chunks=reviewed['chunks']
+    else:chunks=transcribe_audio(audio,rate,task,progress)
+    if phase=='transcribe':result={'duration':duration,'chunks':chunks}
+    else:
+        result=align_audio(audio,rate,chunks,task,progress)
+        result['method']='local-asr-qwen3.8-reference-then-alignment' if phase=='align' else 'reference-context-asr-then-local-alignment'
+    pathlib.Path(task['output']).write_text(json.dumps(result,ensure_ascii=False))
+    if phase=='transcribe':progress('语音识别完成，等待原词核对',55)
+    else:progress('歌词分析完成，等待校验与保存',95)
 
 if __name__=='__main__':
     task=json.loads(sys.stdin.readline())
