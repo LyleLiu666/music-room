@@ -14,3 +14,14 @@ test('kernel sampler measures a live allocated workload and fails after it exits
   child.kill();await stopped;await assert.rejects(sampler.measure(child.pid!));
  }finally{child.kill();await sampler.close();}
 });
+
+test('native system sampling distinguishes counters from reclaimable estimates and never budgets compression or all file pages',async()=>{
+ const {parseNativeMemory}=await import('./native-telemetry.ts');
+ const raw={capacity:32*2**30,free:256*2**20,purgeable:2**30,inactive:12*2**30,fileBacked:10*2**30,compressed:8*2**30,wired:3*2**30,swapUsed:4*2**30,swapInBytes:20*2**30,swapOutBytes:30*2**30};
+ assert.deepEqual(parseNativeMemory(JSON.stringify(raw)),raw);
+ for(const invalid of [{...raw,compressed:-1},{...raw,capacity:0},{...raw,fileBacked:40*2**30},{...raw,swapOutBytes:undefined}])assert.throws(()=>parseNativeMemory(JSON.stringify(invalid)));
+});
+
+test('native system counters are available without loading a model', {skip:process.platform!=='darwin'},async()=>{
+ const sampler=nativeFootprint();try{const memory=await sampler.system();assert.ok(memory.capacity>0);assert.ok(memory.compressed>=0);assert.ok(memory.swapOutBytes>=0);}finally{await sampler.close();}
+});

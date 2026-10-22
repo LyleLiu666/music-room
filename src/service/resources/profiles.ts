@@ -29,5 +29,5 @@ export function estimateResources(engine:string,input:any):ResourceDemand{
  }
  if(engine==='reference'&&match(input?.resourceProfile,referenceProfile)&&Number.isFinite(input?.duration)&&input.duration>=.3&&input.duration<=15.1){peak=8*2**30;verified=true;}
  if(engine==='conversion'&&match(input?.resourceProfile,conversionProfile)){peak=10*2**30;verified=true;}
- return {verified,peak:{memory:peak}};
+ return {verified,startup:{memory:peak},peak:{memory:peak}};
 }

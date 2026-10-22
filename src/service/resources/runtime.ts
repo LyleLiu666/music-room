@@ -10,5 +10,5 @@ export function createResources(read?:AssetReader) {
   return new ResourceCoordinator({lease: new ResourceLease(),
     policy: {reserveFraction: .3, reserveMinimum: 2 * 2 ** 30, headroom: 2 ** 30,
       maxSnapshotAgeMs: 3000, maxWaitMs: 60_000, retryMs: 1000, maxQueue: 64},
-    probe:()=>probeHardware(native?.measure),observe:native?(pids,baseline)=>observeProcesses(pids,baseline,native.measure):undefined,estimate:estimateResources,dispose:native?.close});
+    probe:()=>probeHardware(native?.measure,native?.system),observe:native?(pids,baseline)=>observeProcesses(pids,baseline,native.measure,native.system):undefined,estimate:estimateResources,dispose:native?.close});
 }

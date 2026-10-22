@@ -14,7 +14,7 @@ export type CoordinatorOptions = {
   now?: () => number;
   monitorMs?:number;
   dispose?:()=>Promise<void>;
-  observe?:(pids:number[],baseline:HardwareSnapshot)=>Promise<{usage:Record<string,number>;swapUsed?:number;pressure:HardwareSnapshot['pressure']}>;
+  observe?:(pids:number[],baseline:HardwareSnapshot)=>Promise<{usage:Record<string,number>;swapUsed?:number;pressure:HardwareSnapshot['pressure'];swapOutBytes?:number}>;
   lease?: ResourceLease;
   estimate?: (engine: string, input: unknown) => import('./contracts.ts').ResourceDemand;
 };
@@ -32,7 +32,7 @@ export class ResourceCoordinator {
   private pumping?: Promise<void>;
   private wake?: () => void;
   private lastHardware?:HardwareSnapshot;
-  private observation?:{usage:Record<string,number>;swapUsed?:number;pressure:HardwareSnapshot['pressure']};
+  private observation?:{usage:Record<string,number>;swapUsed?:number;pressure:HardwareSnapshot['pressure'];swapOutBytes?:number};
   private reservations: Record<string, number> = {};
   constructor(options: CoordinatorOptions) {
     if (!validPolicy(options.policy)) throw new Error('资源策略参数无效');
@@ -59,7 +59,7 @@ export class ResourceCoordinator {
     return new Promise<T>((resolve, reject) => {
       const controller = new AbortController();let settled!:()=>void;const done=new Promise<void>(r=>settled=r);
       const entry: Entry = {request: {...request, demand: structuredClone(request.demand)} as ResourceRequest<unknown>,
-        state: {id: request.id, engine: request.engine, stage: 'queued', submittedAt: this.now()}, controller,
+        state: {id: request.id, engine: request.engine, stage: 'queued', submittedAt: this.now(),demand:structuredClone(request.demand)}, controller,
         resolve: value => {settled();resolve(value as T);}, reject:error=>{settled();reject(error);},done,cancel:()=>{}, detach: () => request.signal?.removeEventListener('abort', abort)};
       const abort = () => {
         const error = new ResourceError('CANCELLED', '任务已取消'); controller.abort(error);
@@ -123,6 +123,7 @@ export class ResourceCoordinator {
     let stopped=false,timer:ReturnType<typeof setTimeout>|undefined,pending=Promise.resolve();
     const tick=()=>{pending=(async()=>{if(!this.options.observe||stopped)return;try{const result=await this.options.observe([...pids],baseline);if(stopped)return;this.observation=result;for(const pool of Object.keys(this.reservations))if(!Number.isFinite(result.usage[pool]))throw new Error('缺少占用指标');
       for(const [pool,bytes] of Object.entries(result.usage)){if(!Number.isFinite(bytes)||bytes<0)throw new Error('占用指标无效');entry.state.peak??={};entry.state.peak[pool]=Math.max(entry.state.peak[pool]??0,bytes);if(bytes>(this.reservations[pool]??0))throw new ResourceError('PEAK_EXCEEDED','任务实际占用超过内存预算，已停止');}
+      if(baseline.memory){if(!Number.isSafeInteger(result.swapOutBytes)||result.swapOutBytes!<baseline.memory.swapOutBytes)throw new Error('交换写出计数无效');if(result.swapOutBytes!-baseline.memory.swapOutBytes>=512*2**20&&result.pressure!=='normal')throw new ResourceError('PRESSURE_PROTECTION','系统持续交换写出超过安全阈值，已停止任务');}
       if(baseline.swapUsed!==undefined){if(!Number.isFinite(result.swapUsed))throw new Error('缺少交换空间指标');if(result.swapUsed!-baseline.swapUsed>=512*2**20&&result.pressure!=='normal')throw new ResourceError('PRESSURE_PROTECTION','系统交换空间增长超过安全阈值，已停止任务');}
       if(result.pressure==='critical')throw new ResourceError('PRESSURE_PROTECTION','系统内存压力过高，已停止任务');if(result.pressure==='unknown')throw new Error('压力指标无效');
     }catch(error){if(!stopped&&!entry.controller.signal.aborted){if(!(error instanceof ResourceError))entry.state.diagnostic=(error instanceof Error?error.message:String(error)).slice(0,2000);entry.controller.abort(error instanceof ResourceError?error:new ResourceError('RESOURCE_TELEMETRY_UNAVAILABLE','运行期间无法确认内存占用，已停止任务'));}}
@@ -157,6 +158,7 @@ export class ResourceCoordinator {
           catch {throw new ResourceError('RESOURCE_TELEMETRY_UNAVAILABLE', '无法读取电脑资源，请稍后重试');}
           this.lastHardware=hardware;admittedHardware=hardware;entry.controller.signal.throwIfAborted();
           const decision = admit(hardware, entry.request.demand, this.options.policy, this.now(), adapter.resident());
+          entry.state.admission=decision;
           if (decision.allowed) {this.reservations = decision.budgets; break;}
           const error = new ResourceError(decision.code, decision.message);
           if (!decision.retry || this.now() - waitStarted >= this.options.policy.maxWaitMs) throw error;

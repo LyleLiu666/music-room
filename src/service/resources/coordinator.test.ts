@@ -123,3 +123,12 @@ test('runtime observation stops over-budget work and holds rights until cleanup'
  await assert.rejects(resources.run({id:'x',engine:'x',demand:{verified:true,peak:{memory:100}},execute:async ctx=>{ctx.running();await new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}));ctx.signal.throwIfAborted();}}),/预算/);
  assert.ok(sampled>0);assert.deepEqual(events,['unloaded']);assert.equal(resources.snapshot().history.at(-1)?.reason,'PEAK_EXCEEDED');await resources.close();
 });
+
+test('startup reservation admits a task whose runtime ceiling is higher; only crossing that ceiling stops it',async()=>{
+ let usage=150,entered!:()=>void;const started=new Promise<void>(r=>entered=r);
+ const resources=new ResourceCoordinator({policy:{reserveFraction:.1,reserveMinimum:0,headroom:0,maxSnapshotAgeMs:1000,maxWaitMs:100,retryMs:1,maxQueue:8},probe:async()=>({supported:true,topology:'cpu',sampledAt:Date.now(),pressure:'normal',pools:[{id:'memory',capacity:1000,available:150,owned:0}]}),monitorMs:1,observe:async()=>({usage:{memory:usage},pressure:'normal'})});
+ resources.register('x',{resident:()=>undefined,unload:async()=>{}});
+ const task=resources.run({id:'separate',engine:'x',demand:{verified:true,startup:{memory:100},peak:{memory:200}},execute:async ctx=>{assert.equal(ctx.budgets.memory,200);entered();if(!ctx.signal.aborted)await new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}));ctx.signal.throwIfAborted();}});
+ const stopped=assert.rejects(task,{code:'PEAK_EXCEEDED'});
+ try{await started;await new Promise(r=>setTimeout(r,5));assert.equal(resources.snapshot().observation?.usage.memory,150);assert.equal(resources.snapshot().active?.stage,'loading');usage=201;await stopped;}finally{await resources.close();}
+});

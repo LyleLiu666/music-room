@@ -30,3 +30,10 @@ test('failed sampling never reports stale memory or zero as a successful reading
  const partial=new MachineMonitor({pid:1,readProcesses:async()=>[row(1,0)],measure:async()=>{throw Error('no permission');}});
  const s=await partial.status();assert.equal(s.application.memoryBytes,undefined);assert.ok(s.application.memoryError);
 });
+
+test('monitor exposes pressure and the same admission inputs, rather than labelling non-free pages as exhaustion',async()=>{
+ const policy={reserveFraction:.25,reserveMinimum:0,headroom:100,maxSnapshotAgeMs:3000,maxWaitMs:100,retryMs:1,maxQueue:8};
+ const hardware={supported:true,topology:'unified' as const,sampledAt:Date.now(),pressure:'normal' as const,pools:[{id:'memory',capacity:10000,available:6000,owned:1000}]};
+ const monitor=new MachineMonitor({pid:1,readSystem:()=>({total:1000,idle:500,cpuCount:2,memoryTotal:10000,memoryFree:100}),readProcesses:async()=>[row(1,0)],readResources:async()=>({hardware,policy,queued:[]})});
+ const value=await monitor.status();assert.equal(value.system.memoryUsed,9900);assert.equal(value.resources?.hardware?.pressure,'normal');assert.equal(value.resources?.policy.headroom,100);
+});

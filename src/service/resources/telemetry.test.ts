@@ -22,3 +22,21 @@ test('monitoring reads all owned groups once and retries one transient process-q
 test('missing or malformed process snapshots fail closed instead of undercounting memory',async()=>{
  for(const output of ['', '12 invalid S', '12 10', 'bad 10 S', '12 10 S extra'])await assert.rejects(processGroupPids([10],async()=>output),/进程列表/);
 });
+
+test('low physical free memory is not itself a refusal; compression and overlapping file counters never add startup capacity',async()=>{
+ const {attachMemory}=await import('./telemetry.ts'),{admit}=await import('./policy.ts');
+ const capacity=32*2**30,policy={reserveFraction:.25,reserveMinimum:0,headroom:2**30,maxSnapshotAgeMs:3000,maxWaitMs:100,retryMs:1,maxQueue:8};
+ const memory={capacity,free:256*2**20,purgeable:2*2**30,inactive:12*2**30,fileBacked:10*2**30,compressed:8*2**30,wired:3*2**30,swapUsed:4*2**30,swapInBytes:20*2**30,swapOutBytes:30*2**30};
+ const h=attachMemory(parsePressure(capacity,'System-wide memory free percentage: 50%','1'),memory);
+ assert.equal(admit(h,{verified:true,peak:{memory:8*2**30}},policy,Date.now()).allowed,true);
+ const low=attachMemory(parsePressure(capacity,'System-wide memory free percentage: 10%','1'),{...memory,compressed:16*2**30});
+ assert.equal(admit(low,{verified:true,peak:{memory:8*2**30}},policy,Date.now()).allowed,false);
+ assert.equal(low.pools[0].available,Math.floor(capacity*.1));assert.equal(low.memory?.compressed,16*2**30);
+});
+
+test('startup headroom counts the application process tree, including model children, instead of only the server',async()=>{
+ const {applicationFootprint}=await import('./telemetry.ts');const measured:number[]=[];
+ const bytes=await applicationFootprint(async pid=>{measured.push(pid);return pid===10?100:400;},async()=> '10 0 S\n11 10 S\n12 11 S\n13 10 Z\n20 0 S',10);
+ assert.deepEqual(bytes,{total:900,service:100});assert.deepEqual(measured.sort((a,b)=>a-b),[10,11,12]);
+ await assert.rejects(applicationFootprint(async()=>1,async()=> 'bad',10),/进程列表/);
+});

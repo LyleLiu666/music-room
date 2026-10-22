@@ -1,11 +1,14 @@
 import {cpus,totalmem,freemem} from 'node:os';
-import {commandOutput} from './telemetry.ts';
+import {commandOutput,ownedProcesses} from './telemetry.ts';
 import {nativeFootprint} from './native-telemetry.ts';
 import type {AssetReader} from '../render/renderer.ts';
-export type MonitorSnapshot={sampledAt:number;cpuCount?:number;system:{cpuPercent?:number;memoryUsed?:number;memoryTotal?:number;error?:string};application:{cpuPercent?:number;memoryBytes?:number;processCount?:number;memoryKind:'footprint'|'rss';error?:string;memoryError?:string}};
+import type {HardwareSnapshot,ResourcePolicy,ResourceTaskState} from './contracts.ts';
+import type {ResourceCoordinator} from './coordinator.ts';
+type MonitorResources={hardware?:HardwareSnapshot;policy:ResourcePolicy;task?:ResourceTaskState};
+export type MonitorSnapshot={sampledAt:number;cpuCount?:number;resources?:MonitorResources;resourceError?:string;system:{cpuPercent?:number;memoryUsed?:number;memoryTotal?:number;error?:string};application:{cpuPercent?:number;memoryBytes?:number;processCount?:number;memoryKind:'footprint'|'rss';error?:string;memoryError?:string}};
 type ProcessSample={pid:number;ppid:number;cpuMs:number;rss:number;start:string;zombie:boolean};
 type SystemSample={total:number;idle:number;cpuCount:number;memoryTotal:number;memoryFree:number};
-type MonitorOptions={pid?:number;now?:()=>number;readSystem?:()=>SystemSample;readProcesses?:()=>Promise<ProcessSample[]>;measure?:(pid:number)=>Promise<number>};
+type MonitorOptions={pid?:number;now?:()=>number;readSystem?:()=>SystemSample;readProcesses?:()=>Promise<ProcessSample[]>;measure?:(pid:number)=>Promise<number>;readResources?:()=>Promise<{hardware?:HardwareSnapshot;policy:ResourcePolicy;active?:ResourceTaskState;queued:ResourceTaskState[];hardwareError?:string}>};
 export function parseMonitorProcesses(text:string):ProcessSample[]{
  return text.trim().split('\n').map(line=>{
   const match=line.trim().match(/^(\d+)\s+(\d+)\s+(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)\s+(\d+)\s+(\S+)\s+(.+)$/);
@@ -17,17 +20,12 @@ export function parseMonitorProcesses(text:string):ProcessSample[]{
   return result;
  });
 }
-export function ownedProcesses(rows:ProcessSample[],root:number){
- const alive=rows.filter(r=>!r.zombie),ids=new Set([root]);
- if(!alive.some(r=>r.pid===root))throw Error('服务进程不在采样结果中');
- let added=true;while(added){added=false;for(const r of alive)if(ids.has(r.ppid)&&!ids.has(r.pid)){ids.add(r.pid);added=true;}}
- return alive.filter(r=>ids.has(r.pid));
-}
+export {ownedProcesses} from './telemetry.ts';
 function readSystem():SystemSample {
  const cores=cpus();return {cpuCount:cores.length,total:cores.reduce((sum,c)=>sum+Object.values(c.times).reduce((a,b)=>a+b,0),0),idle:cores.reduce((sum,c)=>sum+c.times.idle,0),memoryTotal:totalmem(),memoryFree:freemem()};
 }
 const percent=(n:number)=>Math.max(0,Math.min(100,n));
-/** Read-only monitoring; independent of admission budgets and model lifecycle. */
+/** Read-only monitoring reports coordinator estimates without submitting or loading work. */
 export class MachineMonitor{
  private options:MonitorOptions;private pending?:Promise<MonitorSnapshot>;private cached?:MonitorSnapshot;private sampled=-Infinity;
  private previous?:{at:number;system?:SystemSample;rows?:ProcessSample[]};
@@ -65,12 +63,15 @@ export class MachineMonitor{
     result.application.memoryBytes=bytes.reduce((a,b)=>a+b,0);
    }catch{result.application.memoryError='暂时无法读取本程序内存';}
   }catch{rows=undefined;result.application.error='暂时无法读取本程序进程';}
+  if(this.options.readResources)try{
+   const resources=await this.options.readResources();result.resources={hardware:resources.hardware,policy:resources.policy,task:resources.active??resources.queued[0]};result.resourceError=resources.hardwareError;
+  }catch{result.resourceError='暂时无法读取内存压力与启动预算';}
   this.previous={at,system,rows};return result;
  }
  async settled(){await this.pending;}
 }
-export function createMachineMonitor(read:AssetReader){
+export function createMachineMonitor(read:AssetReader,resources:ResourceCoordinator){
  const native=process.platform==='darwin'?nativeFootprint(read):undefined;
- const monitor=new MachineMonitor({measure:native?.measure});
+ const monitor=new MachineMonitor({measure:native?.measure,readResources:()=>resources.status()});
  return {status:()=>monitor.status(),close:async()=>{await monitor.settled();await native?.close();}};
 }

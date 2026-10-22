@@ -57,3 +57,26 @@ test('tightened user limits, platform limits, invalid values and missing pools f
   }
   assert.equal(admit(hardware(), {verified: true, peak: {'gpu:0': GiB}}, policy, 1000).allowed, false);
 });
+
+test('startup reservation is independent of runtime ceiling and explains the actual shortage',()=>{
+ const h=hardware(32,12),d={verified:true,startup:{memory:8*GiB},peak:{memory:16*GiB}};
+ const result=admit(h,d,policy,1000);assert.equal(result.allowed,true);
+ if(result.allowed)assert.equal(result.budgets.memory,16*GiB);
+ const busy=admit(hardware(32,6),d,policy,1000);assert.equal(busy.allowed,false);
+ assert.equal(busy.details?.[0].startupBudget,5*GiB);assert.equal(busy.details?.[0].shortfall,3*GiB);
+ assert.match(!busy.allowed?busy.message:'',/8.0 GiB.*5.0 GiB.*3.0 GiB/);
+ const limited=admit(h,d,{...policy,limits:{memory:7*GiB}},1000);
+ assert.equal(limited.details?.[0].limiting,'user_limit');assert.match(!limited.allowed?limited.message:'',/用户设置/);
+});
+
+test('runtime ceiling respects the application limit and inconsistent envelopes fail closed',()=>{
+ const h=hardware(32,20),d={verified:true,startup:{memory:8*GiB},peak:{memory:20*GiB}};
+ const result=admit(h,d,{...policy,limits:{memory:12*GiB}},1000);
+ assert.equal(result.allowed,true);if(result.allowed)assert.equal(result.budgets.memory,11*GiB);
+ for(const startup of [{memory:21*GiB},{memory:NaN},{'gpu:0':GiB},{}] as Record<string,number>[]){
+  const result=admit(h,{...d,startup},policy,1000);assert.equal(result.allowed,false);
+  if(!result.allowed)assert.equal(result.code,'RESOURCE_PROFILE_UNVERIFIED');
+ }
+ const pressure=admit({...h,pressure:'warning'},d,policy,1000);
+ assert.equal(pressure.allowed,false);assert.equal(pressure.details?.[0].limiting,'pressure');
+});

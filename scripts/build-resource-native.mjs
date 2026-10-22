@@ -11,5 +11,5 @@ if(process.platform==='darwin'){
  execFileSync('/usr/bin/codesign',['--force','--sign','-',join(output,program)],{stdio:'pipe'});
  await copyFile(source,join(output,'footprint.c'));
  const hash=bytes=>createHash('sha256').update(bytes).digest('hex');
- await writeFile(join(output,'manifest.json'),JSON.stringify({version:1,program,programSha256:hash(await readFile(join(output,program))),source:'footprint.c',sourceSha256:hash(await readFile(source))},null,2)+'\n');
+ await writeFile(join(output,'manifest.json'),JSON.stringify({version:2,program,programSha256:hash(await readFile(join(output,program))),source:'footprint.c',sourceSha256:hash(await readFile(source))},null,2)+'\n');
 }

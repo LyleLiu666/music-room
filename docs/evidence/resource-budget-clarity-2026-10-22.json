@@ -1,0 +1,91 @@
+{
+  "date": "2026-10-22",
+  "scope": "内存占用展示与任务启动预算口径",
+  "changes": [
+    "侧栏同时显示内存压力、本程序可再用约 X GiB、程序当前占用；展开内存明细",
+    "统一内核页计数、交换占用与累计换入换出；重叠分类不相加",
+    "启动预算扣除应用进程树占用、系统保留及额外余量；系统可用估计仍有不确定性",
+    "启动预约与运行保护上限独立，既有模型的保守数值保持不变",
+    "等待结果包含预约、当前预算、差额及限制来源；运行压力升高时确认进程退出后放行后续任务"
+  ],
+  "validation": {
+    "clientTests": {
+      "tests": 61,
+      "passed": 61
+    },
+    "serviceTestsSerial": {
+      "tests": 311,
+      "passed": 309,
+      "failed": 2,
+      "failures": [
+        {
+          "file": "src/server/yue2.test.ts",
+          "reason": "模型安装需30 GiB及额外2 GiB余量，本机磁盘不足"
+        },
+        {
+          "file": "src/service/conversion/engine-exclusion.test.ts",
+          "reason": "参考清理磁盘检查需6 GiB及额外2 GiB余量，本机磁盘不足"
+        }
+      ]
+    },
+    "browserTests": {
+      "tests": 2,
+      "passed": 2
+    },
+    "buildBinary": true,
+    "realNativeSamplingWithoutModels": true,
+    "realChildExitBeforeNextTask": true,
+    "installedApplication": {
+      "installedAt": "2026-10-22T01:21:09.161Z",
+      "commit": "8b265f8fa3f545b7c9212b7115b47013c9b1e70b",
+      "workingTreeChanges": true,
+      "executable": "/Users/liu_y/Applications/MusicRoom/music-room",
+      "pid": 98737,
+      "url": "http://127.0.0.1:5174",
+      "backup": "/Users/liu_y/Applications/MusicRoom/backups/resource-budget-1792632065887",
+      "binarySha256": "16498ec0ed070ed9678453c7d1bead1311bff74e05b82864d69ec95841bbb852",
+      "pendingRestart": false,
+      "change": "Explain usable memory; kernel counters, process-tree ownership, independent startup and runtime budgets, admission diagnostics",
+      "validation": {
+        "httpHealthy": true,
+        "savedVersionsAndLyricsPreserved": true,
+        "nativeSystemCounters": true,
+        "monitorBudget": true
+      },
+      "observed": {
+        "pressure": "normal",
+        "additionalBudgetGiB": 16.919999999925494
+      }
+    },
+    "installedUi": {
+      "summary": "资源\tCPU\t内存状态\n整机\t20.9%\t压力正常\n本程序\t0.6%\t0.1 GiB\n\n本程序可再用约 16.6 GiB\n\n",
+      "detailsVisible": true,
+      "expandedSurvivesRefresh": true,
+      "mobileNoOverflow": true,
+      "pageErrors": []
+    },
+    "precommit": {
+      "focusedTestsSerial": {
+        "tests": 87,
+        "passed": 87
+      },
+      "nativeSamplerIsolated": {
+        "tests": 4,
+        "passed": 4
+      },
+      "typescriptNoEmit": true,
+      "parallelFocusedRun": {
+        "tests": 87,
+        "passed": 86,
+        "failed": 1,
+        "reason": "原生采样测试的首次内核读取命令超时；单独及逐项复验通过，未放宽运行保护或超时时间"
+      }
+    }
+  },
+  "limitations": [
+    "没有启动或标定真实模型，未调整既有模型的预约数值",
+    "memory_pressure 百分比仍用于估算，不声称已验证所有缓存的可回收程度",
+    "并行服务测试曾因共享用户级租约导致两个后台启动用例超时；单独及逐项执行均通过",
+    "采样保护不是瞬时硬上限，也不保证任务一定能完成"
+  ]
+}
