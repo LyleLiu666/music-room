@@ -9,7 +9,7 @@ import {fileURLToPath} from 'node:url';
 import {remoteCall,readRuntime} from './main.ts';
 import type {Job} from '../service/jobs/jobs.ts';
 const command=process.env.MUSIC_ROOM_BINARY??process.execPath;
-const selfArgs=process.env.MUSIC_ROOM_BINARY?[]:[fileURLToPath(new URL('./dev.ts',import.meta.url))],run=promisify(execFile);
+const selfArgs=process.env.MUSIC_ROOM_BINARY?[]:[fileURLToPath(new URL('./fixtures/test-server.ts',import.meta.url))],run=promisify(execFile);
 const example=JSON.parse(await readFile(new URL('../music/authoring/example.json',import.meta.url),'utf8'));
 async function waitFor<T>(read:()=>Promise<T|undefined>,timeout=15000):Promise<T>{const until=Date.now()+timeout;while(Date.now()<until){const value=await read();if(value)return value;await new Promise(r=>setTimeout(r,50));}throw Error('timeout');}
 test('background startup survives closing its launching terminal while queued and running jobs complete',async t=>{

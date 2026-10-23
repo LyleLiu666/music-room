@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,readFileSync,rmSync,mkdirSync} from 'node:fs';
+import {mkdtempSync,readFileSync,writeFileSync,rmSync,mkdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {createLyricsReviewer,parseLyricMapping,applyReviewedMapping,type TranscriptChunk} from './lyrics-review.ts';
@@ -63,4 +63,55 @@ test('an existing quota lock without an owner is not stolen',async()=>{
   const reviewer=createLyricsReviewer({directory,credentials:()=>({account:'a'.repeat(32),token:'secret'}),fetch:async()=>{calls++;throw Error('must not call');}});
   await assert.rejects(reviewer.review(reference,[chunk],new AbortController().signal,()=>{}),/另一个/);assert.equal(calls,0);
  }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+// Quota reset is 00:00 UTC / 08:00 Beijing; settlement must retain its reservation day.
+test('a response crossing the daily reset cannot deduct previous-day reservation from new usage',async t=>{
+ const directory=mkdtempSync(join(tmpdir(),'lyrics-midnight-')),account='a'.repeat(32);
+ t.mock.timers.enable({apis:['Date'],now:new Date('2026-10-22T23:59:59Z')});
+ let calls=0;
+ try{
+  const reviewer=createLyricsReviewer({directory,credentials:()=>({account,token:'test'}),fetch:async()=>{
+   if(++calls===1){
+    const stored=JSON.parse(readFileSync(join(directory,'usage.json'),'utf8'));
+    stored.date='2026-10-23';for(const key of Object.keys(stored.neurons))stored.neurons[key]=500;
+    t.mock.timers.setTime(new Date('2026-10-23T00:00:01Z').getTime());writeFileSync(join(directory,'usage.json'),JSON.stringify(stored));
+   }
+   return Response.json({success:true,result:{response:mapping(),usage:{neurons:10}}});
+  }});
+  await reviewer.review(reference,[chunk],new AbortController().signal,()=>{});
+  assert.equal(Object.values(JSON.parse(readFileSync(join(directory,'usage.json'),'utf8')).neurons)[0],520);
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('clock rollback and damaged quota records block network calls instead of resetting usage',async t=>{
+ const directory=mkdtempSync(join(tmpdir(),'lyrics-clock-'));t.mock.timers.enable({apis:['Date'],now:new Date('2026-10-23T00:00:00Z')});let calls=0;
+ try{
+  const reviewer=createLyricsReviewer({directory,credentials:()=>({account:'a'.repeat(32),token:'test'}),fetch:async()=>{calls++;return Response.json({success:true,result:{response:mapping(),usage:{neurons:10}}});}});
+  for(const data of [{version:1,date:'2026-10-24',neurons:{}},{version:1,date:'invalid',neurons:{}},{version:1,date:'2026-10-23',neurons:[]}]){
+   writeFileSync(join(directory,'usage.json'),JSON.stringify(data));await assert.rejects(reviewer.review(reference,[chunk],new AbortController().signal,()=>{}));
+  }assert.equal(calls,0);
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('timeout retains its reservation; retry reuses the completed first round and only settles new requests',async()=>{
+ const directory=mkdtempSync(join(tmpdir(),'lyrics-timeout-'));let calls=0;
+ try{
+  const reviewer=createLyricsReviewer({directory,credentials:()=>({account:'a'.repeat(32),token:'test'}),fetch:async()=>{
+   if(++calls===2)throw Error('timeout');return Response.json({success:true,result:{response:mapping(),usage:{neurons:10}}});
+  }});
+  const usage=()=>Object.values(JSON.parse(readFileSync(join(directory,'usage.json'),'utf8')).neurons)[0] as number;
+  await assert.rejects(reviewer.review(reference,[chunk],new AbortController().signal,()=>{}),/超时/);const reserved=usage();assert.ok(reserved>10);
+  await reviewer.review(reference,[chunk],new AbortController().signal,()=>{});assert.equal(calls,3);assert.equal(usage(),reserved+10);
+  await reviewer.review(reference,[chunk],new AbortController().signal,()=>{});assert.equal(calls,3);assert.equal(usage(),reserved+10);
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('separate workspaces settle against one account counter without losing either receipt',async()=>{
+ const root=mkdtempSync(join(tmpdir(),'lyrics-shared-quota-'));let calls=0;
+ try{
+  const open=(name:string)=>createLyricsReviewer({directory:join(root,name),usageFile:join(root,'usage.json'),credentials:()=>({account:'a'.repeat(32),token:'test'}),fetch:async()=>{calls++;await new Promise(r=>setTimeout(r,5));return Response.json({success:true,result:{response:mapping(),usage:{neurons:10}}});}});
+  await Promise.all([open('one'),open('two')].map(reviewer=>reviewer.review(reference,[chunk],new AbortController().signal,()=>{})));
+  assert.equal(calls,4);assert.equal(Object.values(JSON.parse(readFileSync(join(root,'usage.json'),'utf8')).neurons)[0],40);
+ }finally{rmSync(root,{recursive:true,force:true});}
 });

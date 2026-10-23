@@ -1,4 +1,4 @@
-import {existsSync,mkdirSync,readFileSync,openSync,writeFileSync,fsyncSync,closeSync,unlinkSync} from 'node:fs';
+import {existsSync,mkdirSync,readFileSync,openSync,writeFileSync,fsyncSync,closeSync,unlinkSync,readdirSync} from 'node:fs';
 import {randomUUID} from 'node:crypto';
 import {setImmediate} from 'node:timers/promises';
 import CodecParser,{type CodecFrame} from 'codec-parser';
@@ -28,7 +28,13 @@ const invalid=(message:string):never=>{throw new ServiceError('INVALID_AUDIO',me
 /** Owned copies of external recordings, independent of projects and reference voices. */
 export class SoundLibrary{
  private store:ProjectStore;private imports:ImportRecord[];private pending:Promise<unknown>=Promise.resolve();
- constructor(store:ProjectStore){this.store=store;const path=store.path('sound-library','index.json');this.imports=existsSync(path)?indexSchema.parse(JSON.parse(readFileSync(path,'utf8'))).imports:[];}
+ constructor(store:ProjectStore){
+  this.store=store;const path=store.path('sound-library','index.json');this.imports=existsSync(path)?indexSchema.parse(JSON.parse(readFileSync(path,'utf8'))).imports:[];
+  // Only the workspace owner can import. After a crash, an unindexed owned copy
+  // was never published; reclaim it without touching unrelated user files.
+  const directory=store.path('sound-library'),committed=new Set(this.imports.map(r=>`${r.id}.${r.extension}`));
+  if(existsSync(directory))for(const name of readdirSync(directory))if(/^import-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.(wav|flac)$/.test(name)&&!committed.has(name))unlinkSync(store.path('sound-library',name));
+ }
  private item(r:ImportRecord):ImportedSound{return {id:r.id,title:r.title,filename:r.filename,extension:r.extension,duration:r.duration,createdAt:r.createdAt,origin:'imported',audioPath:`/sound-library/audio/${r.id}`};}
  list(){return this.imports.map(r=>this.item(r));}
  async import(args:{name:string;title?:string;requestId:string;bytes:Uint8Array},signal?:AbortSignal):Promise<ImportedSound>{

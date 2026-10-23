@@ -61,7 +61,7 @@ async function startBackground(workspace:string,port:number,selfArgs:string[]):P
   const tail=readFileSync(log,'utf8').slice(-2000).trim();
   throw new Error(`后台启动失败：${failure?.message??'等待服务就绪超时'}。日志：${log}${tail?'\n'+tail:''}`);
 }
-export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
+export async function main(argv:string[],assets:WebAssets,selfArgs:string[],resourceFactory=createResources) {
   const opt=options(argv);configureCommandWorker(process.execPath,[...selfArgs,'command-worker']);
   if(opt.mode==='command-worker'){await runCommandWorker();return;}
   if(opt.mode==='help'||opt.mode==='--help'){console.log('Music Room\n  start [--workspace DIRECTORY] [--port PORT]  # independent background service (default)\n  stop [--workspace DIRECTORY]  # stop service and interrupt unfinished tasks\n  serve [--workspace DIRECTORY] [--port PORT]  # foreground, for development/supervision\n  mcp [--workspace DIRECTORY]  # stdio MCP; connects to or starts independent background service\n  status [--workspace DIRECTORY]\n  call OPERATION --input request.json [--workspace DIRECTORY]\nDefault workspace: ~/Music/MusicRoom. No Electron or browser runtime. Optional YuE2 is installed into your chosen directory from the web page.');return;}
@@ -100,7 +100,7 @@ export async function main(argv:string[],assets:WebAssets,selfArgs:string[]) {
     const renderer=processRenderer(process.execPath,[...selfArgs,'render-worker']);
     for(let attempt=0;attempt<30 && !runtime;attempt++) {
       let service: MusicService;
-      try {service=await MusicService.open(opt.workspace,renderer,assets.read,true,createYuE2Driver(assets.read,process.execPath,[...selfArgs,'yue2-worker']),createSpeechDriver(process.execPath,[...selfArgs,'tts-worker'],assets.read),createNativeConversionDriver(join(opt.workspace,'engines','voice-conversion'),{command:process.execPath,args:[...selfArgs,'conversion-native-worker']}),createResources(assets.read),processSpeed(process.execPath,[...selfArgs,'speed-worker']));}
+      try {service=await MusicService.open(opt.workspace,renderer,assets.read,true,createYuE2Driver(assets.read,process.execPath,[...selfArgs,'yue2-worker']),createSpeechDriver(process.execPath,[...selfArgs,'tts-worker'],assets.read),createNativeConversionDriver(join(opt.workspace,'engines','voice-conversion'),{command:process.execPath,args:[...selfArgs,'conversion-native-worker']}),resourceFactory(assets.read),processSpeed(process.execPath,[...selfArgs,'speed-worker']));}
       catch(error:any) {
         if(error.code!=='WORKSPACE_LOCKED')throw error;
         // Another agent can own the lock before it has published the HTTP descriptor.

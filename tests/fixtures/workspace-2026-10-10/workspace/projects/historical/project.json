@@ -1,0 +1,18 @@
+{
+  "format": "music-room-project",
+  "version": 1,
+  "id": "historical",
+  "title": "旧版本项目",
+  "requirements": "保留旧声音、父子关系、原件和试听决定",
+  "revisions": [
+    {
+      "id": "score-4ac80a4c-464d-42f0-b901-01b197d3190b",
+      "label": "示例第一版",
+      "scorePath": "revisions/score-4ac80a4c-464d-42f0-b901-01b197d3190b/score.json",
+      "sha256": "73e2e64a625acf6239560ab5a5b2cb9ad496f26f2ad1364a74258fa8cd0b4329",
+      "createdAt": "2026-10-22T17:01:55.937Z",
+      "artifacts": []
+    }
+  ],
+  "defaultRevisionId": "score-4ac80a4c-464d-42f0-b901-01b197d3190b"
+}

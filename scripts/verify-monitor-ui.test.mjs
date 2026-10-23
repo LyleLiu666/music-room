@@ -10,12 +10,12 @@ test('sidebar monitor stays visible across pages, keeps navigation above it and 
  let samples=0,offline=false;const errors=[];page.on('pageerror',e=>errors.push(e.message));page.setDefaultTimeout(7000);
  await page.route('**/api/**',async route=>{
   const name=route.request().url().split('/').at(-1);
-  if(name==='resource_status')return route.fulfill({json:{queued:[],paused:false}});
+  if(name==='resource_status')return route.fulfill({json:{queued:[],paused:false,residents:[],history:[],policy:{reserveFraction:.25,reserveMinimum:0,headroom:2**30,maxSnapshotAgeMs:3000,maxWaitMs:100,retryMs:1,maxQueue:8}}});
   if(name==='monitor_status'){
    samples++;if(offline)return route.fulfill({status:503,json:{message:'资源采样暂不可用'}});
    return route.fulfill({json:{sampledAt:Date.now(),cpuCount:8,resources:{policy:{reserveFraction:.25,reserveMinimum:0,headroom:2**30,maxSnapshotAgeMs:3000,maxWaitMs:100,retryMs:1,maxQueue:8},hardware:{supported:true,topology:'unified',sampledAt:Date.now(),pressure:'normal',memory:{compressed:8*2**30,swapUsed:2**30},pools:[{id:'memory',capacity:64*2**30,available:32*2**30,owned:2*2**30}]}},system:{cpuPercent:samples===1?undefined:62.5,memoryUsed:24*2**30,memoryTotal:64*2**30},application:{cpuPercent:samples===1?undefined:37.5,memoryBytes:12*2**30,processCount:4,memoryKind:'footprint'}}});
   }
-  return route.fulfill({json:{projects:[{id:'p',title:'项目'}],sounds:[],versions:[],voices:[],engines:{speech:{logs:[]},music:{logs:[]}}}});
+  return route.fulfill({json:{projects:[{id:'p',title:'项目'}],sounds:[],versions:[],voices:[],engines:{speech:{logs:[],message:'测试语音'},music:{logs:[],message:'测试音乐'},conversion:{message:'测试转换'}}}});
  });
  await page.addInitScript(()=>localStorage.setItem('music-room-studio:monitor-test',JSON.stringify({workspaceView:'monitor'})));
  await page.goto(server.resolvedUrls.local[0]);await page.locator('.sidebar #machine-monitor').waitFor();
@@ -31,6 +31,9 @@ test('sidebar monitor stays visible across pages, keeps navigation above it and 
  for(const theme of ['light','dark']){await page.locator(`[data-theme-choice="${theme}"]`).first().click();await page.screenshot({path:`test-results/monitor/sidebar-${theme}-desktop.png`,fullPage:true});}
  await page.getByRole('button',{name:'任务列表',exact:true}).click();await page.getByRole('heading',{name:'任务列表',exact:true}).waitFor();const before=samples;await page.waitForFunction(()=>document.querySelector('.sidebar #machine-monitor'));await page.waitForTimeout(2300);assert.ok(samples>before,'monitor keeps sampling on other pages');
  assert.equal(await page.getByText('统计说明',{exact:true}).count(),0);
+ // Same CSS viewport as 1440×912 at 200% browser zoom. The fixed transport
+ // spans the sidebar here, so scrolling must expose Settings above it.
+ await page.setViewportSize({width:720,height:456});await page.locator('[data-action="settings"]').click();await page.getByRole('dialog').waitFor();await page.keyboard.press('Escape');
  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'test-results/monitor/sidebar-mobile.png',fullPage:true});
  await page.reload();await page.locator('.sidebar #machine-monitor').waitFor();await page.getByText('12.0 GiB',{exact:true}).waitFor();
  offline=true;await page.getByText('暂不可用',{exact:true}).first().waitFor();assert.equal(await page.getByText('12.0 GiB',{exact:true}).count(),0);

@@ -25,3 +25,17 @@ test('native system sampling distinguishes counters from reclaimable estimates a
 test('native system counters are available without loading a model', {skip:process.platform!=='darwin'},async()=>{
  const sampler=nativeFootprint();try{const memory=await sampler.system();assert.ok(memory.capacity>0);assert.ok(memory.compressed>=0);assert.ok(memory.swapOutBytes>=0);}finally{await sampler.close();}
 });
+
+test('a footprint failure revalidates an actual unreaped worker before refusing the task',{skip:process.platform!=='darwin',timeout:10000},async()=>{
+ const {measureLivingProcess,commandOutput}=await import('./telemetry.ts');
+ const parent=spawn('python3',['-c','import os,sys\npid=os.fork()\nif pid==0: os._exit(0)\nprint(pid,flush=True)\nsys.stdin.read()\nos.waitpid(pid,0)'],{stdio:['pipe','pipe','pipe']});
+ const closed=once(parent,'close'),sampler=nativeFootprint();
+ try{
+  const [bytes]=await once(parent.stdout!,'data');const pid=Number(bytes.toString().trim());assert.ok(Number.isSafeInteger(pid)&&pid>0);
+  let state='';for(let n=0;n<50;n++){state=(await commandOutput('/bin/ps',['-p',String(pid),'-o','stat='])).trim();if(state.startsWith('Z'))break;await new Promise(r=>setTimeout(r,10));}
+  assert.ok(state.startsWith('Z'),'fixture must hold an actual zombie, not only a missing PID');
+  // macOS can return zero or an error for a zombie; exercise the observed error path deterministically.
+  try{assert.ok((await sampler.measure(pid))>=0);}catch(error){assert.match(String(error),/proc_pid_rusage/);}
+  assert.equal(await measureLivingProcess(pid,async()=>{throw Error('proc_pid_rusage: Operation not permitted');}),0);
+ }finally{parent.stdin!.end();await closed;await sampler.close();}
+});

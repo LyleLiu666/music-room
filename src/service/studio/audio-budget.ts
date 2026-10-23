@@ -8,9 +8,9 @@ export function audioShape(bytes:Uint8Array,maxSeconds=600){
  }else if(b.length>=44&&b.subarray(0,4).toString()==='RIFF'&&b.subarray(8,12).toString()==='WAVE'){
   if(b.readUInt32LE(4)+8!==b.length)throw new ServiceError('INVALID_AUDIO','WAV 容器长度无效');
   let sampleBytes=0,dataBytes=0,block=0,foundData=false;
-  for(let at=12;at+8<=b.length;){const length=b.readUInt32LE(at+4),name=b.subarray(at,at+4).toString();if(at+8+length>b.length)throw new ServiceError('INVALID_AUDIO','WAV 长度无效');
+  for(let at=12;at<b.length;){if(at+8>b.length)throw new ServiceError('INVALID_AUDIO','WAV 尾部数据不完整');const length=b.readUInt32LE(at+4),name=b.subarray(at,at+4).toString();if(at+8+length+(length%2)>b.length)throw new ServiceError('INVALID_AUDIO','WAV 长度无效');
    if(name==='fmt '){if(sampleBytes||length<16)throw new ServiceError('INVALID_AUDIO','WAV 格式块无效');const format=b.readUInt16LE(at+8),bits=b.readUInt16LE(at+22);channels=b.readUInt16LE(at+10);rate=b.readUInt32LE(at+12);sampleBytes=bits/8;block=b.readUInt16LE(at+20);
-    if(!((format===1&&[8,16,24,32].includes(bits))||(format===3&&[32,64].includes(bits)))||block!==channels*sampleBytes)throw new ServiceError('INVALID_AUDIO','WAV 编码或块长度无效');
+    if(!((format===1&&[8,16,24,32].includes(bits))||(format===3&&[32,64].includes(bits)))||block!==channels*sampleBytes||b.readUInt32LE(at+16)!==rate*block)throw new ServiceError('INVALID_AUDIO','WAV 编码或块长度无效');
    }
    if(name==='data'){if(foundData||!sampleBytes)throw new ServiceError('INVALID_AUDIO','WAV 数据块无效');foundData=true;dataBytes=length;}at+=8+length+(length%2);
   }frames=dataBytes/block;

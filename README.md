@@ -125,9 +125,9 @@ MIDI 使用 `englishTitle` 或曲目 ID 保存 ASCII 标题；新段落可用 `m
 npm run verify:all
 ```
 
-包括单元测试、构建、后端服务测试、统一创作空间浏览器验证和乐谱工具浏览器验证。浏览器检查默认使用本机 Google Chrome，并在隔离工作目录运行；不会改动用户项目。
+包括单元测试、构建、后端服务测试、歌词 Python 与实验规则测试，以及 Chrome 工作台、乐谱、歌词和资源管理浏览器验证。浏览器检查默认使用本机 Google Chrome，并在隔离工作目录运行；不会改动用户项目。
 
-`npm run verify:score` 覆盖旧链接定位、当前片段范围、MIDI 下载、选段听评、播放释放、混音新版本与桌面/窄屏布局。截图位于 `test-results/score-context/`。模型生成测试使用测试驱动，不代表新增真实模型推理验收；模型专用真实验证命令继续保留。
+`npm run verify:score` 覆盖旧链接定位、当前片段范围、MIDI 下载、选段听评、播放释放、混音新版本与桌面/窄屏布局。截图位于 `test-results/score-context/`。模型生成测试使用测试驱动，不代表真实模型推理验收。按改动选择补充测试，统一从[测试与发布验收](docs/testing.md)进入；具体命令见[执行指南](docs/testing/running.md)，新增用例与失败处理见[维护规则](docs/testing/maintenance.md)。
 
 旧独立作品库的 `scripts/verify-browser.mjs`、`verify-workbench.mjs`、`verify-imports.mjs`、`verify-loop-audio.mjs`、`verify-comparison.mjs`、`verify-boundaries.mjs`、`verify-service.mjs`、`verify-service-boundaries.test.mjs` 与 `verify-yue2-ui.test.mjs` 为旧页面验证历史，不再作为正式入口验收。核心播放、乐谱、导入与比较规则仍由单元测试覆盖。
 

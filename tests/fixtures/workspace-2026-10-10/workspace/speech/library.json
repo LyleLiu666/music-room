@@ -1,0 +1,83 @@
+{
+  "format": "music-room-speech",
+  "version": 1,
+  "voices": [
+    {
+      "id": "voice-6423ef8d-6429-4ef9-9529-de635e8da05e",
+      "name": "合成测试参考",
+      "duration": 1,
+      "sha256": "b9ceeebff039e61b178bfe9486cd18d9c871d8bb33e06aeb83653ea413e975aa",
+      "createdAt": "2026-10-22T17:01:55.976Z"
+    }
+  ],
+  "sounds": [
+    {
+      "id": "speech-5a988925-92cf-4a58-b6b8-c7853f49f7ab",
+      "projectId": "historical",
+      "title": "旧旁白",
+      "createdAt": "2026-10-22T17:01:55.965Z",
+      "finalVersionId": "speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4"
+    }
+  ],
+  "versions": [
+    {
+      "seed": 1010371112,
+      "id": "speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4",
+      "projectId": "historical",
+      "soundId": "speech-5a988925-92cf-4a58-b6b8-c7853f49f7ab",
+      "number": 1,
+      "voiceId": "voice-6423ef8d-6429-4ef9-9529-de635e8da05e",
+      "voiceName": "合成测试参考",
+      "text": "旧版第一条旁白。",
+      "engine": "IndexTTS 2.0",
+      "state": "succeeded",
+      "stage": "生成完成",
+      "createdAt": "2026-10-22T17:01:55.982Z",
+      "kept": true,
+      "deleted": false,
+      "resource": {
+        "id": "speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4",
+        "engine": "tts",
+        "stage": "succeeded",
+        "submittedAt": 1792688515988
+      },
+      "artifact": {
+        "duration": 1,
+        "sampleRate": 22050,
+        "peak": 0.20001220703125,
+        "bytes": 44144,
+        "sha256": "b9ceeebff039e61b178bfe9486cd18d9c871d8bb33e06aeb83653ea413e975aa"
+      }
+    },
+    {
+      "seed": 584544955,
+      "id": "speech-v-d5a43b19-aee6-4d23-8cea-0c290f0cde21",
+      "projectId": "historical",
+      "soundId": "speech-5a988925-92cf-4a58-b6b8-c7853f49f7ab",
+      "number": 2,
+      "parentId": "speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4",
+      "voiceId": "voice-6423ef8d-6429-4ef9-9529-de635e8da05e",
+      "voiceName": "合成测试参考",
+      "text": "旧版第二条旁白。",
+      "engine": "IndexTTS 2.0",
+      "state": "succeeded",
+      "stage": "生成完成",
+      "createdAt": "2026-10-22T17:01:56.037Z",
+      "kept": false,
+      "deleted": true,
+      "resource": {
+        "id": "speech-v-d5a43b19-aee6-4d23-8cea-0c290f0cde21",
+        "engine": "tts",
+        "stage": "succeeded",
+        "submittedAt": 1792688516042
+      },
+      "artifact": {
+        "duration": 1,
+        "sampleRate": 22050,
+        "peak": 0.20001220703125,
+        "bytes": 44144,
+        "sha256": "b9ceeebff039e61b178bfe9486cd18d9c871d8bb33e06aeb83653ea413e975aa"
+      }
+    }
+  ]
+}

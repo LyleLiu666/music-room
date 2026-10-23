@@ -10,6 +10,17 @@ const unused={unsupported:()=>undefined,installed:()=>false,chooseDirectory:asyn
 const wav=new Uint8Array(encodeWav([Float32Array.from({length:22050},(_,i)=>Math.sin(i*.1)*.2)],22050));
 const speech={installed:()=>true,prepare:async()=>{},generate:async(_:string,r:{outputPath:string})=>{await writeFile(r.outputPath,wav);}};
 async function open(root:string){return MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,speech,undefined,testResources());}
+test('conversion audio keeps binary bytes and caller isolation through the studio transaction',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'studio-audio-copy-')),svc=await open(root);
+ try{
+  await svc.call('create_project',{projectId:'copy',title:'copy'});const sound=await svc.call('studio_create_sound',{projectId:'copy',title:'转换',kind:'conversion'});
+  const id='conversion-copy',bytes=new Uint8Array([0,1,127,255]);
+  svc.conversion.snapshot=()=>({status:{ready:true,message:'fixture'},jobs:[{id,projectId:'copy',soundId:sound.id,state:'succeeded',createdAt:'2026-10-23T00:00:00Z',name:'saved.wav',stage:'完成',duration:1}]} as any);
+  svc.conversion.audio=()=>bytes;
+  const returned=await svc.studio.conversionAudio(id,'converted');assert.ok(returned instanceof Uint8Array);assert.deepEqual(returned,bytes);
+  returned[0]=99;assert.equal(bytes[0],0);
+ }finally{await svc.close();await rm(root,{recursive:true,force:true});}
+});
 test('vocal and instrumental target duration reaches generation and persists with the original lyrics',async()=>{
  const root=await mkdtemp(join(tmpdir(),'studio-duration-'));let svc=await open(root);const submitted:any[]=[];
  try{

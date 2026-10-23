@@ -1,3 +1,4 @@
+import {copyPlainData} from '../projects/copy-data.ts';
 import {MusicEdits,musicEditLabels,type MusicEditKind,type MusicEditChange,type MusicEditProvenance} from './music-edits.ts';
 import {readLyrics,referenceLyrics} from './lyrics.ts';
 import {collectedSounds,type LibrarySound} from './sound-library.ts';
@@ -25,9 +26,9 @@ export type MusicAttempt={jobId:string;input?:StudioInput;state:SpeechVersion['s
 export type StudioVersion={musicAttempts?:MusicAttempt[];musicAttemptStartedAt?:string;musicAttemptRequestId?:string;musicRecovery?:MusicRecovery;musicResumedFrom?:MusicRecovery;musicRetryOf?:string;musicEdit?:MusicEditProvenance;musicProgress?:MusicProgress;musicTruncated?:MusicTruncation;scoreMix?:RenderMix;mixRequestId?:string;resource?:ResourceTaskState;speed?:SpeedEdit;audioHash?:string;id:string;soundId:string;number:number;parentId?:string;createdAt:string;state:SpeechVersion['state'];stage:string;kept:boolean;deleted:boolean;purged?:boolean;purgePending?:boolean;voiceName?:string;error?:string;duration?:number;input?:StudioInput;originalAudioPath?:string;vocalsAudioPath?:string;source:{kind:'speech'|'music'|'score'|'audio'|'conversion';id:string;projectId?:string};audioPath?:string;renderJobId?:string};
 export type StudioLibraryOptions={paginateConversions?:boolean;includeDeletedConversions?:boolean;conversionSoundId?:string;conversionPage?:number;conversionPageSize?:number;selectedVersionId?:string};
 export type StudioConversionPagination={soundId:string;page:number;pageSize:number;total:number;totalPages:number;versionIds:string[]};
-type Data={format:'music-room-studio';version:1;sounds:StudioSound[];versions:StudioVersion[]};
+type Data={format:'music-room-studio';version:1;sounds:StudioSound[];versions:StudioVersion[];pendingScores?:StudioVersion[]};
 const fail=(message:string):never=>{throw new ServiceError('INVALID_STUDIO',message);};
-const clone=<T>(v:T):T=>structuredClone(v);
+const clone=copyPlainData;
 function musicRequest(args:StudioInput,title:string):YuE2Generate {return {targetDuration:args.targetDuration,ending:args.ending??'natural',style:args.text,lyrics:args.instrumental===false?args.lyrics||'[verse]':args.structure?.trim()||'[instrumental]',seed:args.seed,abc:args.abc?.trim()||undefined,preset:args.preset??'fast',instrumental:args.instrumental!==false,title};}
 /** Stable ownership and listening decisions. Engine files remain authoritative for audio and task state. */
 export class StudioService{
@@ -44,6 +45,30 @@ export class StudioService{
  lyrics(id:string){const v=this.version(id);this.activeSound(v.soundId);if(v.deleted||v.purged||v.purgePending)fail('版本在回收站中');return {...readLyrics(this.service.store.path('lyrics'),v),canGenerate:!!referenceLyrics(v.input).trim()&&v.state==='succeeded'&&!!v.audioPath,...this.service.lyricsGeneration.status(id)};}
  lyricSource(id:string){const v=this.version(identity(id));this.activeSound(v.soundId);if(v.deleted||v.purged||v.purgePending||v.state!=='succeeded'||!v.audioPath||!referenceLyrics(v.input).trim())fail('请选择有参考歌词的已完成歌曲');return {id:v.id,audioPath:v.audioPath!,reference:v.input!.lyrics!,audio:async()=>{if(v.source.kind==='music')return this.service.yue2Client.audio(v.source.id);if(v.source.kind==='audio')return this.audio(v.id);throw Error('此音频来源暂不支持歌词生成');}};}
  private save(){this.service.store.atomicJSON(this.service.store.path('studio.json'),this.data);}
+ private async recoverScorePublications(){
+  if(!this.data.pendingScores?.length)return;
+  const projects=await this.service.store.projects(true);
+  for(const candidate of this.data.pendingScores){
+   const project=projects.find(p=>p.id===candidate.source.projectId)??fail('待恢复乐谱的项目不存在');
+   const revision=project.revisions.find(r=>r.id===candidate.source.id);
+   if(revision){
+    // Verify the immutable source before exposing a committed result.
+    await this.service.store.revision(project.id,revision.id);
+    if(!this.data.versions.some(v=>v.id===candidate.id))this.data.versions.push({...candidate,createdAt:revision.createdAt});
+   }else await this.service.store.discardUnpublishedRevision(project.id,candidate.source.id);
+  }
+  this.data.pendingScores=undefined;this.save();
+ }
+ private async publishScore(doc:ReturnType<typeof validateComposition>,version:StudioVersion,parentId?:string){
+  // Persist ownership and retry identity before the project manifest commits.
+  // A restart either adopts that exact version or discards its unpublished files.
+  this.data.pendingScores=[...(this.data.pendingScores??[]),version];this.save();
+  try{
+   const revision=await this.service.store.importRevision(doc,parentId);version.createdAt=revision.createdAt;
+   this.data.versions.push(version);this.data.pendingScores=this.data.pendingScores.filter(v=>v.id!==version.id);
+   if(!this.data.pendingScores.length)this.data.pendingScores=undefined;this.save();return version;
+  }catch(error){await this.recoverScorePublications();throw error;}
+ }
  private sound(id:string){return this.data.sounds.find(s=>s.id===id)??fail('声音不存在');}
  private version(id:string){return this.data.versions.find(v=>v.id===id)??fail('版本不存在');}
  private async syncConversions(){
@@ -68,6 +93,7 @@ export class StudioService{
   }
  }
  private async sync(){
+  await this.recoverScorePublications();
   await this.syncConversions();
   const speech=this.service.speech.snapshot(true);
   for(const s of speech.sounds){let target=this.data.sounds.find(x=>x.id===s.id);if(!target){target={...s,kind:'speech'};this.data.sounds.push(target);}Object.assign(target,s);}
@@ -306,8 +332,9 @@ export class StudioService{
  async importScore(args:{soundId:string;compositionJson:string;parentId?:string}){return this.serial(async()=>{
   await this.sync();const s=this.activeSound(args.soundId);if(s.kind==='speech'||s.kind==='conversion')fail('此声音类型不能导入 MIDI 乐谱');if(args.parentId&&(this.version(args.parentId).soundId!==s.id||this.version(args.parentId).deleted||this.version(args.parentId).purged))fail('来源版本必须属于当前声音');
   const p=await this.service.store.project(s.projectId),doc=validateComposition(args.compositionJson);doc.work={id:p.id,title:p.title};doc.score.title=p.title;doc.revision.id=`score-${randomUUID()}`;
-  const r=await this.service.store.importRevision(doc);const v:StudioVersion={id:r.id,soundId:s.id,number:this.data.versions.filter(x=>x.soundId===s.id).length+1,parentId:args.parentId,createdAt:r.createdAt,state:'succeeded',stage:'已导入，等待试听',kept:false,deleted:false,source:{kind:'score',id:r.id,projectId:p.id},duration:doc.score.duration,input:{soundId:s.id,text:doc.revision.description??''}};this.data.versions.push(v);return v;
- });}
+  const v:StudioVersion={id:doc.revision.id,soundId:s.id,number:Math.max(0,...this.data.versions.filter(x=>x.soundId===s.id).map(v=>v.number))+1,parentId:args.parentId,createdAt:new Date().toISOString(),state:'succeeded',stage:'已导入，等待试听',kept:false,deleted:false,source:{kind:'score',id:doc.revision.id,projectId:p.id},duration:doc.score.duration,input:{soundId:s.id,text:doc.revision.description??''}};
+  return this.publishScore(doc,v);
+ },false);}
  async renderRevision(request:JobRequest){return this.serial(async()=>{await this.sync();const v=this.data.versions.find(v=>v.source.kind==='score'&&v.source.id===request.revisionId&&v.source.projectId===request.projectId);if(v){this.activeSound(v.soundId);if(v.deleted||v.purged||v.purgePending)fail('版本在回收站中，请先恢复');}const job=await this.service.jobs.submit(request);if(v&&['queued','running'].includes(job.state))v.renderJobId=job.id;return job;});}
  private async renderScoreVersion(v:StudioVersion){
   if(v.audioPath||v.renderJobId)return v;
@@ -327,9 +354,8 @@ export class StudioService{
   const doc=clone((await this.service.store.revision(source.source.projectId!,source.source.id)).composition);
   const project=await this.service.store.project(s.projectId);doc.work={id:project.id,title:project.title};doc.score.title=project.title;
   doc.revision.id=`score-${randomUUID()}`;doc.revision.label=`V${source.number} 的混音版`;
-  const revision=await this.service.store.importRevision(doc,source.source.id);
-  const v:StudioVersion={id:revision.id,soundId:s.id,number:Math.max(0,...this.data.versions.filter(v=>v.soundId===s.id).map(v=>v.number))+1,parentId:source.id,createdAt:revision.createdAt,state:'succeeded',stage:'混音已保存，等待合成',kept:false,deleted:false,source:{kind:'score',id:revision.id,projectId:s.projectId},duration:source.duration,input:source.input&&clone(source.input),scoreMix:mix,mixRequestId:args.requestId};
-  this.data.versions.push(v);this.save();
+  const v:StudioVersion={id:doc.revision.id,soundId:s.id,number:Math.max(0,...this.data.versions.filter(v=>v.soundId===s.id).map(v=>v.number))+1,parentId:source.id,createdAt:new Date().toISOString(),state:'succeeded',stage:'混音已保存，等待合成',kept:false,deleted:false,source:{kind:'score',id:doc.revision.id,projectId:s.projectId},duration:source.duration,input:source.input&&clone(source.input),scoreMix:mix,mixRequestId:args.requestId};
+  await this.publishScore(doc,v,source.source.id);
   // Save ownership before scheduling: a failed submission can retry this same version.
   return this.renderScoreVersion(v);
  },false);}

@@ -1,0 +1,102 @@
+{
+  "format": "music-room-studio",
+  "version": 1,
+  "sounds": [
+    {
+      "projectId": "historical",
+      "title": "旧乐谱",
+      "kind": "clip",
+      "id": "sound-053e637f-dc96-4406-a26f-ce4f07eb93ed",
+      "createdAt": "2026-10-22T17:01:55.929Z",
+      "finalVersionId": "score-4ac80a4c-464d-42f0-b901-01b197d3190b"
+    },
+    {
+      "id": "speech-5a988925-92cf-4a58-b6b8-c7853f49f7ab",
+      "projectId": "historical",
+      "title": "旧旁白",
+      "createdAt": "2026-10-22T17:01:55.965Z",
+      "kind": "speech",
+      "finalVersionId": "speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4"
+    }
+  ],
+  "versions": [
+    {
+      "id": "score-4ac80a4c-464d-42f0-b901-01b197d3190b",
+      "soundId": "sound-053e637f-dc96-4406-a26f-ce4f07eb93ed",
+      "number": 1,
+      "createdAt": "2026-10-22T17:01:55.937Z",
+      "state": "succeeded",
+      "stage": "已导入，等待试听",
+      "kept": true,
+      "deleted": false,
+      "source": {
+        "kind": "score",
+        "id": "score-4ac80a4c-464d-42f0-b901-01b197d3190b",
+        "projectId": "historical"
+      },
+      "duration": 20,
+      "input": {
+        "soundId": "sound-053e637f-dc96-4406-a26f-ce4f07eb93ed",
+        "text": "接口示例：两小节主题、和弦与轻鼓；用于验证创作格式和试听闭环。"
+      }
+    },
+    {
+      "resource": {
+        "id": "speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4",
+        "engine": "tts",
+        "stage": "succeeded",
+        "submittedAt": 1792688515988
+      },
+      "id": "speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4",
+      "soundId": "speech-5a988925-92cf-4a58-b6b8-c7853f49f7ab",
+      "number": 1,
+      "createdAt": "2026-10-22T17:01:55.982Z",
+      "state": "succeeded",
+      "stage": "生成完成",
+      "kept": true,
+      "deleted": false,
+      "voiceName": "合成测试参考",
+      "duration": 1,
+      "input": {
+        "soundId": "speech-5a988925-92cf-4a58-b6b8-c7853f49f7ab",
+        "text": "旧版第一条旁白。",
+        "voiceId": "voice-6423ef8d-6429-4ef9-9529-de635e8da05e"
+      },
+      "source": {
+        "kind": "speech",
+        "id": "speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4"
+      },
+      "audioPath": "/speech/audio/speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4"
+    },
+    {
+      "resource": {
+        "id": "speech-v-d5a43b19-aee6-4d23-8cea-0c290f0cde21",
+        "engine": "tts",
+        "stage": "succeeded",
+        "submittedAt": 1792688516042
+      },
+      "id": "speech-v-d5a43b19-aee6-4d23-8cea-0c290f0cde21",
+      "soundId": "speech-5a988925-92cf-4a58-b6b8-c7853f49f7ab",
+      "number": 2,
+      "parentId": "speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4",
+      "createdAt": "2026-10-22T17:01:56.037Z",
+      "state": "succeeded",
+      "stage": "生成完成",
+      "kept": false,
+      "deleted": true,
+      "voiceName": "合成测试参考",
+      "duration": 1,
+      "input": {
+        "soundId": "speech-5a988925-92cf-4a58-b6b8-c7853f49f7ab",
+        "text": "旧版第二条旁白。",
+        "voiceId": "voice-6423ef8d-6429-4ef9-9529-de635e8da05e",
+        "parentId": "speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4"
+      },
+      "source": {
+        "kind": "speech",
+        "id": "speech-v-d5a43b19-aee6-4d23-8cea-0c290f0cde21"
+      },
+      "audioPath": "/speech/audio/speech-v-d5a43b19-aee6-4d23-8cea-0c290f0cde21"
+    }
+  ]
+}

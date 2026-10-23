@@ -2,6 +2,7 @@ import {ResourceError, type ResourceAdapter, type ResourceRequest, type Resource
   type HardwareSnapshot, type ResourceTaskState, type ResourceStage} from './contracts.ts';
 import {admit, validPolicy} from './policy.ts';
 import type {ResourceLease} from './lease.ts';
+import {checkDisk} from './installation.ts';
 
 type Entry = {
   request: ResourceRequest<unknown>; state: ResourceTaskState; controller: AbortController;
@@ -14,6 +15,7 @@ export type CoordinatorOptions = {
   now?: () => number;
   monitorMs?:number;
   dispose?:()=>Promise<void>;
+  disk?:typeof checkDisk;
   observe?:(pids:number[],baseline:HardwareSnapshot)=>Promise<{usage:Record<string,number>;swapUsed?:number;pressure:HardwareSnapshot['pressure'];swapOutBytes?:number}>;
   lease?: ResourceLease;
   estimate?: (engine: string, input: unknown) => import('./contracts.ts').ResourceDemand;
@@ -39,6 +41,7 @@ export class ResourceCoordinator {
     this.options = {...options, policy: structuredClone(options.policy)};
   }
   private now() {return this.options.now?.() ?? Date.now();}
+  checkDisk(directory:string,bytes:number){return (this.options.disk??checkDisk)(directory,bytes);}
   estimate(engine: string, input: unknown) {
     return this.options.estimate?.(engine, input) ?? {verified: false, peak: {memory: 0}};
   }

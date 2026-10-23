@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "referenceVoice": "public/tts-presets/official.wav",
+  "seeds": [42, 43, 44],
+  "cases": [
+    {"id":"Q-TTS-01","kind":"tts","input":{"text":"你好，欢迎回来。今天的故事从这里开始。窗外下着小雨，我们慢慢说。","emotionStrength":"flat"},"listenFor":["每个词可理解，无漏句、重复、尾字截断","音色前后一致，标点停顿自然"]},
+    {"id":"Q-TTS-02","kind":"tts","input":{"text":"今天是 2026 年 10 月 23 日。订单编号 A102，金额 128.50 元，增长 3.5%。请把 PDF 发到工作群，下午三点半开会。","emotionStrength":"minimal"},"listenFor":["数字、日期、金额、百分比含义正确","中英文切换不吞字；允许合理读法差异"]},
+    {"id":"Q-TTS-03","kind":"tts","input":{"repeat":30,"text":"清晨，我们沿着河岸出发。走过石桥，看见阳光落在水面。午后回到家，写下今天的见闻。","emotionStrength":"flat"},"listenFor":["分段接缝没有跳变、重复或丢句","最后一段完整，音色和响度不随段落漂移"]},
+    {"id":"Q-MUSIC-01","kind":"music","input":{"style":"Instrumental acoustic piano and soft bass, concise memorable motif, verse and reprise, natural ending, no singing.","lyrics":"[instrumental]","instrumental":true,"preset":"fast","targetDuration":60,"ending":"natural"},"listenFor":["没有人声，旋律可辨认","结尾完整，不以硬切结束；段落之间连续"]},
+    {"id":"Q-MUSIC-02","kind":"music","input":{"style":"Mandarin folk ballad, warm solo vocal, acoustic guitar, clear phrasing, natural ending.","lyrics":"[Verse]\n风从窗前慢慢走\n灯在桌上等很久\n[Chorus]\n把今天的故事留下\n把明天的门轻轻打开\n[Chorus]\n把今天的故事留下\n把明天的门轻轻打开","instrumental":false,"preset":"quality","targetDuration":60,"ending":"natural"},"listenFor":["中文可理解，重复副歌保留","人声不爆音，前后音色稳定，尾句完整"]},
+    {"id":"Q-SVC-01","kind":"conversion","input":{"source":"public/tts-presets/official.wav","target":"public/tts-presets/tianjin.wav","pitchShiftSemitones":0},"listenFor":["原话和节奏保留，目标音色可辨认","无丢字、金属感、异常静音；全时间线保留"]},
+    {"id":"Q-SVC-02","kind":"conversion","input":{"source":"prepared/voice-with-background.wav","target":"public/tts-presets/tianjin.wav","pitchShiftSemitones":2},"listenFor":["背景音仍存在，完整时间线保留","升调后人声与背景协调；没有突变、强烈失真"]},
+    {"id":"Q-SPEED-01","kind":"speed","input":{"source":"public/tts-presets/official.wav","rates":[0.5,0.8,2.0]},"listenFor":["0.5 倍无明显颤音、拖尾或金属感","音调保持，声道和文本完整；每个速率分别评分"]},
+    {"id":"Q-LYRICS-01","kind":"lyrics","input":{"sourceCase":"Q-MUSIC-02","reference":"use Q-MUSIC-02 lyrics verbatim; independently transcribe the actual singing"},"listenFor":["逐字根据实际演唱标注，参考词不能填补未唱内容","保留重复句、顺序变化和新增唱词","不确定片段明确留待确认，不伪装成确定结果"],"metrics":{"characterAccuracyMin":0.95,"startErrorP95SecondsMax":0.5}}
+  ]
+}

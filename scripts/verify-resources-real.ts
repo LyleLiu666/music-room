@@ -1,9 +1,9 @@
-import {mkdir,readFile,writeFile,copyFile,symlink,stat,readdir} from 'node:fs/promises';
-import {constants,existsSync} from 'node:fs';
+import {mkdir,readFile,writeFile,symlink,stat,readdir} from 'node:fs/promises';
 import {join,resolve} from 'node:path';
 import {ResourceCoordinator} from '../src/service/resources/coordinator.ts';
 import {ResourceLease} from '../src/service/resources/lease.ts';
 import {probeHardware,observeProcesses} from '../src/service/resources/telemetry.ts';
+import {nativeFootprint} from '../src/service/resources/native-telemetry.ts';
 import {estimateResources} from '../src/service/resources/profiles.ts';
 import {MusicService} from '../src/service/service.ts';
 import {processRenderer} from '../src/service/render/process.ts';
@@ -12,13 +12,18 @@ import {createSpeechDriver} from '../src/service/tts/runtime.ts';
 import {createNativeConversionDriver} from '../src/service/conversion/native.ts';
 import assert from 'node:assert/strict';
 import {homedir} from 'node:os';
+import {execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 assert.equal(process.platform,'darwin','当前实测脚本仅适配 macOS');assert.equal(process.arch,'arm64','真实模型仅适配 Apple Silicon');
 const sourceTTS=process.env.MUSIC_ROOM_TTS_SOURCE??join(homedir(),'Music','IndexTTS2'),sourceYue=process.env.MUSIC_ROOM_YUE_SOURCE??join(homedir(),'Music','YuE2'),sourceConversion=process.env.MUSIC_ROOM_CONVERSION_SOURCE??join(homedir(),'Music','MusicRoom','engines','voice-conversion');
 
 // Controlled calibration only: thresholds are explicit guards, never evidence of measured peaks.
 const out=resolve('test-results/resources-real'),root=process.env.MUSIC_ROOM_RESOURCE_RUN??join(out,`run-${Date.now()}`);await mkdir(root,{recursive:true});
 const read=(path:string)=>readFile(resolve('public',path));
-const cp=async(source:string,target:string)=>{await mkdir(join(target,'..'),{recursive:true});await copyFile(source,target,constants.COPYFILE_FICLONE);};
+// Node's COPYFILE_FICLONE silently falls back to a full copy on macOS. cp -c
+// requires APFS cloning and fails instead of consuming a second model's space.
+const clone=promisify(execFile);
+const cp=async(source:string,target:string)=>{await mkdir(join(target,'..'),{recursive:true});await clone('/bin/cp',['-c',source,target]);};
 async function tree(source:string,target:string){await mkdir(target,{recursive:true});for(const e of await readdir(source,{withFileTypes:true})){if(e.name==='.cache'||e.name==='__pycache__')continue;const a=join(source,e.name),b=join(target,e.name);if(e.isDirectory())await tree(a,b);else if(e.isFile())await cp(a,b);}}
 async function environment(source:string,target:string){await mkdir(join(target,'bin'),{recursive:true});await cp(join(source,'pyvenv.cfg'),join(target,'pyvenv.cfg'));await symlink(join(source,'bin/python'),join(target,'bin/python'));await symlink(join(source,'lib'),join(target,'lib'));}
 const tts=join(root,'tts'),yue=join(root,'yue');if(!process.env.MUSIC_ROOM_RESOURCE_RUN){await mkdir(tts);await cp(join(sourceTTS,'.music-room-indextts.json'),join(tts,'.music-room-indextts.json'));await tree(join(sourceTTS,'audio-cpp'),join(tts,'audio-cpp'));
@@ -28,9 +33,10 @@ await mkdir(yue);await tree(join(sourceYue,'source'),join(yue,'source'));await t
 const native=JSON.parse(await readFile(join(tts,'audio-cpp/installed.json'),'utf8'));for(const [key,path] of [['program','release/audiocpp_server'],['model','models/index-tts2-f16.gguf']]){const s=await stat(join(tts,'audio-cpp',path));native[key]={bytes:s.size,mtimeMs:s.mtimeMs};}await writeFile(join(tts,'audio-cpp/installed.json'),JSON.stringify(native));
 }
 const thresholds={tts:6*2**30,reference:8*2**30,conversion:10*2**30,yue2:14*2**30};
-const resources=new ResourceCoordinator({lease:new ResourceLease(),policy:{reserveFraction:.3,reserveMinimum:2*2**30,headroom:2**30,maxSnapshotAgeMs:3000,maxWaitMs:25*60*1000,retryMs:1000,maxQueue:64},probe:probeHardware,observe:observeProcesses,estimate:(engine,input)=>engine in thresholds?{verified:true,peak:{memory:thresholds[engine as keyof typeof thresholds]}}:estimateResources(engine,input)});
+const native=nativeFootprint(read),probe=()=>probeHardware(native.measure,native.system);
+const resources=new ResourceCoordinator({lease:new ResourceLease(),policy:{reserveFraction:.3,reserveMinimum:2*2**30,headroom:2**30,maxSnapshotAgeMs:3000,maxWaitMs:25*60*1000,retryMs:1000,maxQueue:64},probe,observe:(pids,baseline)=>observeProcesses(pids,baseline,native.measure,native.system),estimate:(engine,input)=>engine in thresholds?{verified:true,peak:{memory:thresholds[engine as keyof typeof thresholds]}}:estimateResources(engine,input),dispose:native.close});
 const service=await MusicService.open(join(root,'workspace'),processRenderer(),read,false,createYuE2Driver(read),createSpeechDriver(undefined,undefined,read),createNativeConversionDriver(sourceConversion),resources);
-const report:{started:string;root:string;hardware:unknown;thresholds:unknown;results:unknown[];resources?:unknown;error?:string;finished?:string}={started:new Date().toISOString(),root,hardware:await probeHardware(),thresholds,results:[]};
+const report:{started:string;root:string;hardware:unknown;thresholds:unknown;sampler:string;results:unknown[];resources?:unknown;error?:string;finished?:string}={started:new Date().toISOString(),root,hardware:await probe(),thresholds,sampler:'production native physical footprint and system memory counters',results:[]};
 const save=()=>writeFile(join(root,'verification.json'),JSON.stringify(report,null,2));
 const wait=async(get:()=>any,terminal:string[],field='state')=>{const until=Date.now()+25*60*1000;let last='';for(;;){const value=await get(),display=JSON.stringify({id:value.id,state:value[field],stage:value.stage,progress:value.progress,error:value.error});if(display!==last){console.log(display);last=display;report.resources=resources.snapshot();await save();}if(terminal.includes(value[field]))return value;if(Date.now()>until)throw Error('真实任务超时');await new Promise(r=>setTimeout(r,2000));}};
 try{

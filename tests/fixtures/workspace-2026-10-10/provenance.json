@@ -1,0 +1,26 @@
+{
+  "sourceCommit": "c3a213395f31501d081f6269e2c6983796b4986b",
+  "generatedAt": "2026-10-22T17:01:56.118Z",
+  "generator": "scripts/generate-upgrade-fixture.mjs",
+  "models": "deterministic synthetic speech; no real inference",
+  "identities": {
+    "clipId": "sound-053e637f-dc96-4406-a26f-ce4f07eb93ed",
+    "scoreId": "score-4ac80a4c-464d-42f0-b901-01b197d3190b",
+    "speechSoundId": "speech-5a988925-92cf-4a58-b6b8-c7853f49f7ab",
+    "voiceId": "voice-6423ef8d-6429-4ef9-9529-de635e8da05e",
+    "firstId": "speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4",
+    "deletedId": "speech-v-d5a43b19-aee6-4d23-8cea-0c290f0cde21"
+  },
+  "sha256": {
+    "conversion/library.json": "89e7c8f3a0fc737b10439ad665f500d663ed3b5f464ba543ce1ac919e418d49b",
+    "projects/historical/feedback.json": "54ed4acbdf364cc96f04d15eddb4cfeae3e562c45357223767a83dd8ec9d39ba",
+    "projects/historical/project.json": "c557b765d3bf56fb87625ee11e60e580ef964cfbbb567c7839ac5a1e5e0beb4d",
+    "projects/historical/revisions/score-4ac80a4c-464d-42f0-b901-01b197d3190b/score.json": "73e2e64a625acf6239560ab5a5b2cb9ad496f26f2ad1364a74258fa8cd0b4329",
+    "projects/historical-trash/project.json": "0dffab0f7959fa186eb1aa92e88b7ad753537ae453a74a8cfae4fc4ab6ee73f3",
+    "speech/audio/speech-v-a9ccdf81-cbc7-4a47-ae4e-b07f48d2dcf4.wav": "b9ceeebff039e61b178bfe9486cd18d9c871d8bb33e06aeb83653ea413e975aa",
+    "speech/audio/speech-v-d5a43b19-aee6-4d23-8cea-0c290f0cde21.wav": "b9ceeebff039e61b178bfe9486cd18d9c871d8bb33e06aeb83653ea413e975aa",
+    "speech/library.json": "35ad596e57a9ca91d2c03c375980c297ebba171c9cfac9ef28109c77b31c2429",
+    "speech/voices/voice-6423ef8d-6429-4ef9-9529-de635e8da05e.wav": "b9ceeebff039e61b178bfe9486cd18d9c871d8bb33e06aeb83653ea413e975aa",
+    "studio.json": "0147735e2f05e2083de621cde6002e18a65c89bd20924472e962f065472d515f"
+  }
+}

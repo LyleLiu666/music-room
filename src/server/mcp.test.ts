@@ -14,7 +14,7 @@ import {fileURLToPath} from 'node:url';
 import {execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {readRuntime,remoteCall} from './main.ts';
-const stop=(root:string)=>promisify(execFile)(process.execPath,[fileURLToPath(new URL('./dev.ts',import.meta.url)),'stop','--workspace',root]);
+const stop=(root:string)=>promisify(execFile)(process.execPath,[fileURLToPath(new URL('./fixtures/test-server.ts',import.meta.url)),'stop','--workspace',root]);
 const example=JSON.parse(await readFile(new URL('../music/authoring/example.json',import.meta.url),'utf8'));
 const rootAssets=new URL('../../dist/',import.meta.url);
 const assets={read:(path:string)=>readFile(new URL(path,rootAssets)),has:()=>true,embedded:false};
@@ -48,7 +48,7 @@ test('official HTTP MCP client authors, renders, reads artifacts/resources and r
 });
 test('stdio MCP starts one independent service and tasks survive closing all connections',async t=>{
   const root=await mkdtemp(join(tmpdir(),'music-stdio-'));t.after(async()=>{await stop(root);await rm(root,{recursive:true,force:true});});
-  const connect=async()=>{const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('./dev.ts',import.meta.url)),'mcp','--workspace',root],stderr:'pipe'});const c=new Client({name:'stdio-integration',version:'1'});await c.connect(transport);return c;};
+  const connect=async()=>{const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('./fixtures/test-server.ts',import.meta.url)),'mcp','--workspace',root],stderr:'pipe'});const c=new Client({name:'stdio-integration',version:'1'});await c.connect(transport);return c;};
   const a=await connect();t.after(()=>a.close());
   await a.callTool({name:'import_revision',arguments:{compositionJson:JSON.stringify(example)}});
   const b=await connect();t.after(()=>b.close());const result=await b.callTool({name:'get_revision',arguments:{projectId:example.work.id,revisionId:example.revision.id}});
@@ -62,7 +62,7 @@ test('stdio MCP starts one independent service and tasks survive closing all con
 
 test('concurrent stdio startup shares one owner rather than failing its second agent',async t=>{
   const root=await mkdtemp(join(tmpdir(),'music-racing-'));t.after(async()=>{await stop(root);await rm(root,{recursive:true,force:true});});
-  const start=async()=>{const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('./dev.ts',import.meta.url)),'mcp','--workspace',root],stderr:'pipe'});const client=new Client({name:'racing-agent',version:'1'});t.after(()=>client.close());try{await client.connect(transport);return {client,transport};}catch(e){await transport.close();throw e;}};
+  const start=async()=>{const transport=new StdioClientTransport({command:process.execPath,args:[fileURLToPath(new URL('./fixtures/test-server.ts',import.meta.url)),'mcp','--workspace',root],stderr:'pipe'});const client=new Client({name:'racing-agent',version:'1'});t.after(()=>client.close());try{await client.connect(transport);return {client,transport};}catch(e){await transport.close();throw e;}};
   const connections=await Promise.all([start(),start()]);
   t.after(async()=>{for(const x of connections)await x.client.close();});
   const runtime=JSON.parse(await readFile(join(root,'.music-room.runtime.json'),'utf8'));

@@ -14,7 +14,7 @@ export function checkDisk(directory:string,bytes:number,probe=statfsSync){
 }
 export function installTask<T>(resources:ResourceCoordinator,options:{id:string;directory:string;diskBytes:number;signal:AbortSignal;onState?:(state:ResourceTaskState)=>void;execute:(execution:ResourceExecution)=>Promise<T>}){
  if(!registered.has(resources)){resources.register('installation',{resident:()=>undefined,unload:async()=>{}});registered.add(resources);}
- return resources.run({id:options.id,engine:'installation',signal:options.signal,demand:resources.estimate('installation',{directory:options.directory}),onState:options.onState,execute:async context=>{context.signal.throwIfAborted();checkDisk(options.directory,options.diskBytes);context.running();return options.execute(context);}});
+ return resources.run({id:options.id,engine:'installation',signal:options.signal,demand:resources.estimate('installation',{directory:options.directory}),onState:options.onState,execute:async context=>{context.signal.throwIfAborted();resources.checkDisk(options.directory,options.diskBytes);context.running();return options.execute(context);}});
 }
 
 /** Recheck live disk availability during streams whose response length may be absent. */

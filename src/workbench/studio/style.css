@@ -2911,6 +2911,9 @@ body:has(#dialog[open]) #global-status-bar{visibility:hidden}
 #project-pagination{display:flex;align-items:center;justify-content:space-between;gap:4px;font-size:12px;color:var(--muted);margin-bottom:12px}
 #project-pagination button{padding:4px 12px}
 @media(min-width:651px){.sidebar{gap:12px;overflow-y:auto}.sidebar>.brand,.sidebar>.new-project,.sidebar>.nav-caption,.sidebar>#project-search,.sidebar>#project-pagination,.sidebar>.sidebar-libraries,.sidebar>.sidebar-bottom{flex-shrink:0}#projects{min-height:80px}.project-link{flex-shrink:0}}
+/* At tablet widths the fixed transport spans the sidebar. Reserve its height
+   in the scrollable sidebar so Settings stays reachable at high browser zoom. */
+@media(min-width:651px) and (max-width:900px){.sidebar{padding-bottom:82px;scroll-padding-bottom:64px}}
 @media(max-width:650px){#project-search{grid-column:1;grid-row:2;margin:0}#project-pagination{grid-column:2;grid-row:2;margin:0}#projects{grid-row:3}.sidebar-libraries{grid-row:4}.sidebar-bottom{grid-row:6;grid-column:1 / -1}}
 /* Task history: bounded pages, explicit statuses and expandable diagnostics. */
 .task-heading h1{font-size:28px;margin:0 0 8px}.task-heading p{margin:0;color:var(--muted)}

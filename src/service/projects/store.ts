@@ -94,6 +94,11 @@ export class ProjectStore {
   }
   async projects(includePurged=false) { return readdirSync(this.path('projects')).filter(x=> !x.startsWith('.')).map(id=>this.readProject(id)).filter(p=>includePurged||!p.purged); }
   async project(id: string) { const p=this.readProject(id);if(p.purged)fail('NOT_FOUND','项目已彻底删除');return p; }
+  async discardUnpublishedRevision(projectId:string,revisionId:string){return this.mutate(()=>{
+    identity(revisionId);const p=this.readProject(projectId);
+    if(p.revisions.some(r=>r.id===revisionId))fail('CONFLICT','已发布的版本不能作为临时文件删除');
+    rmSync(this.path('projects',projectId,'revisions',revisionId),{recursive:true,force:true});
+  });}
   assertActive(id:string){const p=this.readProject(id);if(p.deleted||p.purged)fail('IN_TRASH','项目在回收站中，请先恢复项目');return p;}
   async updateProject(id:string,patch:{title?:string;deleted?:boolean},guard:()=>void=()=>{}){
     return this.mutate(()=>{const p=this.readProject(id);if(p.purged)fail('NOT_FOUND','项目已彻底删除');guard();if(patch.title!==undefined){if(!patch.title.trim()||patch.title.length>120)fail('INVALID_PROJECT','项目名称无效');p.title=patch.title.trim();}if(patch.deleted!==undefined)p.deleted=patch.deleted;this.atomicJSON(this.path('projects',id,'project.json'),p);return p;});

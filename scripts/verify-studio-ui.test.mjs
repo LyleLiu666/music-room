@@ -170,9 +170,11 @@ test('music pressure failure preserves quality requirements and submits a fast r
   await page.setViewportSize({width:1440,height:1000});await mkdir('test-results/studio',{recursive:true});await page.screenshot({path:'test-results/studio/retry-actions-desktop.png',fullPage:true});
   await retry.click();await page.locator('#version-audio').waitFor();assert.equal(await page.locator('dialog').evaluate(d=>d.open),false);
   assert.deepEqual(requests.map(r=>r.preset),['quality','fast','quality']);
-  const repeated=(await service.call('studio_library',{})).versions.find(v=>v.id!==original.id&&v.id!==child.id);
-  assert.equal(repeated.parentId,original.id);assert.deepEqual(repeated.input,{...original.input,parentId:original.id});
-  await page.reload();await page.locator('#version-audio').waitFor();assert.equal(await page.locator('.version-row').count(),3);assert.deepEqual(errors,[]);
+  const repeated=(await service.call('studio_library',{})).versions.find(v=>v.id===original.id);
+  assert.equal(repeated.number,original.number);assert.equal(repeated.input.text,original.input.text);assert.equal(repeated.input.preset,'quality');
+  assert.equal(repeated.musicAttempts.length,1);assert.equal(repeated.musicAttempts[0].jobId,original.source.id);assert.equal(repeated.musicAttempts[0].state,'failed');
+  assert.notEqual(repeated.source.id,original.source.id);
+  await page.reload();await page.locator('#version-audio').waitFor();assert.equal(await page.locator('.version-row').count(),2);assert.deepEqual(errors,[]);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
 test('unified production UI: mixed project, real routes, versions, playback, drafts, comparison, trash, MIDI and responsive hierarchy',async()=>{

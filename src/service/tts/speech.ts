@@ -1,6 +1,7 @@
+import {copyPlainData} from '../projects/copy-data.ts';
 import {readAudioFile,verifyAudioFile} from '../projects/audio-files.ts';
 import {userCancelled} from '../resources/contracts.ts';
-import {installTask,checkDisk} from '../resources/installation.ts';
+import {installTask} from '../resources/installation.ts';
 import type {ResourceCoordinator} from '../resources/coordinator.ts';
 import type {ResourceExecution,ResourceTaskState} from '../resources/contracts.ts';
 import type {SpeedEdit} from '../studio/speed.ts';
@@ -22,7 +23,7 @@ export type SpeechVersion={resource?:ResourceTaskState;speed?:SpeedEdit;seed?:nu
 export type SpeechGenerate={seed?:number;soundId:string;voiceId:string;text:string;emotion?:string;emotionStrength?:EmotionStrength;parentId?:string};
 export type SpeechStatus={engine:'IndexTTS 2.0';backend?:string;phase:'uninstalled'|'preparing'|'ready'|'failed';canGenerate:boolean;directory:string;message:string;logs:string[]};
 type Data={format:'music-room-speech';version:1;directory?:string;voices:SpeechVoice[];sounds:SpeechSound[];versions:SpeechVersion[]};
-const copy=<T>(value:T):T=>structuredClone(value);
+const copy=copyPlainData;
 const required=(s:string,max:number)=>{if(typeof s!=='string'||!s.trim()||s.length>max)throw new ServiceError('INVALID_REQUEST',`请填写内容（最多 ${max} 字）`);return s.trim();};
 export function wavInfo(bytes:Uint8Array){
  const b=Buffer.from(bytes);if(b.length<44||b.toString('ascii',0,4)!=='RIFF'||b.toString('ascii',8,12)!=='WAVE'||b.readUInt32LE(4)+8!==b.length)throw new ServiceError('INVALID_AUDIO','请上传完整的 PCM WAV 音频');
@@ -123,7 +124,7 @@ export class SpeechService {
    execute:async execution=>{
     const abort=()=>controller.abort(execution.signal.reason);
     execution.signal.addEventListener('abort',abort,{once:true});
-    try{execution.signal.throwIfAborted();execution.running();if(kind==='reference')checkDisk(this.directory(),6*2**30);await execute(execution);}
+    try{execution.signal.throwIfAborted();if(kind==='reference')this.resources!.checkDisk(this.directory(),6*2**30);else this.resources!.checkDisk(this.store.root,256*2**20);execution.running();await execute(execution);}
     finally{execution.signal.removeEventListener('abort',abort);}
    },
    onState:resource=>this.change(()=>{

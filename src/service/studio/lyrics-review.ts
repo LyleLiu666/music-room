@@ -64,7 +64,7 @@ const audit='请独立复查上一轮映射，不默认初稿正确。重新核�
 export function createLyricsReviewer(options:Options):LyricsReviewer{
  const credentials=options.credentials??cloudflareLyricsCredentials,request=options.fetch??globalThis.fetch,usageFile=options.usageFile??join(options.directory,'usage.json'),limit=Math.min(9500,options.dailyLimit??9500);
  function reason(){try{credentials();return undefined;}catch(error){return error instanceof Error?error.message:'Cloudflare 歌词核对未配置';}}
- function accountUsage(account:string,change:(current:number)=>number){
+ function accountUsage(account:string,change:(current:number,date:string)=>number){
   mkdirSync(dirname(usageFile),{recursive:true});const lock=usageFile+'.lock';
   try{mkdirSync(lock);}catch{
    let owner:number|undefined,dead=false;try{owner=JSON.parse(readFileSync(join(lock,'owner.json'),'utf8')).pid;}catch{}
@@ -75,9 +75,9 @@ export function createLyricsReviewer(options:Options):LyricsReviewer{
   writeFileSync(join(lock,'owner.json'),JSON.stringify({pid:process.pid}),{mode:0o600});
   try{
    const date=new Date().toISOString().slice(0,10),key=hash(account);let doc:{version:number;date:string;neurons:Record<string,number>}={version:1,date,neurons:{}};
-   if(existsSync(usageFile)){const stored=JSON.parse(readFileSync(usageFile,'utf8'));if(stored.version!==1||typeof stored.date!=='string'||!stored.neurons||typeof stored.neurons!=='object')throw Error('Cloudflare 歌词核对额度记录无效');if(stored.date===date)doc=stored;}
+   if(existsSync(usageFile)){const stored=JSON.parse(readFileSync(usageFile,'utf8'));if(stored.version!==1||typeof stored.date!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(stored.date)||!stored.neurons||typeof stored.neurons!=='object'||Array.isArray(stored.neurons))throw Error('Cloudflare 歌词核对额度记录无效');if(stored.date>date)throw Error('系统日期早于歌词核对额度记录，请校准时间后重试');if(stored.date===date)doc=stored;}
    const current=doc.neurons[key]??0;if(!Number.isFinite(current)||current<0)throw Error('Cloudflare 歌词核对额度记录无效');
-   doc.neurons[key]=change(current);atomicJSON(usageFile,doc);
+   doc.neurons[key]=change(current,date);atomicJSON(usageFile,doc);return date;
   }finally{rmSync(lock,{recursive:true,force:true});}
  }
  async function call(messages:{role:string;content:string}[],reference:string,parts:string[],allowed:Set<number>,signal:AbortSignal){
@@ -86,7 +86,7 @@ export function createLyricsReviewer(options:Options):LyricsReviewer{
   const key=hash(JSON.stringify({version:1,model:LYRIC_REVIEW_MODEL,reference,messages,body})),cache=join(options.directory,'responses',key+'.json');
   if(existsSync(cache)){const saved=JSON.parse(readFileSync(cache,'utf8'));return {content:saved.content as string,mapping:parseLyricMapping(saved.content,reference,parts,allowed)};}
   const reservation=(Buffer.byteLength(JSON.stringify(messages),'utf8')+256)*40909/1e6+maxTokens*290909/1e6;
-  accountUsage(auth.account,current=>{if(current+reservation>limit)throw Error('今日歌词核对免费预算不足，请在北京时间 8 点额度重置后重试；旧歌词已保留');return current+reservation;});
+  const reservedOn=accountUsage(auth.account,current=>{if(current+reservation>limit)throw Error('今日歌词核对免费预算不足，请在北京时间 8 点额度重置后重试；旧歌词已保留');return current+reservation;});
   let response:Response;
   try{response=await request(`https://api.cloudflare.com/client/v4/accounts/${auth.account}/ai/run/${LYRIC_REVIEW_MODEL}`,{method:'POST',headers:{authorization:`Bearer ${auth.token}`,'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.any([signal,AbortSignal.timeout(120000)])});}
   catch{signal.throwIfAborted();throw Error('Cloudflare 歌词核对连接失败或超时，旧歌词已保留');}
@@ -94,7 +94,9 @@ export function createLyricsReviewer(options:Options):LyricsReviewer{
   type Envelope={success?:boolean;result?:{response?:string;choices?:{message?:{content?:string};finish_reason?:string}[];usage?:{neurons?:number}}};
   let envelope:Envelope;try{envelope=await response.json() as Envelope;}catch{throw Error('Cloudflare 未返回有效的核对数据，旧歌词已保留');}signal.throwIfAborted();
   const result=envelope.result;if(!envelope.success||!result)throw Error('Cloudflare 歌词核对未返回有效结果，旧歌词已保留');
-  const measured=result.usage?.neurons;if(typeof measured==='number'&&Number.isFinite(measured)&&measured>=0)accountUsage(auth.account,current=>Math.max(0,current-reservation+measured));
+  // After reset, the old reservation is no longer in today's counter. Charge the
+  // receipt conservatively today without refunding unrelated new-day requests.
+  const measured=result.usage?.neurons;if(typeof measured==='number'&&Number.isFinite(measured)&&measured>=0)accountUsage(auth.account,(current,date)=>Math.max(0,current-(date===reservedOn?reservation:0)+measured));
   const content=result.response??result.choices?.[0]?.message?.content;
   if(result.choices?.[0]?.finish_reason==='length'||typeof content!=='string')throw Error('歌词核对结果不完整，旧歌词已保留');
   const mapping=parseLyricMapping(content,reference,parts,allowed);atomicJSON(cache,{version:1,model:LYRIC_REVIEW_MODEL,content});return {content,mapping};

@@ -40,7 +40,9 @@ export async function installNative(root:string,context:SpeechContext,d=nativeDi
  else await download(d.programUrl,archive,d.programSha256,context);
  const staging=join(p.base,'unpack');rmSync(staging,{recursive:true,force:true});mkdirSync(staging,{mode:0o700});
  await runCommand('/usr/bin/tar',['-xzf',archive,'-C',staging],context,p.base);stamp(join(staging,'audiocpp_server'));chmodSync(join(staging,'audiocpp_server'),0o700);
- const release=join(p.base,'release');rmSync(release,{recursive:true,force:true});renameSync(staging,release);
  context.stage('准备 IndexTTS 2.0 F16 模型');await download(d.modelUrl,p.model,d.modelSha256,context);if(stamp(p.model).bytes!==d.modelBytes)throw new Error('模型大小校验失败');
+ // Keep the working executable until its replacement model has downloaded and
+ // passed validation. A failed/aborted download must leave the old install usable.
+ const release=join(p.base,'release');rmSync(release,{recursive:true,force:true});renameSync(staging,release);
  const metadata={engine:'audio.cpp',version:d.version,precision:'f16',programSha256:d.programSha256,modelSha256:d.modelSha256,program:stamp(p.program),model:stamp(p.model),installedAt:new Date().toISOString()};writeFileSync(p.metadata+'.partial',JSON.stringify(metadata),{mode:0o600});renameSync(p.metadata+'.partial',p.metadata);context.stage('audio.cpp F16 已准备好');
 }
