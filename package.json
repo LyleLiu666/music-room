@@ -48,6 +48,7 @@
     "verify:system:zoom": "node scripts/verify-zoom-ui.mjs",
     "verify:safari:native": "node scripts/verify-safari-native.mjs",
     "verify:mixed:real": "node scripts/verify-mixed-real.ts",
+    "verify:music:planning:real": "node scripts/verify-music-planning-real.ts",
     "verify:system:network": "node scripts/verify-system-network.mjs",
     "observe:system:sleep": "node scripts/observe-system-sleep.mjs"
   },

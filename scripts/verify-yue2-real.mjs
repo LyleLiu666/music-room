@@ -8,20 +8,26 @@ import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {runtimeEnvironment} from '../src/service/yue2/worker.ts';
+import {generationWithEnding} from '../src/service/yue2/input.ts';
 const workspace=process.env.MUSIC_ROOM_WORKSPACE,directory=process.env.MUSIC_ROOM_YUE2_DIRECTORY;
 if(process.env.MUSIC_ROOM_YUE2_REAL!=='1'||!workspace||!directory)throw new Error('Explicit acceptance requires MUSIC_ROOM_YUE2_REAL=1, MUSIC_ROOM_WORKSPACE and MUSIC_ROOM_YUE2_DIRECTORY; prepare models first.');
-const root=await realpath(directory),out=resolve('test-results/yue2-real');await mkdir(out,{recursive:true});
+const root=await realpath(directory),out=resolve(process.env.MUSIC_ROOM_YUE2_OUT??'test-results/yue2-real');await mkdir(out,{recursive:true});
+const caseFile=process.env.MUSIC_ROOM_YUE2_CASE;
+const fixture=caseFile?JSON.parse(await readFile(caseFile,'utf8')):undefined;
+if(fixture?.nativeInputSha256)assert.equal(createHash('sha256').update(JSON.stringify(generationWithEnding(fixture.request))).digest('hex'),fixture.nativeInputSha256,'original model input must not drift');
+const request=fixture?.request??{title:'YuE2 · 自动启动验收',style:'Instrumental mandopop piano R&B, a concise 20 second miniature with a clear memorable two-bar piano riff, syncopated soft drums, warm bass, a short answering phrase and a natural ending. No vocals, no singing. Intimate, melodic, structured.',lyrics:'[instrumental]',preset:'fast',instrumental:true,seed:42};
 const client=new Client({name:'real-yue2-acceptance',version:'1'});let browser,jobId,done=false;
 try{
   await client.connect(new StdioClientTransport({command:resolve('release/music-room'),args:['mcp','--workspace',workspace],env:{...process.env,PATH:'/usr/bin:/bin'},stderr:'pipe'}));
   const tool=async(name,args={})=>{const result=await client.callTool({name,arguments:args});assert.ok(!result.isError,JSON.stringify(result));return JSON.parse(result.content[0].text);};
   let state=await tool('yue2_status');for(let n=0;!state.canGenerate&&['starting','preparing'].includes(state.phase)&&n<120;n++){await new Promise(r=>setTimeout(r,1000));state=await tool('yue2_status');}assert.equal(state.directory,root);assert.ok(state.canGenerate,state.error??'models must actually be ready');
-  const result=await tool('yue2_generate',{title:'YuE2 · 自动启动验收',style:'Instrumental mandopop piano R&B, a concise 20 second miniature with a clear memorable two-bar piano riff, syncopated soft drums, warm bass, a short answering phrase and a natural ending. No vocals, no singing. Intimate, melodic, structured.',lyrics:'[instrumental]',preset:'fast',instrumental:true,seed:42});jobId=result.job.id;console.log('Real MLX generation submitted: '+jobId);
+  const result=await tool('yue2_generate',request);jobId=result.job.id;console.log('Real MLX generation submitted: '+jobId);
   let generated,last='',liveEngine;const deadline=Date.now()+30*60*1000;
   while(Date.now()<deadline){generated=await tool('yue2_get_job',{jobId});const progress=JSON.stringify({status:generated.job.status,progress:generated.job.progress,error:generated.job.error});if(progress!==last){console.log(progress);last=progress;}
    if(!liveEngine&&generated.job.status==='running'){state=await tool('yue2_status');if(state.url){const response=await fetch(state.url+'/api/status');assert.equal(response.status,200);const upstream=await response.json();assert.equal(upstream.fake,false);assert.equal(upstream.models.present,true);liveEngine={observedAt:new Date().toISOString(),fake:upstream.fake,modelsPresent:upstream.models.present};}}
    if(['done','failed','cancelled'].includes(generated.job.status))break;await new Promise(r=>setTimeout(r,5000));}
   assert.equal(generated?.job.status,'done',generated?.job.error??'generation timed out');done=true;
+  assert.equal(generated.job.truncated?.abc,false);assert.equal(generated.job.truncated?.semantic,false);
   // The production coordinator unloads the engine at completion; observe its identity while it runs.
   assert.ok(liveEngine,'real engine identity must be observed during inference');
   const audio=await realpath(generated.audioPath),rel=relative(root,audio);assert.ok(!rel.startsWith('..')&&!isAbsolute(rel));const bytes=await readFile(audio);assert.equal(bytes.subarray(0,4).toString(),'fLaC');
@@ -33,7 +39,7 @@ print(json.dumps({'seconds':len(x)/sr,'sampleRate':sr,'channels':x.shape[1],'pea
   const response=await fetch(runtime.url+'/yue2-audio/'+jobId,{headers:{authorization:`Bearer ${runtime.token}`}});assert.equal(response.status,200);assert.deepEqual(Buffer.from(await response.arrayBuffer()),bytes);
   const library=await tool('studio_library'),version=library.versions.find(v=>v.source.kind==='music'&&v.source.id===jobId);assert.ok(version,'completed music must have a studio version');
   const sound=library.sounds.find(s=>s.id===version.soundId);assert.ok(sound);
-  browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required']});
+  browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required','--mute-audio']});
   const page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(runtime.url);await page.locator(`[data-action="project"][data-id="${sound.projectId}"]`).click();
   await page.locator(`[data-action="sound"][data-id="${sound.id}"]`).first().waitFor({state:'attached'});
@@ -43,5 +49,5 @@ print(json.dumps({'seconds':len(x)/sr,'sampleRate':sr,'channels':x.shape[1],'pea
   await page.waitForFunction(()=>document.querySelector('#version-audio')?.readyState>=1);
   await page.locator('#version-audio').evaluate(a=>a.play());await page.waitForFunction(()=>document.querySelector('#version-audio')?.currentTime>.1);
   assert.ok(Math.abs(await page.$eval('#version-audio',a=>a.duration)-analysis.seconds)<.1);assert.deepEqual(errors,[]);await page.screenshot({path:join(out,'generated.png'),fullPage:true});
-  const report={hardware:'Apple Silicon',fake:false,binarySha256:createHash('sha256').update(await readFile(resolve('release/music-room'))).digest('hex'),liveEngine,jobId,audioPath:audio,bytes:bytes.length,analysis,timing:generated.job.timing,checks:['official stdio MCP connects to standalone binary','actual MLX engine and weights','instrumental AR/NAR adapters','real job completes all inference stages','FLAC is finite and non-silent','authenticated download matches saved audio','browser plays FLAC with correct duration'],errors};await writeFile(join(out,'verification.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
+  const report={hardware:'Apple Silicon',fake:false,caseId:fixture?.id,request,binarySha256:createHash('sha256').update(await readFile(resolve('release/music-room'))).digest('hex'),liveEngine,jobId,audioPath:audio,bytes:bytes.length,analysis,timing:generated.job.timing,checks:['official stdio MCP connects to standalone binary','actual MLX engine and weights','instrumental AR/NAR adapters','real job completes all inference stages','FLAC is finite and non-silent','authenticated download matches saved audio','browser plays FLAC with correct duration'],errors};await writeFile(join(out,'verification.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 }finally{if(jobId&&!done){try{await client.callTool({name:'yue2_cancel_job',arguments:{jobId}});}catch{}}await browser?.close();await client.close();}

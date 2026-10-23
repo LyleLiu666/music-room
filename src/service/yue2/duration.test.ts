@@ -9,6 +9,15 @@ import {musicRuntimeHashes,yueServeProgramHash} from './worker.ts';
 import {yueProfile} from '../resources/profiles.ts';
 import {durationWithinTarget} from './duration.ts';
 
+test('original three-failure regression keeps the historical model input and automatic duration',()=>{
+ const fixture=JSON.parse(readFileSync('tests/quality/music-planning-regression.json','utf8'));
+ const native=generationWithEnding(fixture.request);
+ assert.equal(createHash('sha256').update(JSON.stringify(native)).digest('hex'),fixture.nativeInputSha256);
+ assert.equal(fixture.nativeInputSha256,'336e59f5bbb3ae19e071e92637a6d9aeef3bb1cb268d4d1b242a8ca089ed2ec7');
+ assert.equal(fixture.request.seed,42);assert.equal(fixture.request.preset,'fast');
+ assert.equal(fixture.request.targetDuration,undefined);assert.equal(fixture.request.abc,undefined);
+});
+
 test('duration guidance plans musical structure without changing lyrics or instrumental routing',()=>{
  for(const instrumental of [true,false]){
   const lyrics=instrumental?'[Intro]\n[Verse]\n[Outro]':'[Verse]\n晚风吹过窗边\n[Chorus]\n灯火留在心间';

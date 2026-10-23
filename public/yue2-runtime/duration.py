@@ -4,7 +4,7 @@ Target duration guides the request; every complete valid score is accepted.
 Only incomplete or invalid scores are replanned. No duration-driven rewriting.
 """
 import json,math
-from dataclasses import replace
+from dataclasses import replace,asdict
 from pathlib import Path
 from typing import Literal
 from abc_tools import parse_abc
@@ -12,17 +12,22 @@ from abc_tools import parse_abc
 TARGETS=(60,120,180,240,300)
 TOLERANCE=.15
 MAX_ATTEMPTS=3
-RETRY_PREFIX_RESERVE=512
+# A failed decoder run needs a different sampling distribution, not more prose
+# in the user's style. First-pass sampling and all token budgets stay unchanged.
+RETRY_SAMPLING=(
+ dict(temperature=.85,top_p=.95,top_k=60,repetition_penalty=1.02),
+ dict(temperature=1.,top_p=.98,top_k=100,repetition_penalty=1.04),
+)
 
 def score_seconds(abc):
  score=parse_abc(abc)
  return float(score.voices['Vocal'].time*60/score.bpm)
 
 def plan_for_duration(pipe,native,sampling,cancelled,on_token,target,out_dir):
- from yue2.protocol import token_prefixes
+ from yue2.protocol import token_prefixes,resolve_sampling
  if target is not None and (type(target) is not int or target not in TARGETS): raise ValueError('目标时长请选择约 1–5 分钟')
  out_dir=Path(out_dir);out_dir.mkdir(parents=True,exist_ok=True)
- attempts=[];feedback=''
+ attempts=[];base_sampling=resolve_sampling(sampling,pipe.generation_config.abc)
  def accept(plan,seconds,selected):
   within=target is None or target*(1-TOLERANCE)<=seconds<=target*(1+TOLERANCE)
   (out_dir/'duration.json').write_text(json.dumps(dict(targetSeconds=target,tolerance=TOLERANCE,attempts=len(attempts),scoreSeconds=seconds,accepted=True,withinTarget=within,selectedAttempt=selected,plans=attempts),ensure_ascii=False,indent=2))
@@ -32,11 +37,10 @@ def plan_for_duration(pipe,native,sampling,cancelled,on_token,target,out_dir):
   pipe.check_execution()
   if cancelled and cancelled(): raise InterruptedError('Cancelled during duration planning')
   # The first seed is untouched; bounded subsequent seeds make retries reproducible.
-  request=native if attempt==1 else replace(native,style=native.style+feedback,seed=(native.seed+attempt-1)%2147483648)
-  if len(token_prefixes(request,pipe.tokenizer))-len(token_prefixes(native,pipe.tokenizer))>RETRY_PREFIX_RESERVE:
-   raise ValueError('目标时长重新规划超出预留输入容量，请缩短风格描述')
+  request=native if attempt==1 else replace(native,seed=(native.seed+attempt-1)%2147483648)
+  attempt_sampling=base_sampling if attempt==1 else replace(base_sampling,**{name:max(getattr(base_sampling,name),value) for name,value in RETRY_SAMPLING[attempt-2].items()})
   pipe.log(f'正在规划完整乐谱（{attempt}/{MAX_ATTEMPTS}）')
-  plan=pipe.plan(request=request,abc_sampling=sampling,cancelled=cancelled,on_token=on_token)
+  plan=pipe.plan(request=request,abc_sampling=attempt_sampling,cancelled=cancelled,on_token=on_token)
   pipe.check_execution()
   if cancelled and cancelled():raise InterruptedError('Cancelled during planning')
   plan.save(out_dir/f'duration-attempt-{attempt}')
@@ -46,14 +50,11 @@ def plan_for_duration(pipe,native,sampling,cancelled,on_token,target,out_dir):
    seconds=score_seconds(plan.abc or '')
    if not math.isfinite(seconds) or seconds<=0:raise ValueError('乐谱时长无效')
   except ValueError as exc: problem=str(exc)
-  attempts.append(dict(attempt=attempt,seed=request.seed,scoreSeconds=seconds,problem=problem,arrangement=arrangement))
+  attempts.append(dict(attempt=attempt,seed=request.seed,sampling=asdict(attempt_sampling),scoreSeconds=seconds,problem=problem,arrangement=arrangement))
   evidence=dict(targetSeconds=target,tolerance=TOLERANCE,attempts=attempt,scoreSeconds=seconds,accepted=problem is None,plans=attempts)
   (out_dir/'duration.json').write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
   if problem is None:return accept(plan,seconds,attempt)
   if native.abc:raise ValueError(f'自定义乐谱无法检查（{problem}），请检查乐谱。')
-  feedback=(f'\n\nPlanning correction: the previous score was {seconds:.1f} seconds. ' if seconds is not None else '\n\nPlanning correction: the previous score was incomplete or invalid. ')
-  feedback+=('Aim for about '+str(target)+' seconds, but prioritize a complete musical ending. ' if target is not None else '')
-  feedback+='The entire native two-voice ABC score must fit within 4096 output tokens. Use concise melodic notation and fewer note events; do not transcribe every drum hit. Budget all sections before writing. Avoid endlessly repeating bars, especially in the outro. Finish both voices and end the score. Keep the supplied lyrics verbatim and in order. Do not output prose.'
   pipe.log(f'重新规划乐谱：{problem}')
  raise ValueError('模型在三次规划后仍未写出完整乐谱（输出达到长度上限或乐谱无效）。未进入音频合成；这不是提示词填写不完整。可更换随机种子后重新生成，或提供完整乐谱。')
 
@@ -94,6 +95,6 @@ def install():
    pipe.set_loras(loras)
    def planner(pipe,native,sampling,cancelled,observer):
     return plan_for_duration(pipe,native,sampling,cancelled,observer,target,out_dir)
-   return self._run_create(pipe,fields,generation,abc_sampling,semantic_sampling,out_dir,options=options,cancelled=cancelled,planner=planner,config_extra={'music_room_duration':{'targetSeconds':target,'tolerance':TOLERANCE,'maxAttempts':MAX_ATTEMPTS,'version':3}})
+   return self._run_create(pipe,fields,generation,abc_sampling,semantic_sampling,out_dir,options=options,cancelled=cancelled,planner=planner,config_extra={'music_room_duration':{'targetSeconds':target,'tolerance':TOLERANCE,'maxAttempts':MAX_ATTEMPTS,'retrySampling':RETRY_SAMPLING,'version':4}})
  Engine.create_song=create_song
  Engine._music_room_duration=True

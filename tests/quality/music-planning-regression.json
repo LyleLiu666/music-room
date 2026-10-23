@@ -1,0 +1,14 @@
+{
+  "id": "MUSIC-PLAN-02",
+  "sourceJobId": "650f8192b86f49cb8f6d7527e854ee44",
+  "request": {
+    "style": "Instrumental piano miniature, concise melody, natural ending, no vocals.",
+    "lyrics": "[instrumental]",
+    "instrumental": true,
+    "preset": "fast",
+    "ending": "natural",
+    "seed": 42,
+    "title": "真实混合音乐"
+  },
+  "nativeInputSha256": "336e59f5bbb3ae19e071e92637a6d9aeef3bb1cb268d4d1b242a8ca089ed2ec7"
+}

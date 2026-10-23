@@ -37,6 +37,7 @@
 | 固定语料 | 先 `npm run prepare:quality`，再 `MUSIC_ROOM_QUALITY_REAL=1 MUSIC_ROOM_RESOURCE_RUN=/绝对路径/隔离模型 npm run verify:quality:real` | `test-results/quality/real/execution.json`、各次音频和推理日志；详见[质量标准](quality.md) |
 | 资源校准 | `MUSIC_ROOM_RESOURCE_RUN=/绝对路径/隔离模型 npm run verify:resources:real` | 安装目录内 `verification.json`；真实 TTS、两次参考清理、转换和 YuE2 两档 |
 | 正式策略混合队列 | `MUSIC_ROOM_MIXED_REAL=1 MUSIC_ROOM_RESOURCE_RUN=/绝对路径/隔离模型 npm run verify:mixed:real` | `test-results/mixed-real/run-*/verification.json`；暂停、排队取消、恢复、真实引擎完成和释放 |
+| 原提示词规划回归 | `MUSIC_ROOM_PLANNING_REAL=1 MUSIC_ROOM_RESOURCE_RUN=/绝对路径/隔离模型 npm run verify:music:planning:real` | `test-results/music-planning/run-*/verification.json`；固定原提示词与种子，保存每次乐谱、采样参数及完整音频 |
 | 独立包资源保护 | 先构建独立包，再 `MUSIC_ROOM_RESOURCE_RUN=/绝对路径/隔离模型 npm run verify:resources:binary:real` | `test-results/resources-real/binary-*/verification.json`；低限额拒绝、暂停恢复、运行中取消、SIGKILL 清理和重启 |
 | TTS 浏览器与默认配置 | 在已启动且装有真实模型的隔离服务上运行 `MUSIC_ROOM_TTS_REAL=1 MUSIC_ROOM_WORKSPACE=/绝对路径/隔离工作区 npm run verify:tts:real` | `test-results/speech-real/`；实际生成、播放、下载、成品和刷新恢复 |
 | YuE2 独立包 | `MUSIC_ROOM_YUE2_REAL=1 MUSIC_ROOM_WORKSPACE=/绝对路径/隔离工作区 MUSIC_ROOM_YUE2_DIRECTORY=/绝对路径/隔离模型/yue npm run verify:yue2:real` | `test-results/yue2-real/verification.json`；正式 stdio MCP、真实 MLX、FLAC 下载和 Chrome 播放 |
@@ -44,6 +45,8 @@
 资源校准与产品使用相同的原生进程占用和系统内存计数器，不用高负载下易超时的 `vmmap` 代替。校准脚本明确使用 6 / 8 / 10 / 14 GiB 的校准限额，测量真实峰值；不能把限额当作实测值，也不能据此宣称正式策略通过。混合队列、固定语料和独立包资源验收才使用正式策略。两类结果分别报告。
 
 混合队列的音乐输入直接取自固定语料 `Q-MUSIC-01`，保留种子、请求和语料哈希；仍运行完整真实模型。自由创作提示词可能触发规划长度上限，此类失败保留在质量记录中，不能拿修改提示词后的成功声称原问题已修复。
+
+`MUSIC-PLAN-02` 专门复验三次规划失败的原始输入，不使用混合队列的替代样本。独立包验收可为 `verify:yue2:real` 指定 `MUSIC_ROOM_YUE2_CASE=tests/quality/music-planning-regression.json` 和独立的 `MUSIC_ROOM_YUE2_OUT`，其余模型目录与工作目录变量同普通真实音乐验收。输入不改写、不设置目标时长、不提供预制乐谱；结果仍须完成真实推理、下载和浏览器播放。
 
 固定语料默认在同一个执行目录续跑。成功样本复用前核对请求、种子 / 速率、模型记录、输入指纹及音频哈希，日志必须可读且非空；新记录还核对日志哈希。异常直接失败，不能静默重生成并覆盖旧证据。改变输入、模型或需要重新验收的生成行为时使用新的 `MUSIC_ROOM_QUALITY_RUN`。旧记录缺少日志哈希时不补造历史哈希，最终证据清单记录本次实际核验值。
 
