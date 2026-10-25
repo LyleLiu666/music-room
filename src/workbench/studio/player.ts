@@ -4,6 +4,13 @@ import {mountLyrics} from './lyrics.ts';
  * media menus and can interrupt playback. Keep its entire DOM path connected.
  */
 export function renderWorkspace(workspace:HTMLElement,markup:string){
+ const focused=workspace.contains(document.activeElement)?document.activeElement as HTMLElement:null;
+ const focusSelector=focused?.id?`#${CSS.escape(focused.id)}`:focused?['data-action','data-id','data-select-version','aria-label'].filter(key=>focused.hasAttribute(key)).map(key=>`[${key}="${CSS.escape(focused.getAttribute(key)!)}"]`).join(''):'';
+ const restoreFocus=()=>{
+  // Polling may replace the button that a dialog just returned focus to.
+  // Restore only that workspace control, without stealing a newer focus.
+  if(focused&&!focused.isConnected&&focusSelector&&document.activeElement===document.body)workspace.querySelector<HTMLElement>(focusSelector)?.focus({preventScroll:true});
+ };
  const next=document.createElement('template');
  next.innerHTML=markup;
  const audio=workspace.querySelector<HTMLAudioElement>('#version-audio');
@@ -11,7 +18,7 @@ export function renderWorkspace(workspace:HTMLElement,markup:string){
  if(!audio||!nextAudio||audio.dataset.version!==nextAudio.dataset.version||audio.dataset.audioPath!==nextAudio.dataset.audioPath){
   workspace.replaceChildren(next.content);
   mountLyrics(workspace.querySelector<HTMLAudioElement>('#version-audio'));
-  return;
+  restoreFocus();return;
  }
  function updateAroundPlayer(current:Node,replacement:Node){
   if(current instanceof HTMLElement&&current.classList.contains('player-space'))return;
@@ -28,7 +35,7 @@ export function renderWorkspace(workspace:HTMLElement,markup:string){
   }
  }
  updateAroundPlayer(workspace,next.content);
- mountLyrics(audio);
+ mountLyrics(audio);restoreFocus();
 }
 
 /** Move the connected player without restarting native playback. */

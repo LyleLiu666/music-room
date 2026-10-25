@@ -1,5 +1,15 @@
 # 使用 Music Room 本地程序
 
+## 从内网导航启动（这台 Mac）
+
+打开内网导航 `http://10.144.144.104:9186/start/`，点击 Music Room 即可启动并打开网页。首次点击浏览器可能要求确认打开本机应用。
+
+这台 Mac 的 `~/Applications/Music Room Launcher.app` 注册了 `music-room-local://start`。启动器只接受这个固定动作，调用项目根目录「启动 Music Room.command」，不执行 URL 中传入的命令或参数。实际服务仍只监听本机；其他设备需有自己的安装才可使用。
+
+重装启动器：运行 `scripts/install-mac-launcher.sh`，需要 Xcode Command Line Tools。启动器依赖当前项目路径；移动项目后重新安装。脚本使用 `~/Music/MusicRoom`，请求端口 5174，重复启动复用现有服务并打开实际地址。导航里的“直接进入网页”用于已启动且位于默认端口的服务。
+
+仍可双击项目根目录的「启动 Music Room.command」。关闭网页不停止服务；停止方式见下文。
+
 ## 启动与文件保存
 
 当前交付为 macOS Apple Silicon 命令行二进制，内置服务、网页、基础音色和 MCP。用户无需安装 Node、Bun、Python 或新浏览器运行时。用已有浏览器听评。默认启动的服务独立在后台运行，关闭网页、启动终端或 Agent 连接都不会停止任务。

@@ -20,6 +20,7 @@
 | Chrome 分项 | `npm run verify:studio`、`verify:score`、`verify:lyrics`、`verify:resources` | 先构建；每项最多 90 秒；保留失败日志与截图 |
 | WebKit | `npm run verify:webkit` | 键盘、表单、多窗口草稿、音频、下载、窄屏；记录引擎版本 |
 | 独立包 | `npm run build:binary && npm run verify:binary` | 无 Node/Bun PATH，移走松散资源后 MCP、渲染、调速、下载和重开通过；`test-results/binary/verification.json` |
+| 独立包声音库专项 | 构建后 `npm run verify:library:binary` | 真实独立进程、无 Node/Bun PATH；隔离的 45 首 WAV 夹具，验证分页、跨页连播、列表保存、故障恢复、刷新及队列上限；不替代完整包渲染验收 |
 | 规模短测 | `npm run verify:soak` | 默认 2,000 历史版本、40 轮、4 次服务重开；`test-results/soak/verification.json` |
 | 一小时长稳 | `MUSIC_ROOM_SOAK_MINUTES=60 npm run verify:soak` | 实际连续运行至少 3,600 秒；队列、原件、耗时与内存断言通过 |
 | 独立试验台 | `npm run test:trials` | Python 与 Node / 浏览器测试通过 |

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,readFileSync,writeFileSync,rmSync,mkdirSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {createLyricsReviewer,parseLyricMapping,applyReviewedMapping,type TranscriptChunk} from './lyrics-review.ts';
+import {lyricsReviewCredentials,createLyricsReviewer,parseLyricMapping,applyReviewedMapping,type TranscriptChunk} from './lyrics-review.ts';
 
 const reference='[Chorus]\n把周末铺在湖边\n野餐垫鼓起一面帆\n你追着帽子跑一圈';
 const chunk:TranscriptChunk={start:50,end:80,text:'把周末铺在湖边。夜三点的起面粉。你追着帽子跑一圈',rawText:'原始识别',referenceContext:reference,parts:['把周末铺在湖边','夜三点的起面粉','你追着帽子跑一圈']};
@@ -114,4 +114,80 @@ test('separate workspaces settle against one account counter without losing eith
   await Promise.all([open('one'),open('two')].map(reviewer=>reviewer.review(reference,[chunk],new AbortController().signal,()=>{})));
   assert.equal(calls,4);assert.equal(Object.values(JSON.parse(readFileSync(join(root,'usage.json'),'utf8')).neurons)[0],40);
  }finally{rmSync(root,{recursive:true,force:true});}
+});
+
+test('OpenAI chat uses two rounds and its own cache, without charging the Cloudflare allowance',async()=>{
+ const directory=mkdtempSync(join(tmpdir(),'lyrics-openai-'));let calls=0;
+ try{
+  const reviewer=createLyricsReviewer({directory,dailyLimit:0,credentials:()=>({provider:'openai' as const,baseURL:'http://localhost:30036/v1',model:'modelscope/Qwen3.8-27B',token:'private-test-token'}),fetch:async(url,init)=>{
+   calls++;assert.equal(String(url),'http://localhost:30036/v1/chat/completions');
+   const body=JSON.parse(String(init?.body));assert.equal(body.model,'modelscope/Qwen3.8-27B');assert.ok(body.max_tokens);assert.equal(body.messages.length,calls===1?2:4);
+   return Response.json({choices:[{message:{content:mapping()},finish_reason:'stop'}]});
+  }});
+  const result=await reviewer.review(reference,[chunk],new AbortController().signal,()=>{});
+  assert.equal(result.summary.model,'modelscope/Qwen3.8-27B');assert.equal(result.chunks[0].parts[1],'野餐垫鼓起一面帆');
+  await reviewer.review(reference,[chunk],new AbortController().signal,()=>{});assert.equal(calls,2);
+  assert.throws(()=>readFileSync(join(directory,'usage.json')),{code:'ENOENT'});
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('OpenAI errors, incomplete JSON and truncated responses fail without applying lyrics or switching provider',async()=>{
+ for(const response of [new Response('{}',{status:429}),Response.json({choices:[{message:{content:mapping()},finish_reason:'length'}]}),Response.json({choices:[{message:{content:'{}'},finish_reason:'stop'}]})]){
+  const directory=mkdtempSync(join(tmpdir(),'lyrics-openai-error-'));let calls=0;
+  try{
+   const reviewer=createLyricsReviewer({directory,credentials:()=>({provider:'openai' as const,baseURL:'http://localhost:30036/v1',model:'test-model',token:'test'}),fetch:async()=>{calls++;return response;}});
+   await assert.rejects(reviewer.review(reference,[chunk],new AbortController().signal,()=>{}),/旧歌词已保留/);assert.equal(calls,1);
+  }finally{rmSync(directory,{recursive:true,force:true});}
+ }
+});
+
+ test('explicit OpenAI configuration normalizes the root URL, permits environment overrides and rejects incomplete configuration',()=>{
+ const directory=mkdtempSync(join(tmpdir(),'lyrics-config-')),file=join(directory,'lyrics-review.env');
+ try{
+  writeFileSync(file,'LYRICS_REVIEW_BASE_URL=http://localhost:30036/\nLYRICS_REVIEW_API_KEY=test-secret\nLYRICS_REVIEW_MODEL=file-model\n');
+  assert.deepEqual(lyricsReviewCredentials(file,{LYRICS_REVIEW_MODEL:'env-model'}),{provider:'openai',baseURL:'http://localhost:30036/v1',model:'env-model',token:'test-secret'});
+  for(const base of ['http://localhost:30036/v1/','http://localhost:30036/v1'])assert.equal((lyricsReviewCredentials(file,{LYRICS_REVIEW_BASE_URL:base}) as {baseURL:string}).baseURL,'http://localhost:30036/v1');
+  for(const base of ['file:///tmp/test','http://user:password@localhost','http://localhost/?key=secret','invalid'])assert.throws(()=>lyricsReviewCredentials(file,{LYRICS_REVIEW_BASE_URL:base}),/地址无效/);
+  writeFileSync(file,'LYRICS_REVIEW_MODEL=only-model');assert.throws(()=>lyricsReviewCredentials(file,{}),/完整配置/);
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('different OpenAI servers and models cannot reuse each other’s cached mapping',async()=>{
+ const directory=mkdtempSync(join(tmpdir(),'lyrics-cache-isolation-'));let calls=0;
+ try{
+  for(const [baseURL,model,middle] of [['http://localhost:30036/v1','first',1],['http://localhost:30037/v1','first',2],['http://localhost:30037/v1','second',1]] as const){
+   const reviewer=createLyricsReviewer({directory,credentials:()=>({provider:'openai' as const,baseURL,model,token:'test'}),fetch:async()=>{calls++;return Response.json({choices:[{message:{content:mapping(middle)},finish_reason:'stop'}]});}});
+   const result=await reviewer.review(reference,[chunk],new AbortController().signal,()=>{});
+   assert.equal(result.chunks[0].parts[1],middle===1?'野餐垫鼓起一面帆':'你追着帽子跑一圈');
+  }
+  assert.equal(calls,6);
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('Cloudflare allowance exhaustion switches the entire review to the configured backup and reports its model',async()=>{
+ const directory=mkdtempSync(join(tmpdir(),'lyrics-fallback-'));let calls=0;
+ try{
+  const reviewer=createLyricsReviewer({directory,dailyLimit:0,credentials:()=>({account:'a'.repeat(32),token:'cf'}),fallbackCredentials:()=>({provider:'openai' as const,baseURL:'http://localhost/v1',model:'backup',token:'backup-token'}),fetch:async(url)=>{
+   assert.equal(String(url),'http://localhost/v1/chat/completions');calls++;return Response.json({choices:[{message:{content:mapping()},finish_reason:'stop'}]});
+  }});
+  const result=await reviewer.review(reference,[chunk],new AbortController().signal,()=>{});
+  assert.equal(result.summary.model,'backup');assert.equal(calls,2);assert.equal(result.chunks[0].parts[1],'野餐垫鼓起一面帆');
+ }finally{rmSync(directory,{recursive:true,force:true});}
+});
+
+test('Cloudflare is preferred; only quota errors trigger backup, including an exhausted second round',async()=>{
+ for(const scenario of ['success','quota-second','network','invalid'] as const){
+  const directory=mkdtempSync(join(tmpdir(),'lyrics-fallback-policy-'));let primary=0,backup=0;
+  try{
+   const reviewer=createLyricsReviewer({directory,credentials:()=>({account:'a'.repeat(32),token:'cf'}),fallbackCredentials:()=>({provider:'openai' as const,baseURL:'http://localhost/v1',model:'backup',token:'test'}),fetch:async(url)=>{
+    if(String(url).startsWith('http://localhost')){backup++;return Response.json({choices:[{message:{content:mapping()},finish_reason:'stop'}]});}
+    primary++;
+    if(scenario==='network')throw Error('connection lost');
+    if(scenario==='quota-second'&&primary===2)return new Response('{}',{status:429});
+    return Response.json({success:true,result:{response:scenario==='invalid'?'{}':mapping(),usage:{neurons:10}}});
+   }});
+   if(scenario==='network'||scenario==='invalid'){await assert.rejects(reviewer.review(reference,[chunk],new AbortController().signal,()=>{}));assert.equal(backup,0);}
+   else{const result=await reviewer.review(reference,[chunk],new AbortController().signal,()=>{});assert.equal(primary,2);assert.equal(backup,scenario==='success'?0:2);assert.equal(result.summary.model,scenario==='success'?'@cf/qwen/qwen3.8-27b':'backup');}
+  }finally{rmSync(directory,{recursive:true,force:true});}
+ }
 });

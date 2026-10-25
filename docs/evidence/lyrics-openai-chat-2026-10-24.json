@@ -1,0 +1,129 @@
+{
+  "date": "2026-10-24",
+  "scope": "Real Chat Completions calls for two reference-mapping fixtures; no audio recognition, alignment or human listening acceptance.",
+  "qwen38": [
+    {
+      "name": "homophones-and-repeat",
+      "elapsedMs": 4053,
+      "chunks": [
+        {
+          "start": 0,
+          "end": 30,
+          "text": "把周末铺在湖边。夜三点的起面粉。你追着帽子跑一圈。把周末铺在湖边。夜三点顾七面饭。你追着帽子跑一圈",
+          "rawText": "把周末铺在湖边。夜三点的起面粉。你追着帽子跑一圈。把周末铺在湖边。夜三点顾七面饭。你追着帽子跑一圈",
+          "referenceContext": "把周末铺在湖边\n野餐垫鼓起一面帆\n你追着帽子跑一圈",
+          "parts": [
+            "把周末铺在湖边",
+            "野餐垫鼓起一面帆",
+            "你追着帽子跑一圈",
+            "把周末铺在湖边",
+            "野餐垫鼓起一面帆",
+            "你追着帽子跑一圈"
+          ],
+          "review": {
+            "confirmedGroups": 6,
+            "needsReview": 0,
+            "unconfirmed": []
+          }
+        }
+      ],
+      "summary": {
+        "model": "modelscope/Qwen3.8-27B",
+        "confirmedGroups": 6,
+        "needsReview": 0
+      }
+    },
+    {
+      "name": "unrelated-control",
+      "elapsedMs": 2416,
+      "chunks": [
+        {
+          "start": 0,
+          "end": 30,
+          "text": "把周末铺在湖边。今天晚上我要加班。你追着帽子跑一圈",
+          "rawText": "把周末铺在湖边。今天晚上我要加班。你追着帽子跑一圈",
+          "referenceContext": "把周末铺在湖边\n野餐垫鼓起一面帆\n你追着帽子跑一圈",
+          "parts": [
+            "把周末铺在湖边",
+            "今天晚上我要加班",
+            "你追着帽子跑一圈"
+          ],
+          "review": {
+            "confirmedGroups": 2,
+            "needsReview": 1,
+            "unconfirmed": [
+              {
+                "ids": [
+                  1
+                ],
+                "heard": [
+                  "今天晚上我要加班"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "summary": {
+        "model": "modelscope/Qwen3.8-27B",
+        "confirmedGroups": 2,
+        "needsReview": 1
+      }
+    }
+  ],
+  "qwen35": {
+    "model": "Qwen/Qwen3.5-27B",
+    "listed": true,
+    "httpStatus": 403,
+    "error": "Access denied: please complete identity verification before trying again.",
+    "status": "Blocked before inference; quality not evaluated.",
+    "userRequestedRetry": {
+      "status": "First review request reached the existing 120-second timeout; no validated response or quality result.",
+      "results": [
+        {
+          "name": "homophones-and-repeat",
+          "error": "歌词核对服务连接失败或超时，旧歌词已保留"
+        }
+      ]
+    }
+  },
+  "fallbackLive": {
+    "setup": "Cloudflare local dailyLimit=0 in isolated test directory; real configured ModelScope backup.",
+    "result": {
+      "chunks": [
+        {
+          "start": 0,
+          "end": 15,
+          "text": "把周末铺在湖边。夜三点的起面粉。你追着帽子跑一圈",
+          "rawText": "把周末铺在湖边。夜三点的起面粉。你追着帽子跑一圈",
+          "referenceContext": "把周末铺在湖边\n野餐垫鼓起一面帆\n你追着帽子跑一圈",
+          "parts": [
+            "把周末铺在湖边",
+            "夜三点的起面粉",
+            "你追着帽子跑一圈"
+          ],
+          "review": {
+            "confirmedGroups": 2,
+            "needsReview": 1,
+            "unconfirmed": [
+              {
+                "ids": [
+                  1
+                ],
+                "heard": [
+                  "夜三点的起面粉"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "summary": {
+        "model": "modelscope/Qwen3.8-27B",
+        "confirmedGroups": 2,
+        "needsReview": 1
+      }
+    },
+    "assessment": "Provider switch succeeded. One phrase remained unconfirmed across two rounds, so ASR text was retained. This is not full lyric quality acceptance."
+  }
+}

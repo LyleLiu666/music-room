@@ -82,6 +82,12 @@ try {
   // Native WAV writers may include legal padding/metadata chunks before PCM.
   assert.deepEqual(audioShape(speedBytes),{frames:50*44100,channels:2,rate:44100});
   results.push('standalone pitch-preserving speed save produces an independent 50 second WAV from a 40 second score');
+  await tool('studio_update_version',{versionId:source.id,kept:true});await tool('studio_update_version',{versionId:speed.id,kept:true});
+  const catalog=await tool('sound_library_page',{pageSize:20});assert.equal(catalog.total,2);assert.equal(catalog.items.length,2);
+  const playlist=await tool('sound_playlist_save',{id:'playlist-binary',title:'独立包播放验证',ids:[speed.id,source.id],revision:0});assert.equal(playlist.count,2);
+  assert.deepEqual((await tool('sound_library_queue',{playlistId:playlist.id})).ids,[speed.id,source.id]);
+  assert.equal((await tool('studio_library',{includeSoundLibrary:false,compactLibrary:true})).soundLibrary.length,0);
+  results.push('packaged paged sound catalog and exact-version playlists work through stdio MCP without loose files');
   await tool('add_feedback',{projectId:example.work.id,revisionId:long.revision.id,text:'主题保留，下一版加一点变化。'});
   httpClient=new Client({name:'binary-http-agent',version:'1'});await httpClient.connect(new StreamableHTTPClientTransport(new URL(runtime.url+'/mcp'),{requestInit:{headers:{authorization:`Bearer ${runtime.token}`}}}));
   assert.ok((await httpClient.listTools()).tools.some(t=>t.name==='render_revision'));results.push('embedded HTTP MCP interoperates with official client');
@@ -99,6 +105,12 @@ try {
   await page.locator('#version-audio').evaluate(a=>a.play());await page.waitForFunction(()=>document.querySelector('#version-audio')?.currentTime>.05);
   assert.equal(await page.$eval('#version-audio',a=>a.duration),40);
   await page.locator('.sound-workspace').screenshot({path:join(out,'tasks.png')});assert.deepEqual(errors,[]);results.push('embedded studio previews real samples, plays saved WAV, shows version feedback');
+  await page.click('[data-action="sound-library"]');await page.locator(`[data-library-sound="${speed.id}"]`).waitFor();await page.locator(`[data-library-sound="${source.id}"]`).waitFor();assert.equal(await page.locator('.sound-library-card').count(),2);
+  await page.getByRole('button',{name:'播放全部',exact:true}).click();await page.waitForFunction(()=>{const a=document.querySelector('#sound-library-audio');return a&&!a.paused&&a.readyState>=2;});
+  assert.equal(await page.locator('#sound-library-audio').getAttribute('data-version'),speed.id);
+  await page.locator('#sound-library-audio').evaluate(a=>a.currentTime=a.duration-.05);
+  await page.waitForFunction(id=>{const a=document.querySelector('#sound-library-audio');return a?.dataset.version===id&&!a.paused;},source.id);
+  await page.screenshot({path:join(out,'library-playback.png'),fullPage:true});assert.deepEqual(errors,[]);results.push('packaged browser plays the saved 50 second audio and automatically advances to the original 40 second version');
   await browser.close();browser=undefined;await httpClient.close();httpClient=undefined;
   await client.close();client=undefined;
   assert.equal(JSON.parse(execFileSync(binary,['status','--workspace',workspace],{cwd:root,env,encoding:'utf8'})).workspace,runtime.workspace);
@@ -107,6 +119,7 @@ try {
   execFileSync(binary,['stop','--workspace',workspace],{cwd:root,env});
   // Explicitly stop, then reopen the same workspace from the copied binary.
   client=await connect();const restoredVoices=(await tool('tts_library')).voices.filter(v=>v.builtinId);assert.deepEqual(restoredVoices.map(v=>({id:v.id,builtinId:v.builtinId})),speech.voices.filter(v=>v.builtinId).map(v=>({id:v.id,builtinId:v.builtinId})));const recovered=await tool('get_project',{projectId:example.work.id});assert.equal(recovered.project.revisions.length,2);assert.equal(recovered.feedback.length,1);results.push('restart restores project, versions, artifact and feedback');
+  assert.deepEqual((await tool('sound_library_queue',{playlistId:'playlist-binary'})).ids,[speed.id,source.id]);results.push('saved exact-version playlist survives standalone service restart');
   const report={checks:results,binaryBytes:(await stat(binary)).size,wav:{seconds:40,bytes:wav.length,peak:done.result.peak,rms:done.result.rms},errors};
   await writeFile(join(out,'verification.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));
 } finally {

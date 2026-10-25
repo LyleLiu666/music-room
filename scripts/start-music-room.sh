@@ -10,4 +10,4 @@ if [ ! -x "$music_executable" ]; then
   echo '找不到 music-room 二进制，请先运行 npm run build:binary。' >&2
   exit 1
 fi
-exec "$music_executable" start "$@"
+exec "$music_executable" start --port 57923 "$@"

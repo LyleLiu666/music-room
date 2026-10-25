@@ -22,6 +22,7 @@ try{
  assert.ok(Math.abs(report.metrics.dpr-2)<.02,'browser zoom must actually be 200% on a 1x test display');assert.ok(report.metrics.innerWidth<=730,'desktop content must reflow into half the CSS width');
  const call=async(name,args={})=>{const response=await fetch(runtime.url+'/api/'+name,{method:'POST',headers:{authorization:'Bearer '+runtime.token,'content-type':'application/json'},body:JSON.stringify(args)});assert.equal(response.status,200);return response.json();};
  const snapshot=await call('studio_library'),v=snapshot.versions.find(v=>v.source.kind==='speech'&&v.state==='succeeded'),sound=snapshot.sounds.find(s=>s.id===v.soundId);
+ await call('studio_update_version',{versionId:v.id,kept:true});
  if(!snapshot.projects.some(p=>p.id==='zoom-trash'))await call('create_project',{projectId:'zoom-trash',title:'200% 回收站样本'});
  const original=await fetch(runtime.url+v.audioPath,{headers:{authorization:'Bearer '+runtime.token}}),audioHash=createHash('sha256').update(Buffer.from(await original.arrayBuffer())).digest('hex');
  const snapshotScreen=async name=>{assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'no horizontal document overflow');const path=join(out,name+'.png');await screenshot(path);report.screenshots.push(path);};
@@ -34,7 +35,11 @@ try{
   await page.locator('[data-action="new-project"]').click();await page.locator('#project-name').fill('200% 新建入口检查');await snapshotScreen(theme+'-new-project');await page.keyboard.press('Escape');
   await page.locator('[data-action="settings"]').click();await page.getByRole('dialog').waitFor();await snapshotScreen(theme+'-settings');await page.keyboard.press('Escape');
   await call('studio_update_project',{projectId:'zoom-trash',deleted:true});await page.locator('[data-action="settings"]').click();await page.locator('[data-action="trash"]').click();await page.locator('[data-action="restore-entity"][data-id="zoom-trash"]').waitFor();await snapshotScreen(theme+'-trash');await page.locator('[data-action="restore-entity"][data-id="zoom-trash"]').click();await page.locator('[data-action="restore-entity"][data-id="zoom-trash"]').waitFor({state:'detached'});await page.keyboard.press('Escape');
+  await page.locator('[data-action="sound-library"]').click();await page.locator('.sound-library-card').waitFor();
+  for(const id of ['sound-library-search','sound-library-filter','sound-library-sort','import-library-sound'])assert.ok(await page.locator('#'+id).isVisible(),id+' remains available at 200%');
+  assert.ok(await page.getByRole('button',{name:'播放全部',exact:true}).isVisible());await snapshotScreen(theme+'-sound-library');
+  await page.getByLabel('列表播放选项',{exact:true}).click();assert.ok(await page.getByRole('button',{name:'随机播放',exact:true}).isVisible());assert.ok(await page.getByRole('button',{name:'顺序播放',exact:true}).isVisible());await snapshotScreen(theme+'-sound-library-menu');await page.getByLabel('列表播放选项',{exact:true}).click();
  }
- report.checks.push('actual 200% browser zoom confirmed by DPR and CSS viewport','light and dark version/form/menu/settings/new-project/trash retain controls without horizontal document overflow','download remains byte-identical and trash restore is clickable in both themes');report.status='passed';
+ report.checks.push('actual 200% browser zoom confirmed by DPR and CSS viewport','light and dark version/form/menu/settings/new-project/trash/sound-library retain controls without horizontal document overflow','download remains byte-identical and trash restore is clickable in both themes');report.status='passed';
 }catch(error){report.status='failed';report.error=String(error);if(page)await screenshot(join(out,'failure.png'));throw error;}
 finally{await context?.close();await rm(profile,{recursive:true,force:true});report.finishedAt=new Date().toISOString();await writeFile(join(out,'verification.json'),JSON.stringify(report,null,2));console.log(JSON.stringify(report));}

@@ -10,8 +10,8 @@ type Mapping={groups:Group[]};
 export type ReviewSummary={model:string;confirmedGroups:number;needsReview:number};
 export type ReviewedChunk=TranscriptChunk&{review:{confirmedGroups:number;needsReview:number;unconfirmed:{ids:number[];heard:string[]}[]}};
 export type LyricsReviewer={ready:()=>boolean;reason:()=>string|undefined;review:(reference:string,chunks:TranscriptChunk[],signal:AbortSignal,progress:(message:string,percent:number)=>void)=>Promise<{chunks:ReviewedChunk[];summary:ReviewSummary}>};
-type Credentials={account:string;token:string};
-type Options={directory:string;usageFile?:string;dailyLimit?:number;credentials?:()=>Credentials;fetch?:typeof globalThis.fetch};
+type Credentials={account:string;token:string;provider?:'cloudflare'}|{provider:'openai';baseURL:string;model:string;token:string};
+type Options={directory:string;usageFile?:string;dailyLimit?:number;credentials?:()=>Credentials;fallbackCredentials?:()=>Credentials;fetch?:typeof globalThis.fetch};
 const referenceLines=(reference:string)=>reference.split(/\r?\n/u).map(text=>text.trim()).filter(text=>text&&!/^\[[^\]]+\]$/u.test(text)).map((text,line)=>({line,text}));
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
 function atomicJSON(file:string,value:unknown){mkdirSync(dirname(file),{recursive:true});const staging=file+'.'+randomUUID()+'.partial';try{writeFileSync(staging,JSON.stringify(value),{mode:0o600});renameSync(staging,file);}finally{rmSync(staging,{force:true});}}
@@ -23,6 +23,20 @@ export function cloudflareLyricsCredentials():Credentials{
  const account=values.CLOUDFLARE_ACCOUNT_ID,token=values.CLOUDFLARE_API_TOKEN;
  if(!account||!/^[a-f0-9]{32}$/iu.test(account)||!token||/[\r\n]/u.test(token))throw Error('请先配置歌词核对服务的 Cloudflare 账号和令牌');
  return {account,token};
+}
+
+/** Read the explicitly configured Chat Completions backup. */
+export function lyricsReviewCredentials(file=join(homedir(),'.config/music-room/lyrics-review.env'),env:NodeJS.ProcessEnv=process.env):Credentials{
+ const values:Record<string,string|undefined>={};
+ if(existsSync(file))for(const row of readFileSync(file,'utf8').split('\n')){const match=row.match(/^\s*(LYRICS_REVIEW_BASE_URL|LYRICS_REVIEW_API_KEY|LYRICS_REVIEW_MODEL)\s*=\s*(.*?)\s*$/u);if(match)values[match[1]]=match[2].replace(/^(['"])(.*)\1$/u,'$2');}
+ for(const key of ['LYRICS_REVIEW_BASE_URL','LYRICS_REVIEW_API_KEY','LYRICS_REVIEW_MODEL'])if(env[key])values[key]=env[key];
+ if(!Object.keys(values).length)return cloudflareLyricsCredentials();
+ const base=values.LYRICS_REVIEW_BASE_URL,token=values.LYRICS_REVIEW_API_KEY,model=values.LYRICS_REVIEW_MODEL;
+ if(!base||!token||!model||/[\r\n]/u.test(token+model))throw Error('请完整配置歌词核对服务的接口地址、密钥和模型');
+ let url:URL;try{url=new URL(base);}catch{throw Error('歌词核对服务接口地址无效');}
+ if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash)throw Error('歌词核对服务接口地址无效');
+ const baseURL=url.href.replace(/\/+$/u,'');
+ return {provider:'openai',baseURL:baseURL.endsWith('/v1')?baseURL:baseURL+'/v1',model,token};
 }
 
 /** Validate references and coverage only. Semantic matching remains the model's job. */
@@ -61,8 +75,35 @@ reference 是从用户输入原词中检索的连续候选段落，每行有原�
 一句识别可对应多行；相邻识别片段可合并成一行。实际重复保留每次演唱；换序按演唱顺序。不能补唱未唱的部分，不为覆盖原词而强配，不自行改写。无法确定就 uncertain。不要解释、不要 Markdown。`;
 const audit='请独立复查上一轮映射，不默认初稿正确。重新核对每句发音与前后关系：同音错字可以对应原词；前后句相同不能证明中间完全不同的句子也对应。检查半句、合并句和实际重复次数，必要时修订为 uncertain。按原格式输出完整 JSON，不输出解释。';
 
+class LyricsQuotaError extends Error {}
+
 export function createLyricsReviewer(options:Options):LyricsReviewer{
- const credentials=options.credentials??cloudflareLyricsCredentials,request=options.fetch??globalThis.fetch,usageFile=options.usageFile??join(options.directory,'usage.json'),limit=Math.min(9500,options.dailyLimit??9500);
+ const primary=options.credentials??cloudflareLyricsCredentials;
+ const backup=options.fallbackCredentials??(options.credentials?undefined:lyricsReviewCredentials);
+ const first=createSingleLyricsReviewer({...options,credentials:primary});
+ function fallback(){
+  if(!backup)return undefined;
+  const auth=backup();
+  if(auth.provider!=='openai')return undefined;
+  return createSingleLyricsReviewer({...options,credentials:()=>auth});
+ }
+ function reason(){if(first.ready())return undefined;try{const second=fallback();return second?second.reason():first.reason();}catch(error){return error instanceof Error?error.message:'歌词核对未配置';}}
+ return {ready:()=>!reason(),reason,review:async(reference,chunks,signal,progress)=>{
+  if(!first.ready()){
+   const second=fallback();if(second)return second.review(reference,chunks,signal,progress);
+  }
+  try{return await first.review(reference,chunks,signal,progress);}catch(error){
+   signal.throwIfAborted();if(!(error instanceof LyricsQuotaError))throw error;
+   const second=fallback();if(!second)throw error;
+   progress('Cloudflare 额度或容量不足，正在使用备用服务核对歌词',55);
+   // Restart both rounds so agreement never combines different providers.
+   return second.review(reference,chunks,signal,progress);
+  }
+ }};
+}
+
+function createSingleLyricsReviewer(options:Options):LyricsReviewer{
+ const credentials=options.credentials??lyricsReviewCredentials,request=options.fetch??globalThis.fetch,usageFile=options.usageFile??join(options.directory,'usage.json'),limit=Math.min(9500,options.dailyLimit??9500);
  function reason(){try{credentials();return undefined;}catch(error){return error instanceof Error?error.message:'Cloudflare 歌词核对未配置';}}
  function accountUsage(account:string,change:(current:number,date:string)=>number){
   mkdirSync(dirname(usageFile),{recursive:true});const lock=usageFile+'.lock';
@@ -80,39 +121,42 @@ export function createLyricsReviewer(options:Options):LyricsReviewer{
    doc.neurons[key]=change(current,date);atomicJSON(usageFile,doc);return date;
   }finally{rmSync(lock,{recursive:true,force:true});}
  }
- async function call(messages:{role:string;content:string}[],reference:string,parts:string[],allowed:Set<number>,signal:AbortSignal){
-  signal.throwIfAborted();const auth=credentials(),maxTokens=Math.min(3072,Math.max(384,128+parts.length*48));
-  const body={messages,stream:false,temperature:0,chat_template_kwargs:{enable_thinking:false,preserve_thinking:false},max_completion_tokens:maxTokens,response_format:{type:'json_object'}};
-  const key=hash(JSON.stringify({version:1,model:LYRIC_REVIEW_MODEL,reference,messages,body})),cache=join(options.directory,'responses',key+'.json');
+ async function call(messages:{role:string;content:string}[],reference:string,parts:string[],allowed:Set<number>,signal:AbortSignal,auth:Credentials){
+  signal.throwIfAborted();const maxTokens=Math.min(3072,Math.max(384,128+parts.length*48));
+  const openai=auth.provider==='openai',model=openai?auth.model:LYRIC_REVIEW_MODEL,label=openai?'歌词核对服务':'Cloudflare 歌词核对';
+  const endpoint=openai?auth.baseURL+'/chat/completions':`https://api.cloudflare.com/client/v4/accounts/${auth.account}/ai/run/${model}`;
+  const body={...(openai?{model,max_tokens:maxTokens}:{max_completion_tokens:maxTokens}),messages,stream:false,temperature:0,chat_template_kwargs:{enable_thinking:false,preserve_thinking:false},response_format:{type:'json_object'}};
+  const key=hash(JSON.stringify({version:2,endpoint,model,reference,messages,body})),cache=join(options.directory,'responses',key+'.json');
   if(existsSync(cache)){const saved=JSON.parse(readFileSync(cache,'utf8'));return {content:saved.content as string,mapping:parseLyricMapping(saved.content,reference,parts,allowed)};}
   const reservation=(Buffer.byteLength(JSON.stringify(messages),'utf8')+256)*40909/1e6+maxTokens*290909/1e6;
-  const reservedOn=accountUsage(auth.account,current=>{if(current+reservation>limit)throw Error('今日歌词核对免费预算不足，请在北京时间 8 点额度重置后重试；旧歌词已保留');return current+reservation;});
+  const reservedOn=openai?undefined:accountUsage(auth.account,current=>{if(current+reservation>limit)throw new LyricsQuotaError('今日歌词核对免费预算不足，请在北京时间 8 点额度重置后重试；旧歌词已保留');return current+reservation;});
   let response:Response;
-  try{response=await request(`https://api.cloudflare.com/client/v4/accounts/${auth.account}/ai/run/${LYRIC_REVIEW_MODEL}`,{method:'POST',headers:{authorization:`Bearer ${auth.token}`,'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.any([signal,AbortSignal.timeout(120000)])});}
-  catch{signal.throwIfAborted();throw Error('Cloudflare 歌词核对连接失败或超时，旧歌词已保留');}
-  if(!response.ok)throw Error(response.status===429?'Cloudflare 免费额度或当前容量不足，旧歌词已保留':`Cloudflare 歌词核对失败（${response.status}），旧歌词已保留`);
-  type Envelope={success?:boolean;result?:{response?:string;choices?:{message?:{content?:string};finish_reason?:string}[];usage?:{neurons?:number}}};
-  let envelope:Envelope;try{envelope=await response.json() as Envelope;}catch{throw Error('Cloudflare 未返回有效的核对数据，旧歌词已保留');}signal.throwIfAborted();
-  const result=envelope.result;if(!envelope.success||!result)throw Error('Cloudflare 歌词核对未返回有效结果，旧歌词已保留');
-  // After reset, the old reservation is no longer in today's counter. Charge the
-  // receipt conservatively today without refunding unrelated new-day requests.
-  const measured=result.usage?.neurons;if(typeof measured==='number'&&Number.isFinite(measured)&&measured>=0)accountUsage(auth.account,(current,date)=>Math.max(0,current-(date===reservedOn?reservation:0)+measured));
+  try{response=await request(endpoint,{method:'POST',headers:{authorization:`Bearer ${auth.token}`,'content-type':'application/json'},body:JSON.stringify(body),signal:AbortSignal.any([signal,AbortSignal.timeout(120000)])});}
+  catch{signal.throwIfAborted();throw Error(`${label}连接失败或超时，旧歌词已保留`);}
+  if(!openai&&response.status===429)throw new LyricsQuotaError('Cloudflare 免费额度或当前容量不足，旧歌词已保留');
+  if(!response.ok)throw Error(response.status===429?`${label}额度或当前容量不足，旧歌词已保留`:`${label}失败（${response.status}），旧歌词已保留`);
+  type Result={response?:string;choices?:{message?:{content?:string};finish_reason?:string}[];usage?:{neurons?:number}};
+  type Envelope=Result&{success?:boolean;result?:Result};
+  let envelope:Envelope;try{envelope=await response.json() as Envelope;}catch{throw Error(`${label}未返回有效的核对数据，旧歌词已保留`);}signal.throwIfAborted();
+  const result=openai?envelope:envelope?.result;if(!result||!openai&&!envelope.success)throw Error(`${label}未返回有效结果，旧歌词已保留`);
+  // A new-day receipt must not refund an unrelated reservation.
+  const measured=result.usage?.neurons;if(!openai&&typeof measured==='number'&&Number.isFinite(measured)&&measured>=0)accountUsage(auth.account,(current,date)=>Math.max(0,current-(date===reservedOn?reservation:0)+measured));
   const content=result.response??result.choices?.[0]?.message?.content;
   if(result.choices?.[0]?.finish_reason==='length'||typeof content!=='string')throw Error('歌词核对结果不完整，旧歌词已保留');
-  const mapping=parseLyricMapping(content,reference,parts,allowed);atomicJSON(cache,{version:1,model:LYRIC_REVIEW_MODEL,content});return {content,mapping};
+  const mapping=parseLyricMapping(content,reference,parts,allowed);atomicJSON(cache,{version:2,model,content});return {content,mapping};
  }
  return {ready:()=>!reason(),reason,review:async(reference,chunks,signal,progress)=>{
-  const original=referenceLines(reference),reviewed:ReviewedChunk[]=[];if(!original.length)throw Error('没有可核对的原歌词');
+  const auth=credentials(),original=referenceLines(reference),reviewed:ReviewedChunk[]=[];if(!original.length)throw Error('没有可核对的原歌词');
   for(let index=0;index<chunks.length;index++){
    const chunk=chunks[index];if(!chunk.parts.length){reviewed.push({...chunk,review:{confirmedGroups:0,needsReview:0,unconfirmed:[]}});continue;}
    const context=referenceLines(chunk.referenceContext).map(row=>row.text),start=context.length?original.findIndex((_row,start)=>context.every((text,offset)=>original[start+offset]?.text===text)):-1;
    const candidates=start>=0?original.slice(start,start+context.length):original,allowed=new Set(candidates.map(row=>row.line));
    const messages=[{role:'system',content:system},{role:'user',content:JSON.stringify({reference:candidates,heard:chunk.parts.map((text,id)=>({id,text}))})}];
    progress(`正在核对歌词 · ${index+1} / ${chunks.length} 段`,55+Math.floor(index/chunks.length*4));
-   const first=await call(messages,reference,chunk.parts,allowed,signal);
-   const second=await call([...messages,{role:'assistant',content:first.content},{role:'user',content:audit}],reference,chunk.parts,allowed,signal);
+   const first=await call(messages,reference,chunk.parts,allowed,signal,auth);
+   const second=await call([...messages,{role:'assistant',content:first.content},{role:'user',content:audit}],reference,chunk.parts,allowed,signal,auth);
    reviewed.push(applyReviewedMapping(chunk,first.mapping,second.mapping));
   }
-  return {chunks:reviewed,summary:{model:LYRIC_REVIEW_MODEL,confirmedGroups:reviewed.reduce((n,c)=>n+c.review.confirmedGroups,0),needsReview:reviewed.reduce((n,c)=>n+c.review.needsReview,0)}};
+  return {chunks:reviewed,summary:{model:auth.provider==='openai'?auth.model:LYRIC_REVIEW_MODEL,confirmedGroups:reviewed.reduce((n,c)=>n+c.review.confirmedGroups,0),needsReview:reviewed.reduce((n,c)=>n+c.review.needsReview,0)}};
  }};
 }

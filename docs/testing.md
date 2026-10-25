@@ -35,8 +35,14 @@ npm run verify:all
 | [执行指南](testing/running.md) | 命令怎么运行，怎样准备隔离环境、保存证据和清理 |
 | [固定语料与听评](testing/quality.md) | 输入、种子、模型效果评分和歌词真值如何验收 |
 | [维护规则](testing/maintenance.md) | 新增 / 修改 / 删除用例，处理失败与维护基线时遵循什么规则 |
+| [2026-10-26 目标时长修复](testing/verification-duration-2026-10-26.md) | 短谱误接受复现、乐谱与最终音频检查、专项验证及本机更新 |
 | [2026-10-23 执行记录](testing/verification-2026-10-23.md) | 这一次实际通过、失败或未完成了什么 |
 | [2026-10-23 原提示词规划回归](testing/verification-planning-2026-10-23.md) | 连续三次规划失败的原样复现、修复与后续发布依据 |
+| [2026-10-24 侧栏布局回归](testing/verification-sidebar-2026-10-24.md) | 项目搜索与新建合并、小窗口自适应分页及浏览器验收 |
+| [2026-10-24 声音库与播放列表](testing/verification-library-2026-10-24.md) | 服务端分页、持续播放、列表保存、独立包专项与本机更新；完整包验收的内存压力阻塞 |
+| [2026-10-24 声音库布局](testing/verification-library-density-2026-10-24.md) | 顶部两排工具栏、紧凑列表、首屏容量、窄窗口与缩放回归 |
+| [2026-10-24 随机播放](testing/verification-library-shuffle-2026-10-24.md) | 跨页乱序、播放历史、刷新恢复、队列编辑与本机预览更新 |
+| [2026-10-24 歌词双服务](testing/verification-lyrics-openai-2026-10-24.md) | Cloudflare 优先、额度不足转魔搭、真实接口样本与接入限制 |
 
 命令以 `package.json` 为准，行为以可执行断言为准。用例索引不复制通过数量；带日期的记录只描述当次执行，不能作为后来版本的通过证明。
 

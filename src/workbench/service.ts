@@ -47,7 +47,7 @@ export class WorkbenchService {
   async call<K extends Operation>(name:K,args:OperationInput<K>):Promise<OperationResults[K]> {
     // Bound background reads, including response-body consumption. Mutations may
     // legitimately take minutes and must never be replayed after an ambiguous timeout.
-    const signal=name==='studio_library'||name==='monitor_status'||name==='resource_status'||name==='yue2_inspect_input'||name==='yue2_score'?AbortSignal.timeout(10000):undefined;
+    const signal=name==='sound_library_page'||name==='sound_library_queue'||name==='sound_library_items'||name==='studio_library'||name==='monitor_status'||name==='resource_status'||name==='yue2_inspect_input'||name==='yue2_score'?AbortSignal.timeout(10000):undefined;
     try{
       const response=await this.request(`/api/${name}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(args),signal});
       const value:unknown=await response.json();if(!response.ok)throw new Error((value as {message?:string}).message??'本地服务请求失败');return value as OperationResults[K];

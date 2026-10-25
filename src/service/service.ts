@@ -5,6 +5,7 @@ import {processSpeed,type SpeedProcessor} from './studio/speed-process.ts';
 import {ConversionService,type ConversionDriver} from './conversion/conversion.ts';
 import {createNativeConversionDriver} from './conversion/native.ts';
 import {StudioService} from './studio/studio.ts';
+import {SoundCatalog} from './studio/sound-catalog.ts';
 import {SoundLibrary} from './studio/sound-library.ts';
 import {SpeechService,type SpeechDriver} from './tts/speech.ts';
 import {createSpeechDriver} from './tts/runtime.ts';
@@ -24,11 +25,11 @@ import type {ResourceCoordinator} from './resources/coordinator.ts';
 export type {ServiceCaller} from './operations.ts';
 export class MusicService {
   lyricsGeneration:LyricsGeneration;
-  resources!:ResourceCoordinator;speedProcessor:SpeedProcessor=processSpeed();soundLibrary:SoundLibrary;
+  resources!:ResourceCoordinator;speedProcessor:SpeedProcessor=processSpeed();soundLibrary:SoundLibrary;soundCatalog:SoundCatalog;
   private monitor:ReturnType<typeof createMachineMonitor>;
   private closing?:Promise<void>;
   store:ProjectStore; jobs:JobManager; read:AssetReader;yue2:YuE2Engine;yue2Client:YuE2Client;speech:SpeechService;studio:StudioService;conversion:ConversionService;
-  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator) {this.monitor=createMachineMonitor(read,resources);this.resources=resources;resources.register('import',{resident:()=>undefined,unload:async()=>{}});this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources);this.soundLibrary=new SoundLibrary(store);this.studio=new StudioService(this);this.lyricsGeneration=new LyricsGeneration(store.path('lyrics'),resources,id=>this.studio.lyricSource(id),localLyricsProcessor(store.path('engines','lyrics'),read));}
+  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator) {this.monitor=createMachineMonitor(read,resources);this.resources=resources;resources.register('import',{resident:()=>undefined,unload:async()=>{}});this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources);this.soundLibrary=new SoundLibrary(store);this.studio=new StudioService(this);this.soundCatalog=new SoundCatalog(store,()=>this.studio.soundItems());this.lyricsGeneration=new LyricsGeneration(store.path('lyrics'),resources,id=>this.studio.lyricSource(id),localLyricsProcessor(store.path('engines','lyrics'),read));}
   static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver,resources:ResourceCoordinator=createResources(),speedProcessor:SpeedProcessor=processSpeed()) {
     const store=await ProjectStore.open(root);
     let jobs:JobManager|undefined,yue2:YuE2Engine|undefined,speech:SpeechService|undefined,conversion:ConversionService|undefined;
@@ -60,6 +61,7 @@ export class MusicService {
     studio_save_speed:async args=>this.studio.saveSpeed(args),
     studio_save_mix:async args=>this.studio.saveMix(args),
     studio_import_score:async args=>this.studio.importScore(args),
+    sound_library_page:async args=>this.soundCatalog.page(args),sound_library_queue:async args=>this.soundCatalog.queue(args),sound_library_items:async args=>this.soundCatalog.items(args.ids),sound_playlist_save:async args=>this.soundCatalog.save(args),sound_playlist_remove:async args=>this.soundCatalog.remove(args),
     studio_library:async args=>this.studio.snapshot(args),studio_create_sound:async args=>this.studio.createSound(args),studio_retry_music:async args=>this.studio.retryMusic(args),studio_generate:async args=>this.studio.generate(args),studio_update_version:async args=>this.studio.update(args),studio_cancel:async args=>this.studio.cancel(args.versionId),studio_render:async args=>this.studio.render(args.versionId),
     tts_status:async()=>this.speech.status(),tts_prepare:async args=>this.speech.prepare(args.directory),tts_cancel_preparation:async()=>this.speech.cancelPreparation(),
     tts_library:async()=>this.speech.snapshot(),tts_add_voice:async args=>this.speech.addVoice(args.name,Buffer.from(args.audioBase64,'base64'),args.cleanup),
@@ -103,6 +105,6 @@ export class MusicService {
   };
   close():Promise<void> {
     if(this.closing)return this.closing;
-    this.closing=(async()=>{const results=await Promise.allSettled([this.monitor.close(),this.lyricsGeneration.close(),this.resources.close(),this.yue2Client.close(),this.conversion.close(),this.studio.close(),this.soundLibrary.close(),this.speech.close(),this.yue2.close(),this.jobs.close()]);await this.store.close();const errors=results.filter(r=>r.status==='rejected').map(r=>r.reason);if(errors.length)throw new AggregateError(errors,'关闭服务时部分资源未释放');})();return this.closing;
+    this.closing=(async()=>{const results=await Promise.allSettled([this.monitor.close(),this.lyricsGeneration.close(),this.resources.close(),this.yue2Client.close(),this.conversion.close(),this.studio.close(),this.soundLibrary.close(),this.soundCatalog.close(),this.speech.close(),this.yue2.close(),this.jobs.close()]);await this.store.close();const errors=results.filter(r=>r.status==='rejected').map(r=>r.reason);if(errors.length)throw new AggregateError(errors,'关闭服务时部分资源未释放');})();return this.closing;
   }
 }

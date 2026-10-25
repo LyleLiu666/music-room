@@ -1,6 +1,7 @@
 import {copyPlainData} from '../projects/copy-data.ts';
 import {MusicEdits,musicEditLabels,type MusicEditKind,type MusicEditChange,type MusicEditProvenance} from './music-edits.ts';
 import {readLyrics,referenceLyrics} from './lyrics.ts';
+import {soundCatalogRevision} from './sound-catalog.ts';
 import {collectedSounds,type LibrarySound} from './sound-library.ts';
 import {musicProgress,type MusicProgress} from '../yue2/progress.ts';
 import {musicRecoveryRank,sameMusicGeneration} from '../yue2/recovery.ts';
@@ -24,7 +25,7 @@ import type {EmotionStrength} from '../tts/emotion.ts';
 export type StudioInput={targetDuration?:number;seed?:number;structure?:string;abc?:string;ending?:MusicEnding;pitchShiftSemitones?:number;soundId:string;text:string;voiceId?:string;emotion?:string;emotionStrength?:EmotionStrength;lyrics?:string;instrumental?:boolean;preset?:'fast'|'quality';parentId?:string};
 export type MusicAttempt={jobId:string;input?:StudioInput;state:SpeechVersion['state'];stage:string;error?:string;resource?:ResourceTaskState;recovery?:MusicRecovery;resumedFrom?:MusicRecovery;startedAt:string;archivedAt:string;requestId?:string};
 export type StudioVersion={musicAttempts?:MusicAttempt[];musicAttemptStartedAt?:string;musicAttemptRequestId?:string;musicRecovery?:MusicRecovery;musicResumedFrom?:MusicRecovery;musicRetryOf?:string;musicEdit?:MusicEditProvenance;musicProgress?:MusicProgress;musicTruncated?:MusicTruncation;scoreMix?:RenderMix;mixRequestId?:string;resource?:ResourceTaskState;speed?:SpeedEdit;audioHash?:string;id:string;soundId:string;number:number;parentId?:string;createdAt:string;state:SpeechVersion['state'];stage:string;kept:boolean;deleted:boolean;purged?:boolean;purgePending?:boolean;voiceName?:string;error?:string;duration?:number;input?:StudioInput;originalAudioPath?:string;vocalsAudioPath?:string;source:{kind:'speech'|'music'|'score'|'audio'|'conversion';id:string;projectId?:string};audioPath?:string;renderJobId?:string};
-export type StudioLibraryOptions={paginateConversions?:boolean;includeDeletedConversions?:boolean;conversionSoundId?:string;conversionPage?:number;conversionPageSize?:number;selectedVersionId?:string};
+export type StudioLibraryOptions={includeSoundLibrary?:boolean;compactLibrary?:boolean;paginateConversions?:boolean;includeDeletedConversions?:boolean;conversionSoundId?:string;conversionPage?:number;conversionPageSize?:number;selectedVersionId?:string};
 export type StudioConversionPagination={soundId:string;page:number;pageSize:number;total:number;totalPages:number;versionIds:string[]};
 type Data={format:'music-room-studio';version:1;sounds:StudioSound[];versions:StudioVersion[];pendingScores?:StudioVersion[]};
 const fail=(message:string):never=>{throw new ServiceError('INVALID_STUDIO',message);};
@@ -137,6 +138,7 @@ export class StudioService{
  },false);}
  async cancelSpeed(resourceId:string){const task=[...this.speedTasks].find(([id])=>`speed-${id}`===resourceId)?.[1];if(!task)return fail('调速任务不存在');task.controller.abort();await Promise.allSettled([task.done]);}
  async close(){this.closing=true;for(const task of this.speedTasks.values())task.controller.abort();await Promise.allSettled([...this.speedTasks.values()].map(t=>t.done));await this.pending;}
+ async soundItems(){return this.serial(async()=>{await this.sync();return [...collectedSounds(await this.service.store.projects(),this.data.sounds,this.data.versions,true),...this.service.soundLibrary.list()];});}
  async snapshot(options:StudioLibraryOptions={}){return this.serial(async()=>{
   await this.sync();const backgroundVersions=this.data.versions.filter(v=>!v.purged&&!v.deleted&&(['queued','running'].includes(v.state)||v.renderJobId));let versions=this.data.versions.filter(v=>!v.purged),conversionPagination:StudioConversionPagination|undefined;
   const include=new Set<string|undefined>([options.selectedVersionId]);
@@ -150,13 +152,14 @@ export class StudioService{
    conversionPagination={soundId:sound.id,page,pageSize,total,totalPages,versionIds};
   }
   if(options.paginateConversions||options.conversionSoundId){const conversionSounds=new Set(this.data.sounds.filter(s=>s.kind==='conversion').map(s=>s.id));versions=versions.filter(v=>!conversionSounds.has(v.soundId)||include.has(v.id)||options.includeDeletedConversions&&v.deleted);}
-  const projects=await this.service.store.projects(),soundLibrary:LibrarySound[]=[...collectedSounds(projects,this.data.sounds,this.data.versions),...this.service.soundLibrary.list()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.id.localeCompare(a.id));
+  const projects=await this.service.store.projects(),availableSounds:LibrarySound[]=[...collectedSounds(projects,this.data.sounds,this.data.versions,true),...this.service.soundLibrary.list()],soundLibrary=availableSounds.filter(i=>i.origin==='imported'||i.final||i.kept).sort((a,b)=>b.createdAt.localeCompare(a.createdAt)||b.id.localeCompare(a.id));
   const backgroundLyrics=this.service.lyricsGeneration.activeJobs().flatMap(job=>{
    const version=this.data.versions.find(v=>v.id===job.versionId);return version?[{job,soundId:version.soundId,number:version.number}]:[];
   });
   const taskHistory=this.data.versions.filter(v=>!v.purged&&!v.deleted&&this.data.sounds.some(s=>s.id===v.soundId&&!s.deleted&&!s.purged&&projects.some(p=>p.id===s.projectId&&!p.deleted))).map(v=>({id:v.id,soundId:v.soundId,number:v.number,state:v.state,stage:v.stage,error:v.error,createdAt:v.createdAt,hasAudio:!!v.audioPath,duration:v.duration}));
   const lyricTaskHistory=this.service.lyricsGeneration.historyJobs().flatMap(job=>{const v=taskHistory.find(v=>v.id===job.versionId);return v?[{...v,taskId:job.taskId,state:job.state,stage:job.message,error:undefined,createdAt:job.startedAt?new Date(job.startedAt).toISOString():v.createdAt}]:[];});
-  return {...this.data,taskHistory,lyricTaskHistory,soundLibrary,backgroundVersions,backgroundLyrics,sounds:this.data.sounds.filter(s=>!s.purged),versions:versions.map((v):StudioVersion=>({...v,musicRecovery:this.bestMusicRecovery(v)})),conversionPagination,projects,voices:this.service.speech.snapshot().voices,conversionVoices:this.service.speech.conversionVoices(),engines:{conversion:this.service.conversion.snapshot({page:1,pageSize:1}).status,speech:this.service.speech.status(),music:await this.service.yue2.status()}};
+  if(options.compactLibrary)versions=versions.filter(v=>v.id===options.selectedVersionId||backgroundVersions.some(b=>b.id===v.id));
+  return {...this.data,taskHistory:options.compactLibrary?[]:taskHistory,lyricTaskHistory:options.compactLibrary?[]:lyricTaskHistory,soundLibrary:options.includeSoundLibrary===false?[]:soundLibrary,soundLibraryRevision:soundCatalogRevision(availableSounds,this.service.soundCatalog.playlists()),backgroundVersions,backgroundLyrics,sounds:this.data.sounds.filter(s=>!s.purged),versions:versions.map((v):StudioVersion=>({...v,musicRecovery:this.bestMusicRecovery(v)})),conversionPagination,projects,voices:this.service.speech.snapshot().voices,conversionVoices:this.service.speech.conversionVoices(),engines:{conversion:this.service.conversion.snapshot({page:1,pageSize:1}).status,speech:this.service.speech.status(),music:await this.service.yue2.status()}};
  });}
  async createSound(args:{projectId:string;title:string;kind:SoundKind}){return this.serial(async()=>{this.service.store.assertActive(args.projectId);if(args.kind==='speech'){const s=await this.service.speech.createSound(args.projectId,args.title);const result:StudioSound={...s,kind:'speech'};this.data.sounds.push(result);return result;}const s:StudioSound={...args,id:`sound-${randomUUID()}`,createdAt:new Date().toISOString()};this.data.sounds.push(s);return s;});}
  async uploadConversion(args:{pitchShiftSemitones?:number;soundId?:string;parentId?:string;name:string;bytes:Uint8Array;voiceId:string;requestId:string},signal?:AbortSignal){return this.serial(async()=>{

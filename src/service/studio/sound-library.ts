@@ -14,10 +14,10 @@ export type CollectedSound=SoundItem&{origin:'generated';projectId:string;projec
 export type ImportedSound=SoundItem&{origin:'imported';filename:string;extension:'wav'|'flac';duration:number};
 export type LibrarySound=CollectedSound|ImportedSound;
 /** Project decisions remain authoritative; collection never duplicates a generated audio file. */
-export function collectedSounds(projects:ProjectSummary[],sounds:StudioSound[],versions:StudioVersion[]):CollectedSound[]{
+export function collectedSounds(projects:ProjectSummary[],sounds:StudioSound[],versions:StudioVersion[],includeUncollected=false):CollectedSound[]{
  const owners=new Map(projects.filter(p=>!p.deleted&&!p.purged).map(p=>[p.id,p]));
  const active=new Map(sounds.filter(s=>!s.deleted&&!s.purged&&owners.has(s.projectId)).map(s=>[s.id,s]));
- return versions.flatMap(v=>{const s=active.get(v.soundId),final=s?.finalVersionId===v.id;if(!s||v.deleted||v.purged||v.purgePending||v.state!=='succeeded'||!v.audioPath||!(final||v.kept))return [];
+ return versions.flatMap(v=>{const s=active.get(v.soundId),final=s?.finalVersionId===v.id;if(!s||v.deleted||v.purged||v.purgePending||v.state!=='succeeded'||!v.audioPath||!(includeUncollected||final||v.kept))return [];
   return [{id:v.id,title:s.title,createdAt:v.createdAt,duration:v.duration,audioPath:v.audioPath,origin:'generated' as const,projectId:s.projectId,projectTitle:owners.get(s.projectId)!.title,soundId:s.id,versionId:v.id,number:v.number,final,kept:v.kept,extension:v.source.kind==='music'?'flac' as const:'wav' as const}];
  });
 }

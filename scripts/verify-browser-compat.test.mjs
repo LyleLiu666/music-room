@@ -33,8 +33,12 @@ test(`${engine}: keyboard dialogs, labels, saved drafts, WAV playback/download a
   for(let i=0;i<24;i++){await page.keyboard.press(i%7===0?'Shift+Tab':'Tab');assert.equal(await page.evaluate(()=>document.activeElement===document.body||document.querySelector('#dialog').contains(document.activeElement)),true,'Tab must not reach background controls (browser chrome may receive focus)');}
   await page.getByLabel('要说的话',{exact:true}).fill('跨浏览器草稿 🌧️');
   await page.locator('#draft-save-status').filter({hasText:'草稿已保存'}).waitFor();
-  await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('#dialog').open);
-  assert.equal(await opener.evaluate(e=>e===document.activeElement),true,'Escape restores focus to opener');report.checks.push('background controls excluded from tab order; Escape return');
+  // Closing queues the `close` event that restores focus. Wait for that
+  // observable result, not just the open flag changing earlier in the task.
+  await page.keyboard.press('Escape');await page.waitForFunction(()=>!document.querySelector('#dialog').open&&document.activeElement?.matches('[data-action="compose"]'));
+  await page.evaluate(()=>{window.compatOpener=document.querySelector('[data-action="compose"]');window.dispatchEvent(new Event('focus'));});
+  await page.waitForFunction(()=>!window.compatOpener.isConnected);
+  assert.equal(await opener.evaluate(e=>e===document.activeElement),true,'Escape and a forced refresh keep focus on the opener');report.checks.push('background controls excluded from tab order; Escape return');
   await page.reload();await page.locator('[data-action="compose"]').first().click();assert.equal(await page.inputValue('#creation-text'),'跨浏览器草稿 🌧️');
   await page.getByText('情绪描述（可选）',{exact:true}).click();
   const unnamed=await page.locator('#dialog').evaluate(dialog=>[...dialog.querySelectorAll('input:not([type=hidden]),select,textarea,button')].filter(e=>!e.hidden&&e.getClientRects().length&&!e.getAttribute('aria-label')&&!e.getAttribute('aria-labelledby')&&!e.labels?.length&&!e.textContent.trim()).map(e=>e.id||e.outerHTML));assert.deepEqual(unnamed,[]);report.checks.push('visible controls have labels; draft survives reload');

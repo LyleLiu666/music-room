@@ -18,13 +18,13 @@
 | RETRY-01 / P0 | 实际 HTTP 保存成功后代理断开 TCP；重启；同请求并发重试 8 次 | 导入和混音各只一份；相同 ID 不同参数拒绝；原成品不变 | `src/server/lost-response.test.ts` |
 | RETRY-02 / P0 | 调速已保存，浏览器收到失败，再点保存 | 复用 requestId；同一新版本；下载的速度和重新打开后播放速度正确 | `scripts/verify-speed-ui.test.mjs`、`src/service/studio/speed.test.ts` |
 | RETRY-03 / P1 | 音乐失败后重试或从检查点恢复 | 原版本编号不变；旧尝试归档；参数、种子与检查点匹配；删除后不可复活 | `music-retry.test.ts`、`src/service/yue2/recovery.test.ts`、`verify-studio-ui.test.mjs` |
-| MUSIC-PLAN-01 / P1 | 模型连续给出截断或无效乐谱；合法完整乐谱偏离目标时长 | 最多三次规划，失败不进入音频合成并明确报错；完整合法乐谱保留，不为凑时长截断 | `src/service/yue2/duration.test.ts`、`duration_runtime_test.py`；真实失败保留在执行记录 |
+| MUSIC-PLAN-01 / P1 | 模型给出截断、无效或偏离所选目标时长的乐谱；成品音频提前结束 | 指定目标时乐谱与最终音频均须在 ±15% 范围内；规划最多三次，仍不达标报错且不合成；音频不达标保留诊断但任务失败；自定义谱不自动改写，自动时长不限制 | `src/service/yue2/duration.test.ts`、`duration_runtime_test.py`；真实失败保留在执行记录 |
 | MUSIC-PLAN-02 / P1 | 使用原失败提示词、seed 42、fast、纯音乐、自动时长与自然收尾 | 首轮参数不变；失败后的采样恢复不改提示词 / 歌词，不增加输出预算；三次内写出完整乐谱并生成可播放音频。原始失败与后续结果分别留存 | `tests/quality/music-planning-regression.json`、`scripts/verify-music-planning-real.ts`、`duration_runtime_test.py` |
 | UPGRADE-01 / P0 | 用提交 `c3a213395f31501d081f6269e2c6983796b4986b` 生成的真实旧格式目录，升级、关闭、再打开 | 原件哈希、父子关系、保留 / 成品选择、删除状态和反馈不变，无重复声音 | `src/service/projects/upgrade.test.ts`；样本见 `tests/fixtures/workspace-2026-10-10/` |
 | BACKUP-01 / P0 | 升级前完整备份；升级后恢复某条旧记录；再用备份恢复到新目录 | 备份字节不变；恢复目录回到备份时状态，音频可读 | 同上 |
 | QUOTA-01 / P0 | 北京时间 08:00 前预留，跨日收到回执；新日已有请求 | 不能从新日计数中扣旧日预约；新日增加已知用量 | `src/service/studio/lyrics-review.test.ts` |
 | QUOTA-02 / P0 | 两个工作目录共用账号；第二轮超时；失败后重试；时钟回拨 / 计数损坏 | 账号计数共用；缓存命中的轮次不重复收费；未知用量保留预约；异常计数禁止请求 | 同上 |
-| LYRICS-01 / P1 | 识别有重复、漏唱、新增、改词，模型核对不一致 / 格式错误 / 取消 | 不把参考词当实际演唱；不确定结果保留待核对；失败不覆盖旧稿 | `lyrics-review.test.ts`、`lyrics-generation.test.ts`、`scripts/test-lyrics-worker.py`、`scripts/experiments/*test*` |
+| LYRICS-01 / P1 | 识别有重复、漏唱、新增、改词，模型核对不一致 / 格式错误 / 取消；Cloudflare 优先、额度不足切换 OpenAI 备用接口、两轮重新核对、缓存与额度隔离 | 不把参考词当实际演唱；不确定结果保留待核对；失败不覆盖旧稿 | `lyrics-review.test.ts`、`lyrics-generation.test.ts`、`scripts/test-lyrics-worker.py`、`scripts/experiments/*test*` |
 | MEDIA-01 / P0 | WAV 8 / 44.1 / 48 / 96 kHz，1 / 2 声道，整数 8/16/24/32 与浮点 32/64；单帧、600 秒、600 秒多一帧 | 合法组合通过；超边界拒绝；内存估计随速度正确变化 | `src/service/studio/audio-budget.test.ts` |
 | MEDIA-02 / P0 | 截断头部、容器长度矛盾、字节率错误、缺填充、尾部碎片、固定随机种子损坏 500 次 | 返回受控错误，无底层解析异常或超额分配 | 同上 |
 | MEDIA-03 / P0 | FLAC 缺帧、哈希不符、扩展名欺骗、超上传大小、路径越界 / 链接 | 不提交记录、不读写外部文件、不出现可下载的伪成功音频 | `sound-library.test.ts`、`audio-files.test.ts`、`src/server/resource-io.test.ts`、`http.test.ts` |
@@ -35,6 +35,12 @@
 | UI-02 / P1 | 用键盘打开对话框、Tab / Shift+Tab、轮询更新后 Escape；展开高级输入 | 背景控件不可聚焦；Escape 返回打开控件；可见输入有名称 | `scripts/verify-browser-compat.test.mjs` |
 | UI-03 / P2 | Chrome / WebKit，390px 窄屏，播放与原文件下载，刷新草稿 | 无横向溢出，真实点击后能播放，下载字节一致；独立记录浏览器结果 | 同上、`verify-drafts-ui.test.mjs` |
 | UI-04 / P1 | 草稿保存失败，刷新触发离开提醒，选择留在当前页面 | 输入仍可编辑；已有音频 URL 仍能重新读取；实际离开页面后才释放媒体资源 | `scripts/verify-browser-compat.test.mjs` |
+| UI-05 / P2 | Chrome / WebKit，1280×720 与 900×600 小窗口，19 个项目、长名称，展开资源详情再恢复大窗口 | 搜索与新建同排；项目按可用高度分页，每页完整显示且无内部纵向滚动；所有项目可翻页找到；搜索、新建和设置可用；大窗口恢复每页 6 项 | `scripts/verify-task-history-ui.test.mjs` |
+| LIBRARY-01 / P1 | 10,000 条声音、长创作要求，跨页搜索 / 分类 / 排序与播放顺序查询 | 接口仅返回当前页 20 / 50 条；工作台不传整库声音及历史版本正文；播放 ID 顺序覆盖全部页 | `src/service/studio/sound-catalog.test.ts` |
+| LIBRARY-02 / P2 | Chrome / WebKit，1280×800、900×700、720×456 和 390×844；深浅主题及实际 200% 缩放 | 宽窗口顶部至首条声音不超过 140px、完整显示至少 8 条；声音行高不超过 64px；窄窗口控件可见且无横向溢出；手机滚到声音库后检查列表密度 | `scripts/verify-listening-queue-ui.test.mjs`、`verify-zoom-ui.mjs` |
+| PLAYLIST-01 / P1 | 保存具体版本、重复添加、并发旧修订覆盖、取消收录、来源删除、服务重启及删除列表 | 顺序持久化；重复 ID 去重；旧修改拒绝覆盖；相同成功请求可恢复；失效条目保留；原音频不受删表影响 | 同上、`scripts/verify-binary.mjs` |
+| PLAYBACK-QUEUE-01 / P1 | Chrome / WebKit，45 首跨页连续播放、搜索 / 导航、快速切歌、404 / 503、拖动后立刻刷新、390px | 仅按需读取当前音频；过期读取不抢播；明确缺失跳过、服务故障暂停；队列与进度可恢复但不自动播放；无横向溢出 | `scripts/verify-listening-queue-ui.test.mjs`、`verify-sound-library-ui.test.mjs` |
+| PLAYBACK-SHUFFLE-01 / P1 | 45 首跨页随机播放、播放列表及筛选、自动顺延、前后切歌、删除 / 追加 / 指定下一首、刷新、切回顺序；空 / 单首 / 20,000 首 | 一轮不重复不遗漏，末尾停止；前后切歌沿随机顺序；刷新保持原随机顺序与暂停进度；切方式不重载当前音频；保存列表不变；随机及顺序入口保持紧凑布局 | `src/workbench/studio/listening-order.test.ts`、`scripts/verify-listening-queue-ui.test.mjs` |
 | SCALE-01 / P1 | 2,000–20,000 固定版本，多项目分页；40 次暂停、取消、生成、删除恢复；每 10 次重启 | 无重复 ID、分页越界、遗留队列；原文件不变；统计 p50 / p95 / RSS | `scripts/verify-soak.mjs` |
 | HARNESS-01 / P0 | 新增不同命名或新目录的测试；从日常命令移除现有套件 | 漏项检查失败；每个脚本测试须接入入口或有明确历史原因，独立试验台单列 | `tests/verification-gate.test.ts` |
 | HARNESS-02 / P0 | 续跑时音频损坏、日志缺失、输入 / 种子 / 速率 / 模型变化；旧尝试失败 | 不复用失效成功，不覆盖原证据；失败尝试可重跑，历史失败与人工待评状态保留 | `tests/quality-resume.test.ts`、`quality-execution.test.ts`、`quality-evidence.test.ts` |
@@ -63,7 +69,7 @@
 | REAL-02 | 独立包已构建，普通用户账号 | 隐藏 dist，PATH 仅系统命令；开启 MCP，渲染、下载、重开 | 所有资源来自包；本机模型与系统组件要求按使用文档执行；不要求源码和 Node |
 | REAL-03 | 有足够磁盘的受控测试卷 | 安装 / 下载 / 保存时逐步耗尽空间，然后释放空间重试 | 不把部分安装标成就绪；已有模型和产物不损坏；不默认在用户磁盘造满盘 |
 | REAL-04 | 保存了声音的隔离目录 | 锁屏、睡眠、唤醒；网络断开再恢复；关闭所有网页再打开 | 后台状态可恢复，音频仍可读；失败说明明确，不假显示完成 |
-| UI-ZOOM-01 | 200% 浏览器缩放，深浅主题 | 新建、创作、版本菜单、回收站、下载 | 无重要控件遮挡；正文可读；状态不只靠颜色；保留截图 |
+| UI-ZOOM-01 | 200% 浏览器缩放，深浅主题 | 新建、创作、版本菜单、回收站、下载、声音库 | 无重要控件遮挡；正文可读；状态不只靠颜色；保留截图 |
 | SOAK-01 | 固定机器，隔离目录 | 至少 60 分钟连续循环，另做真实模型混合任务 | 记录真实持续时间、任务数、RSS / 系统压力、p95；短测不等价于长稳 |
 | QUALITY-01 | 固定语料已准备，真实模型完成 | 按固定样本逐条听评，实际唱词独立转写 | 见[质量标准](quality.md)；任何未评分项维持待验收 |
 

@@ -314,12 +314,21 @@ h3 {
   mask: var(--icon-note) center / contain no-repeat;
 }
 
+.project-toolbar {
+  display: flex;
+  align-items: stretch;
+  gap: 8px;
+}
+
 .new-project {
-  padding: 10px 13px;
-  text-align: left;
+  display: grid;
+  place-items: center;
+  width: 38px;
+  flex-shrink: 0;
+  padding: 0;
   border: 1px solid transparent;
   border-radius: var(--r-md);
-  font-size: 14px;
+  font-size: 22px;
   font-weight: 550;
   color: var(--on-primary);
   background: var(--primary);
@@ -329,16 +338,6 @@ h3 {
 .new-project:hover {
   background: var(--primary-hover);
   box-shadow: var(--shadow);
-}
-
-.nav-caption {
-  color: var(--faint);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  margin-bottom: -12px;
-  padding-left: 12px;
 }
 
 #projects {
@@ -364,6 +363,7 @@ h3 {
 }
 
 .project-link > span:nth-child(2) {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -388,6 +388,7 @@ h3 {
 }
 
 .project-link small {
+  flex-shrink: 0;
   margin-left: auto;
   color: var(--faint);
   font-variant-numeric: tabular-nums;
@@ -436,36 +437,10 @@ h3 {
 .sidebar-libraries .library-entry > span::before {width:18px;height:18px;}
 .sound-library-entry > span::before {-webkit-mask:var(--icon-note) center / contain no-repeat;mask:var(--icon-note) center / contain no-repeat;}
 .task-list-entry > span::before {-webkit-mask:var(--icon-list) center / contain no-repeat;mask:var(--icon-list) center / contain no-repeat;}
-.sound-library-controls {display:flex;gap:20px;align-items:end;margin:28px 0;}
-.sound-library-controls label {display:flex;flex-direction:column;gap:8px;}
-.sound-library-controls label:first-child {flex:1;}
-.sound-library-controls select {min-width:150px;}
-.sound-library-list {display:flex;flex-direction:column;gap:10px;}
-.sound-library-card {display:flex;align-items:center;gap:18px;width:100%;padding:18px 20px;text-align:left;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-md);}
-.sound-library-card:hover {background:var(--hover);}
-.sound-library-card.selected {border-color:var(--accent);background:var(--accent-soft);}
-.sound-library-copy {display:flex;flex:1;min-width:0;flex-direction:column;gap:6px;}
-.sound-library-copy strong {color:var(--text-strong);overflow-wrap:anywhere;}
-.sound-library-copy small,.sound-library-copy > span,.sound-library-card time {font-size:13px;color:var(--muted);}
-.sound-library-copy > span {overflow-wrap:anywhere;}
-.sound-library-play {color:var(--accent);}
-.sound-library-tags {display:flex;gap:8px;flex-wrap:wrap;}
-.sound-library-card time {font-variant-numeric:tabular-nums;}
-.sound-library-preview-heading {display:flex;align-items:center;gap:16px;margin-bottom:20px;flex-wrap:wrap;}
-.sound-library-preview-heading > div {flex:1;min-width:180px;}
-.sound-library-preview-heading h2 {font-size:20px;margin:0 0 8px;overflow-wrap:anywhere;}
-#sound-library-preview {margin-bottom:24px;}
-#sound-library-audio {width:100%;}
-#sound-import-file {max-width:100%;}
+
 
 @media(max-width:650px){
  .sidebar-libraries {margin-top:0;grid-column:1;grid-row:3;flex-direction:row;gap:0;flex-wrap:wrap;}
- .sound-library-controls {gap:12px;flex-wrap:wrap;}
- .sound-library-controls label:first-child {min-width:180px;}
- .sound-library-card {padding:14px;gap:12px;flex-wrap:wrap;}
- .sound-library-copy {flex-basis:65%;}
- .sound-library-tags {margin-left:28px;}
- .sound-library-card time {margin-left:auto;}
 }
 
 .sidebar-bottom {
@@ -2346,15 +2321,6 @@ pre {
     font-size: 0;
   }
 
-  .new-project {
-    font-size: 12px;
-    padding: 7px 11px;
-  }
-
-  .nav-caption {
-    display: none;
-  }
-
   #projects {
     grid-column: 1 / -1;
     grid-row: 2;
@@ -2907,14 +2873,14 @@ body:has(#dialog[open]) #global-status-bar{visibility:hidden}
 .sound-overflow-list button:hover, .sound-overflow-list button[aria-pressed='true'] { background: var(--line); }
 .sound-search-empty { padding: 12px; color: var(--muted); }
 /* Persistent task history and bounded project navigation. */
-#project-search{width:100%;min-width:0;margin:0 0 8px;padding:8px 10px;font-size:13px}
+#project-search{width:100%;min-width:0;height:38px;margin:0;padding:8px 10px;font-size:13px}
 #project-pagination{display:flex;align-items:center;justify-content:space-between;gap:4px;font-size:12px;color:var(--muted);margin-bottom:12px}
 #project-pagination button{padding:4px 12px}
-@media(min-width:651px){.sidebar{gap:12px;overflow-y:auto}.sidebar>.brand,.sidebar>.new-project,.sidebar>.nav-caption,.sidebar>#project-search,.sidebar>#project-pagination,.sidebar>.sidebar-libraries,.sidebar>.sidebar-bottom{flex-shrink:0}#projects{min-height:80px}.project-link{flex-shrink:0}}
+@media(min-width:651px){.sidebar{gap:12px;overflow-y:auto}.sidebar>.brand,.sidebar>.project-toolbar,.sidebar>#project-pagination,.sidebar>.sidebar-libraries,.sidebar>.sidebar-bottom{flex-shrink:0}#projects{flex:1;min-height:44px;overflow:hidden}.project-link{flex-shrink:0}}
 /* At tablet widths the fixed transport spans the sidebar. Reserve its height
    in the scrollable sidebar so Settings stays reachable at high browser zoom. */
 @media(min-width:651px) and (max-width:900px){.sidebar{padding-bottom:82px;scroll-padding-bottom:64px}}
-@media(max-width:650px){#project-search{grid-column:1;grid-row:2;margin:0}#project-pagination{grid-column:2;grid-row:2;margin:0}#projects{grid-row:3}.sidebar-libraries{grid-row:4}.sidebar-bottom{grid-row:6;grid-column:1 / -1}}
+@media(max-width:650px){.project-toolbar{grid-column:1 / -1;grid-row:2}#project-pagination{grid-column:1 / -1;grid-row:4;margin:0}#projects{grid-row:3}.sidebar-libraries{grid-row:5}.sidebar-bottom{grid-row:7;grid-column:1 / -1}}
 /* Task history: bounded pages, explicit statuses and expandable diagnostics. */
 .task-heading h1{font-size:28px;margin:0 0 8px}.task-heading p{margin:0;color:var(--muted)}
 .task-toolbar{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:28px 0 18px}.task-toolbar input{width:260px;margin:0;max-width:100%}

@@ -1,3 +1,4 @@
+import {catalogQuery,playlistSave,type SoundCatalog} from './studio/sound-catalog.ts';
 import type {MonitorSnapshot} from './resources/monitor.ts';
 import {musicEditKinds,type MusicEditDraft} from './studio/music-edits.ts';
 import {musicInputLimits,type MusicContext} from './yue2/input.ts';
@@ -33,7 +34,12 @@ export const operations = {
   svc_create_version:{description:'使用当前声音版本保存的原音和指定音色新建转换版本。',schema:z.object({pitchShiftSemitones:z.number().int().min(-12).max(12).optional(),soundId:id,sourceJobId:jobId,voiceId:id,requestId:z.string().min(1).max(120)}).strict()},
   svc_cancel:{description:'取消指定音色转换任务，保留原音。',schema:z.object({jobId}).strict()},
   svc_retry:{description:'用原任务保存的音频和参考音色新建重试任务，不覆盖历史结果。',schema:z.object({jobId}).strict()},
-  studio_library:{description:'统一读取项目、声音和版本。',schema:z.object({paginateConversions:z.boolean().optional(),includeDeletedConversions:z.boolean().optional(),conversionSoundId:id.optional(),conversionPage:z.number().int().positive().optional(),conversionPageSize:z.number().int().positive().max(50).optional(),selectedVersionId:id.optional()}).strict()},
+  sound_library_page:{description:'按页查找声音或播放列表，不读取音频。',schema:z.object({...catalogQuery,page:z.number().int().positive().optional(),pageSize:z.union([z.literal(20),z.literal(50)]).optional()}).strict()},
+  sound_library_queue:{description:'确定跨页播放顺序，只返回稳定声音 ID，不预加载音频。',schema:z.object(catalogQuery).strict()},
+  sound_library_items:{description:'读取少量声音资料；不可用声音保留名称。',schema:z.object({ids:z.array(z.string().min(1).max(80)).max(50)}).strict()},
+  sound_playlist_save:{description:'保存具体音频版本的播放列表，revision 防止覆盖其他窗口的修改。',schema:playlistSave},
+  sound_playlist_remove:{description:'删除播放列表，不删除原音频。',schema:z.object({id,revision:z.number().int().positive()}).strict()},
+  studio_library:{description:'统一读取项目、声音和版本。',schema:z.object({includeSoundLibrary:z.boolean().optional(),compactLibrary:z.boolean().optional(),paginateConversions:z.boolean().optional(),includeDeletedConversions:z.boolean().optional(),conversionSoundId:id.optional(),conversionPage:z.number().int().positive().optional(),conversionPageSize:z.number().int().positive().max(50).optional(),selectedVersionId:id.optional()}).strict()},
   studio_create_sound:{description:'在项目内创建音乐片段、完整音乐或语音。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120),kind:z.enum(['clip','music','speech','conversion'])}).strict()},
   studio_update_project:{description:'项目重命名或移入/恢复回收站；整个层级保持原状态，生成中拒绝删除。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
   studio_update_sound:{description:'片段重命名或移入/恢复回收站，保留其版本和成品选择。',schema:z.object({soundId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
@@ -48,7 +54,7 @@ export const operations = {
   studio_music_edit_brief:{description:'导出可交给任意 AI / LLM 的改谱要求和完整原谱，不调用模型。',schema:z.object({draftId:id,instruction:z.string().trim().min(1).max(10000)}).strict()},
   studio_music_edit_generate:{description:'将已检查的草稿提交现有音乐队列，创建同声音的子版本；同一草稿修订重试返回同一版本。',schema:z.object({draftId:id,revision:z.number().int().min(0)}).strict()},
   studio_retry_music:{description:'在原音乐版本内重试或从已保存阶段继续，保留历次尝试记录；requestId 去重，expectedJobId 防止旧页面重复提交。',schema:z.object({versionId:id,requestId:z.string().min(1).max(120).optional(),expectedJobId:z.string().max(80).optional()}).strict()},
-  studio_generate:{description:'在指定声音内生成新版本，来源和结果均保存在当前声音。音乐可设 targetDuration=60/120/180/240/300（约 1–5 分钟），先规划并检查乐谱长度，省略则由模型决定。音乐 ending 默认 natural（引导自然收尾），as-described 仅按原描述生成；不保证精确时长或收尾听感。',schema:z.object({targetDuration:z.number().refine(n=>musicDurations.some(value=>value===n),'目标时长请选择约 1–5 分钟').optional(),seed:z.number().int().min(0).max(2147483647).optional(),structure:z.string().max(musicInputLimits.lyrics).optional(),abc:z.string().max(musicInputLimits.abc).optional(),ending:z.enum(musicEndings).optional(),soundId:id,text:z.string().trim().min(1).max(musicInputLimits.style),voiceId:id.optional(),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),lyrics:z.string().max(musicInputLimits.lyrics).optional(),instrumental:z.boolean().optional(),preset:z.enum(['fast','quality']).optional(),parentId:id.optional()}).strict()},
+  studio_generate:{description:'在指定声音内生成新版本，来源和结果均保存在当前声音。音乐可设 targetDuration=60/120/180/240/300（约 1–5 分钟），乐谱与最终音频均检查 ±15% 时长范围；规划最多三次，不达标报错。自带乐谱不自动改写，省略时长则由模型决定。音乐 ending 默认 natural（引导自然收尾），as-described 仅按原描述生成；不保证精确时长或收尾听感。',schema:z.object({targetDuration:z.number().refine(n=>musicDurations.some(value=>value===n),'目标时长请选择约 1–5 分钟').optional(),seed:z.number().int().min(0).max(2147483647).optional(),structure:z.string().max(musicInputLimits.lyrics).optional(),abc:z.string().max(musicInputLimits.abc).optional(),ending:z.enum(musicEndings).optional(),soundId:id,text:z.string().trim().min(1).max(musicInputLimits.style),voiceId:id.optional(),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),lyrics:z.string().max(musicInputLimits.lyrics).optional(),instrumental:z.boolean().optional(),preset:z.enum(['fast','quality']).optional(),parentId:id.optional()}).strict()},
   studio_update_version:{description:'保留灵感、选成品、可恢复删除版本。',schema:z.object({versionId:id,kept:z.boolean().optional(),deleted:z.boolean().optional(),final:z.boolean().optional()}).strict()},
   studio_cancel:{description:'取消指定声音版本的生成任务。',schema:z.object({versionId:id}).strict()},
   studio_import_score:{description:'将 Agent 交付的 JSON 乐谱导入指定声音，新版保留来源，不覆盖旧版。',schema:z.object({soundId:id,compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
@@ -107,6 +113,7 @@ export type OperationResults = {
   svc_library:ReturnType<ConversionService['snapshot']>&{voices:SpeechVoice[]};svc_create_version:ConversionJob;svc_cancel:ConversionJob;svc_retry:ConversionJob;
   studio_update_project:Project;studio_update_sound:StudioSound;studio_purge:{purged:true};
   studio_conversion_sources:Awaited<ReturnType<StudioService['conversionSources']>>;studio_convert_saved:Awaited<ReturnType<StudioService['convertSaved']>>;
+  sound_library_page:Awaited<ReturnType<SoundCatalog['page']>>;sound_library_queue:Awaited<ReturnType<SoundCatalog['queue']>>;sound_library_items:Awaited<ReturnType<SoundCatalog['items']>>;sound_playlist_save:Awaited<ReturnType<SoundCatalog['save']>>;sound_playlist_remove:Awaited<ReturnType<SoundCatalog['remove']>>;
   studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_generate:StudioVersion;studio_retry_music:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_save_mix:StudioVersion;studio_save_speed:StudioVersion;studio_import_score:StudioVersion;
   tts_status:SpeechStatus;tts_prepare:SpeechStatus;tts_cancel_preparation:SpeechStatus;
   tts_library:ReturnType<SpeechService['snapshot']>;tts_add_voice:SpeechVoice;tts_clean_voice:SpeechVoice;tts_update_voice:SpeechVoice;tts_create_sound:SpeechSound;

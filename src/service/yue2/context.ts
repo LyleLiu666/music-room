@@ -3,6 +3,7 @@ import {join} from 'node:path';
 import {z} from 'zod';
 import {generationWithEnding,musicContextStatus,type MusicContext} from './input.ts';
 import type {YuE2Generate} from './contracts.ts';
+import {durationWithinTarget} from './duration.ts';
 import {scoreOperation} from './score.ts';
 import type {AssetReader} from '../render/renderer.ts';
 
@@ -26,6 +27,7 @@ export function inspectMusicContext(directory:string,input:Pick<YuE2Generate,'st
  if(input.targetDuration!==undefined&&input.abc?.trim()){
   try{const summary=await scoreOperation({op:'inspect',abc:input.abc},read,join(directory,'.venv/bin/python'));
    if(!Number.isFinite(summary.nominal_duration_seconds)||summary.nominal_duration_seconds<=0)durationIssue='自定义乐谱时长无效，请检查 ABC。';
+   else if(!durationWithinTarget(summary.nominal_duration_seconds,input.targetDuration))durationIssue=`自定义乐谱预计 ${summary.nominal_duration_seconds.toFixed(1)} 秒，不符合目标时长 ${input.targetDuration} 秒（允许偏差 ±15%）。请修改乐谱或选择“由模型决定”。`;
   }catch{durationIssue='无法确认自定义乐谱的时长，请检查 ABC 或选择“由模型决定”。';}
  }
  return new Promise<MusicContext>((resolve,reject)=>{
