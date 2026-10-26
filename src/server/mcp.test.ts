@@ -71,3 +71,17 @@ test('concurrent stdio startup shares one owner rather than failing its second a
   await connections[0].client.close();assert.ok(!(await connections[1].client.callTool({name:'status',arguments:{}})).isError);await connections[1].client.close();
   assert.equal((await remoteCall(runtime,'status',{})).workspace,runtime.workspace);
 });
+
+test('MCP onboarding discovers one music creation guide through instructions, tools and resources without starting generation',async t=>{
+ const root=await mkdtemp(join(tmpdir(),'music-guide-'));const service=await MusicService.open(root,processRenderer(),assets.read,false,undefined,undefined,undefined,testResources()),http=await serveHttp(service,assets);
+ const client=new Client({name:'new-music-agent',version:'1'});t.after(async()=>{await client.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});});
+ await client.connect(new StreamableHTTPClientTransport(new URL(http.runtime.url+'/mcp'),{requestInit:{headers:{authorization:`Bearer ${http.runtime.token}`}}}));
+ assert.match(client.getInstructions()??'',/get_music_creation_guide/);
+ const tools=(await client.listTools()).tools,tool=tools.find(x=>x.name==='get_music_creation_guide');assert.ok(tool);assert.equal(tool.annotations?.readOnlyHint,true);
+ for(const name of ['studio_generate','yue2_generate'])assert.match(tools.find(x=>x.name===name)!.description!,/get_music_creation_guide/);
+ const result=await client.callTool({name:'get_music_creation_guide',arguments:{}});assert.ok(!result.isError);const guide=JSON.parse((result.content as any)[0].text);assert.match(guide.guide,/不保证减少重复/);assert.doesNotMatch(guide.guide,/由 Agent 编写完整 YuE2 ABC 乐谱与编曲，再交给 YuE2/);assert.equal(guide.version,2);assert.match(guide.guide,/轮番/);assert.match(guide.guide,/riff/);assert.match(guide.guide,/不能直接重复/);assert.match(guide.guide,/不强制.*短样/);assert.match(guide.example.abc,/V: Ins/);assert.equal(guide.example.instrumental,true);
+ assert.ok((await client.listResources()).resources.some(x=>x.uri==='music-room://music/creation-guide'));
+ const resource=await client.readResource({uri:'music-room://music/creation-guide'});assert.deepEqual(JSON.parse((resource.contents[0] as any).text),guide);
+ assert.equal((await service.store.projects()).length,0);assert.equal(service.resources.snapshot().active,undefined);assert.equal(service.resources.snapshot().queued.length,0);
+ assert.ok((await client.callTool({name:'get_music_creation_guide',arguments:{generate:true}})).isError);
+});

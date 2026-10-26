@@ -19,7 +19,7 @@ export function nativeInstalled(root:string,d=nativeDistribution){
 }
 async function hashFile(path:string,signal?:AbortSignal){const hash=createHash('sha256');for await(const bytes of createReadStream(path)){signal?.throwIfAborted();hash.update(bytes);}return hash.digest('hex');}
 /** Stream multi-gigabyte models to disk, never buffer them in application memory. */
-async function download(url:string,path:string,sha:string,context:SpeechContext){
+export async function downloadSpeechFile(url:string,path:string,sha:string,context:SpeechContext){
  context.signal.throwIfAborted();if(existsSync(path)&&!lstatSync(path).isSymbolicLink()&&await hashFile(path,context.signal)===sha)return;
  const partial=path+'.partial';let start=existsSync(partial)?lstatSync(partial).size:0;
  if(existsSync(partial)&&lstatSync(partial).isSymbolicLink())throw new Error('下载暂存文件不能是符号链接');
@@ -37,10 +37,10 @@ export async function installNative(root:string,context:SpeechContext,d=nativeDi
  const p=nativePaths(root);if(existsSync(p.base)&&lstatSync(p.base).isSymbolicLink())throw new Error('推理安装目录不能是符号链接');mkdirSync(p.base,{recursive:true,mode:0o700});for(const path of [join(p.base,'models'),join(p.base,'release'),p.metadata])if(existsSync(path)&&lstatSync(path).isSymbolicLink())throw new Error('推理环境内部路径不能是符号链接');mkdirSync(join(p.base,'models'),{recursive:true,mode:0o700});
  context.stage('准备 audio.cpp F16 推理程序');const archive=join(p.base,'program.tar.gz');
  if(read){const program=await read(nativeProgramAsset);context.signal.throwIfAborted();if(createHash('sha256').update(program).digest('hex')!==d.programSha256)throw new Error('内置推理程序校验失败');const partial=archive+'.partial';for(const path of [archive,partial])if(existsSync(path)&&lstatSync(path).isSymbolicLink())throw new Error('推理程序暂存文件不能是符号链接');writeFileSync(partial,program,{mode:0o600});renameSync(partial,archive);}
- else await download(d.programUrl,archive,d.programSha256,context);
+ else await downloadSpeechFile(d.programUrl,archive,d.programSha256,context);
  const staging=join(p.base,'unpack');rmSync(staging,{recursive:true,force:true});mkdirSync(staging,{mode:0o700});
  await runCommand('/usr/bin/tar',['-xzf',archive,'-C',staging],context,p.base);stamp(join(staging,'audiocpp_server'));chmodSync(join(staging,'audiocpp_server'),0o700);
- context.stage('准备 IndexTTS 2.0 F16 模型');await download(d.modelUrl,p.model,d.modelSha256,context);if(stamp(p.model).bytes!==d.modelBytes)throw new Error('模型大小校验失败');
+ context.stage('准备 IndexTTS 2.0 F16 模型');await downloadSpeechFile(d.modelUrl,p.model,d.modelSha256,context);if(stamp(p.model).bytes!==d.modelBytes)throw new Error('模型大小校验失败');
  // Keep the working executable until its replacement model has downloaded and
  // passed validation. A failed/aborted download must leave the old install usable.
  const release=join(p.base,'release');rmSync(release,{recursive:true,force:true});renameSync(staging,release);

@@ -1,3 +1,4 @@
+import {musicCreationGuide} from './yue2/authoring-guide.ts';
 import {createMachineMonitor} from './resources/monitor.ts';
 import {LyricsGeneration,localLyricsProcessor} from './studio/lyrics-generation.ts';
 import {existsSync,readFileSync,lstatSync,mkdirSync} from 'node:fs';
@@ -52,6 +53,7 @@ export class MusicService {
     return this.resources.status();
   }
   private handlers:OperationHandlers = {
+    get_music_creation_guide:async()=>musicCreationGuide(),
     monitor_status:async()=>this.monitor.status(),
     resource_status:async()=>this.resources.status(),resource_pause:async()=>this.resources.pause(),resource_resume:async()=>this.resources.resume(),resource_cancel:async args=>this.cancelResource(args.taskId),resource_release:async()=>{await this.resources.releaseIdle();return this.resources.status();},resource_set_limit:async args=>{this.resources.setLimits(args.memoryBytes===null?undefined:{memory:args.memoryBytes},()=>{mkdirSync(this.store.path('engines'),{recursive:true});this.store.atomicJSON(this.store.path('engines','resources.json'),{version:1,memoryBytes:args.memoryBytes});});return this.resources.status();},
     studio_conversion_sources:async()=>this.studio.conversionSources(),studio_convert_saved:async args=>this.studio.convertSaved(args),

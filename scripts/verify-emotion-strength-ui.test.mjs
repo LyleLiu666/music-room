@@ -43,3 +43,29 @@ test('emotion tiers persist as drafts and versions after reload/restart; editing
   const stored=JSON.parse(await readFile(join(root,'speech','library.json'),'utf8'));assert.equal(stored.versions.filter(v=>v.emotionStrength==='minimal').length,1);assert.equal(Object.hasOwn(stored.versions.at(-1),'emotionStrength'),false);assert.deepEqual(errors,[]);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
+
+test('reference transcript opts into Breeze, survives iteration, and clears when selecting a different voice',async()=>{
+ const {createCompatibleSpeechDriver}=await import('../src/service/tts/compatibility.ts');
+ const root=await mkdtemp(join(tmpdir(),'studio-breeze-ui-')),received=[];
+ const make=engine=>({engineLabel:engine,installed:()=>true,prepare:async()=>{},generate:async(_,r)=>{received.push({engine,...r});await writeFile(r.outputPath,wav);}});
+ const driver=createCompatibleSpeechDriver(make('audio.cpp F16'),make('MLX 4bit'));
+ const assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,driver,undefined,testResources());
+ const http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage();
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ try{await service.call('create_project',{projectId:'breeze',title:'新旧语音兼容'});
+  const sound=await service.call('studio_create_sound',{projectId:'breeze',title:'旁白',kind:'speech'});
+  const a=service.speech.addVoice('参考甲',wav),b=service.speech.addVoice('参考乙',wav);
+  await page.goto(http.runtime.url);await page.click('[data-action="compose"]');await page.selectOption('#voice',a.id);await page.fill('#creation-text','新模型正文');await page.click('#reference-transcript summary');await page.fill('#reference-text','参考甲的全部台词');
+  assert.match(await page.textContent('#speech-model-choice'),/Breeze/);
+  await page.click('[data-action="close"]');await page.reload();await page.click('[data-action="compose"]');assert.equal(await page.inputValue('#reference-text'),'参考甲的全部台词');
+  await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor();
+  assert.equal(received.at(-1).engine,'MLX 4bit');assert.equal(received.at(-1).referenceText,'参考甲的全部台词');
+  const first=service.speech.snapshot().versions.at(-1);assert.equal(first.engine,'Breeze TTS 2');
+  await page.click('[data-action="iterate"]');assert.equal(await page.inputValue('#reference-text'),'参考甲的全部台词');
+  await page.selectOption('#voice',b.id);assert.equal(await page.inputValue('#reference-text'),'');assert.match(await page.textContent('#speech-model-choice'),/IndexTTS/);
+  await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor();
+  assert.equal(received.at(-1).engine,'audio.cpp F16');assert.equal(service.speech.snapshot().versions.at(-1).engine,'IndexTTS 2.0');assert.equal(service.speech.job(first.id).referenceText,'参考甲的全部台词');
+  const library=await service.call('studio_library',{});assert.match(library.versions.find(v=>v.id===first.id).speechEngine,/Breeze/);assert.deepEqual(errors,[]);
+ }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});

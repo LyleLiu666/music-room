@@ -74,3 +74,20 @@
 | QUALITY-01 | 固定语料已准备，真实模型完成 | 按固定样本逐条听评，实际唱词独立转写 | 见[质量标准](quality.md)；任何未评分项维持待验收 |
 
 HTTP 新建操作的契约区别：带 `requestId` 的保存 / 转换等操作可以重放同一请求；显式 `studio_generate` 每次是一次新创作。生成响应不明时先刷新任务和版本，不自动重发“创建”来假装实现了幂等。
+
+## AI 编曲入口
+
+| ID | 场景与预期 | 自动化位置 |
+| --- | --- | --- |
+| MUSIC-AGENT-01 | 主创作表单复制当前风格与时长给 Agent，不自动提交；要求走完整 ABC → YuE2，短样非必经；工作区优先展示编曲入口，MIDI 工具可展开 | `scripts/verify-music-input-ui.test.mjs` |
+| MUSIC-AGENT-02 | 当前版本作为父版而非它的旧父版；保留种子 0、明确档位、收尾及乐谱；纯音乐不夹带隐藏歌词，演唱保留完整歌词，不读取失败来源的乐谱 | `src/workbench/studio/music-agent.test.ts` |
+| MUSIC-AGENT-03 | 新 MCP 客户端从连接说明发现手册，生成工具指向只读指南；工具与资源返回一致内容及谱例，明确改谱不保证减少重复，不强制 Agent 作曲；读取不创建项目、不启动任务，拒绝额外生成参数 | `src/server/mcp.test.ts` 中 MCP onboarding |
+
+## Breeze 与 IndexTTS 兼容
+
+| 场景 | 核心断言 | 自动化位置 |
+| --- | --- | --- |
+| TTS-BREEZE-01 | 完整参考文字稿选择 Breeze；省略或空白选择 IndexTTS；失败不改换模型；版本保留文字稿与实际引擎 | `src/service/tts/compatibility.test.ts` |
+| TTS-BREEZE-02 | 固定程序与模型、正文和参考边界匹配才允许 5 GB 预约；修改身份或越界不放行 | `src/service/resources/profiles.test.ts` |
+| TTS-BREEZE-03 | 文字稿草稿和再创作可恢复；换音色清空旧稿；小屏幕保持可提交 | `scripts/verify-emotion-strength-ui.test.mjs`、`scripts/verify-studio-conversion-ui.test.mjs` |
+| TTS-BREEZE-04 | 真实流式短句、分段长文、长参考资源边界、IndexTTS 兼容及取消不发布半成品 | `scripts/verify-breeze-real.ts` |

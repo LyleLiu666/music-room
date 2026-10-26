@@ -29,12 +29,15 @@ npm run verify:all
 
 ## 去哪里看
 
+TTS 候选横向比较见[本机 TTS 模型选型](tts-model-selection.md)，模型试听见[2026-10-26 低内存试验](testing/verification-breeze-2026-10-26.md)，正式兼容规则及验收见[Breeze / IndexTTS 接入记录](testing/verification-breeze-integration-2026-10-26.md)。
+
 | 文档 | 负责回答 |
 | --- | --- |
 | [用例与状态覆盖](testing/cases.md) | 需要验证什么，前置条件、操作和预期是什么，断言在哪里 |
 | [执行指南](testing/running.md) | 命令怎么运行，怎样准备隔离环境、保存证据和清理 |
 | [固定语料与听评](testing/quality.md) | 输入、种子、模型效果评分和歌词真值如何验收 |
 | [维护规则](testing/maintenance.md) | 新增 / 修改 / 删除用例，处理失败与维护基线时遵循什么规则 |
+| [2026-10-26 AI 编曲与 MCP 指南](testing/verification-music-agent-2026-10-26.md) | 创作入口、乐器轮换与 riff 变奏指南、MCP 发现与独立包验证 |
 | [2026-10-26 目标时长修复](testing/verification-duration-2026-10-26.md) | 短谱误接受复现、乐谱与最终音频检查、专项验证及本机更新 |
 | [2026-10-23 执行记录](testing/verification-2026-10-23.md) | 这一次实际通过、失败或未完成了什么 |
 | [2026-10-23 原提示词规划回归](testing/verification-planning-2026-10-23.md) | 连续三次规划失败的原样复现、修复与后续发布依据 |

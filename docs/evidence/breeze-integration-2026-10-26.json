@@ -1,0 +1,207 @@
+{
+  "date": "2026-10-26",
+  "device": "Apple M4 / 32 GiB",
+  "scope": "production service, real resource coordinator, isolated workspace",
+  "results": [
+    {
+      "name": "short",
+      "engine": "Breeze TTS 2",
+      "backend": "MLX 4bit",
+      "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+      "referenceText": "翻译翻译，什么叫惊喜？",
+      "referenceDuration": 2.4387083333333335,
+      "emotion": null,
+      "emotionStrength": null,
+      "artifact": {
+        "duration": 8.64,
+        "sampleRate": 24000,
+        "peak": 0.197235107421875,
+        "bytes": 414764,
+        "sha256": "e84aceab04f640e37d7737aa15640dbe657003772912741d8b55dcc15ee12201"
+      },
+      "fullTaskSeconds": 31.575,
+      "processMetrics": {
+        "loadSeconds": 20.32425779098412,
+        "generationSeconds": 7.569404458015924,
+        "audioSeconds": 8.64,
+        "peakBytes": 4381724080
+      },
+      "taskSamplePeak": {
+        "memory": 4398143272
+      },
+      "audioPath": "/Users/liu_y/code/music/test-results/breeze-integration-2026-10-26/real-1792999217056/speech/audio/speech-v-d2b9755d-6176-4f67-8a1b-2ea154a4e92f.wav"
+    },
+    {
+      "name": "long-directed",
+      "engine": "Breeze TTS 2",
+      "backend": "MLX 4bit",
+      "text": "周末，我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张，正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得，有些东西虽然很久没见，却一直没有走远。再往前走，熟悉的街道渐渐安静下来。",
+      "referenceText": "翻译翻译，什么叫惊喜？",
+      "referenceDuration": 2.4387083333333335,
+      "emotion": "平静，带一点怀念",
+      "emotionStrength": "flat",
+      "artifact": {
+        "duration": 31.52,
+        "sampleRate": 24000,
+        "peak": 0.50518798828125,
+        "bytes": 1513004,
+        "sha256": "32eede135aa3ce943aba7f1ae2e03b1abbc1ed9b777be07f9449a5bcd71314c7"
+      },
+      "fullTaskSeconds": 41.594,
+      "processMetrics": {
+        "loadSeconds": 2.0458688749931753,
+        "generationSeconds": 38.49146291599027,
+        "audioSeconds": 31.52,
+        "peakBytes": 4375285168
+      },
+      "taskSamplePeak": {
+        "memory": 4393752408
+      },
+      "audioPath": "/Users/liu_y/code/music/test-results/breeze-integration-2026-10-26/real-1792999217056/speech/audio/speech-v-6456876d-de32-498f-ab4e-7243a2b2f45f.wav"
+    },
+    {
+      "name": "long-reference",
+      "engine": "Breeze TTS 2",
+      "backend": "MLX 4bit",
+      "text": "今天的天气很好，我们出发吧。",
+      "referenceText": "翻译翻译，什么叫惊喜？翻译翻译，什么叫惊喜？翻译翻译，什么叫惊喜？翻译翻译，什么叫惊喜？翻译翻译，什么叫惊喜？翻译翻译，什么叫惊喜？",
+      "referenceDuration": 14.63225,
+      "emotion": null,
+      "emotionStrength": null,
+      "artifact": {
+        "duration": 2.88,
+        "sampleRate": 24000,
+        "peak": 0.3408203125,
+        "bytes": 138284,
+        "sha256": "9da40d9d896c718b031d3564bd9bd60ac7468e9f5f519b7b6ba2fca5ffa05ffb"
+      },
+      "fullTaskSeconds": 5.023,
+      "processMetrics": {
+        "loadSeconds": 1.3039551250112709,
+        "generationSeconds": 2.8231788749981206,
+        "audioSeconds": 2.88,
+        "peakBytes": 4355902920
+      },
+      "taskSamplePeak": {
+        "memory": 3748927224
+      },
+      "audioPath": "/Users/liu_y/code/music/test-results/breeze-integration-2026-10-26/real-1792999217056/speech/audio/speech-v-57e5b590-4e89-44d7-aaee-7b17ed9f4961.wav"
+    },
+    {
+      "name": "legacy",
+      "engine": "IndexTTS 2.0",
+      "backend": "audio.cpp F16",
+      "text": "今天的天气很好，我们出发吧。",
+      "referenceText": null,
+      "referenceDuration": 2.4387083333333335,
+      "emotion": null,
+      "emotionStrength": null,
+      "artifact": {
+        "duration": 3.733922902494331,
+        "sampleRate": 22050,
+        "peak": 0.492584228515625,
+        "bytes": 164710,
+        "sha256": "8cf77a126fdb60b81891170843077f6cae5c05da86b8d9682657e10ff4ddfe51"
+      },
+      "fullTaskSeconds": 22.056,
+      "processMetrics": null,
+      "taskSamplePeak": {
+        "memory": 4639882744
+      },
+      "audioPath": "/Users/liu_y/code/music/test-results/breeze-integration-2026-10-26/real-1792999217056/speech/audio/speech-v-7513a8bc-9fa5-472e-999c-fcd14a83de4b.wav"
+    }
+  ],
+  "cancellation": {
+    "seconds": 0.123,
+    "state": "cancelled"
+  },
+  "status": "passed",
+  "human_listening": "pending",
+  "asr": [
+    {
+      "name": "short",
+      "expected": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+      "actual": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+      "matchIgnoringPunctuation": true
+    },
+    {
+      "name": "long-directed",
+      "expected": "周末，我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张，正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得，有些东西虽然很久没见，却一直没有走远。再往前走，熟悉的街道渐渐安静下来。",
+      "actual": "周末，我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得，有些东西虽然很久没见，却一直没有走远。再往前走，熟悉的街道渐渐安静下来。",
+      "matchIgnoringPunctuation": true
+    },
+    {
+      "name": "long-reference",
+      "expected": "今天的天气很好，我们出发吧。",
+      "actual": "今天的天气很好，我们出发吧。",
+      "matchIgnoringPunctuation": true
+    },
+    {
+      "name": "legacy",
+      "expected": "今天的天气很好，我们出发吧。",
+      "actual": "今天的天气很好，我们出发吧。",
+      "matchIgnoringPunctuation": true
+    }
+  ],
+  "binary": {
+    "sha256": "c98f83314aff82e5319a6191590a55507da7ca812009946be7002a470835337e",
+    "status": "passed",
+    "checks": [
+      "real Breeze submitted through packaged browser form",
+      "real IndexTTS request without referenceText",
+      "browser playback",
+      "download hashes match saved artifacts",
+      "engine, transcript and audio survive process restart"
+    ],
+    "results": [
+      {
+        "engine": "Breeze TTS 2",
+        "backend": "MLX 4bit",
+        "referenceText": "翻译翻译，什么叫惊喜？",
+        "artifact": {
+          "duration": 2.96,
+          "sampleRate": 24000,
+          "peak": 0.388427734375,
+          "bytes": 142124,
+          "sha256": "386f26492fc4128f5506d59865be7df4352061252817bc683a7e3f1a45ebcb09"
+        },
+        "resourcePeak": {
+          "memory": 3614413048
+        }
+      },
+      {
+        "engine": "IndexTTS 2.0",
+        "backend": "audio.cpp F16",
+        "referenceText": null,
+        "artifact": {
+          "duration": 3.733922902494331,
+          "sampleRate": 22050,
+          "peak": 0.492584228515625,
+          "bytes": 164710,
+          "sha256": "8cf77a126fdb60b81891170843077f6cae5c05da86b8d9682657e10ff4ddfe51"
+        },
+        "resourcePeak": {
+          "memory": 4558837160
+        }
+      }
+    ]
+  },
+  "sources": {
+    "src/service/tts/breeze-assets.ts": "ef39ed2073bbab51e862ef57a8301820cddffef7656843ebf0cfe2843e79b43f",
+    "src/service/tts/breeze-runtime.ts": "8718c366873db72b8c048acc23f7fbd5a409e0e36fb67e74a1d891040a70504a",
+    "src/service/tts/compatibility.ts": "e0db57231c7a4b612a98a3e8ed7c533457fd357fb6dcb0e5182d4b140275ebaf",
+    "src/service/tts/speech.ts": "8aa3b93ffa3e376e393fd4d7e02fb18d8e768f9e22d8052d27b263d498dc3688",
+    "scripts/verify-breeze-real.ts": "56c4aae7ea881c03658c30a6686ee7a2054f34fad772b71c9afcefb638a6cbc5",
+    "scripts/verify-breeze-binary.mjs": "c1db12a0c4c8957aac1f24f4435ada3c957f9c58f363f1c58314e07dfe328d71"
+  },
+  "deployment": {
+    "updatedAt": "2026-10-26T07:44:14.890Z",
+    "pid": 93526,
+    "url": "http://127.0.0.1:57923",
+    "engine": "Breeze TTS 2 / IndexTTS 2.0",
+    "backend": "有文字稿：MLX 4bit · 无文字稿：audio.cpp F16",
+    "phase": "ready",
+    "preservedVoices": 8,
+    "preservedVersions": 51
+  }
+}

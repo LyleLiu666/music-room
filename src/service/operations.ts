@@ -1,3 +1,4 @@
+import type {MusicCreationGuide} from './yue2/authoring-guide.ts';
 import {catalogQuery,playlistSave,type SoundCatalog} from './studio/sound-catalog.ts';
 import type {MonitorSnapshot} from './resources/monitor.ts';
 import {musicEditKinds,type MusicEditDraft} from './studio/music-edits.ts';
@@ -21,6 +22,7 @@ const ref={projectId:id,revisionId:id};
 const text=z.string().min(1).max(8000);
 const mixSchema=z.object({volume:z.number().optional(),lead:z.enum(['piano','rhodes','flute']).optional(),levels:z.partialRecord(z.enum(TRACK_IDS),z.number()).optional(),muted:z.array(z.enum(TRACK_IDS)).optional(),solo:z.array(z.enum(TRACK_IDS)).optional()}).strict();
 export const operations = {
+  get_music_creation_guide:{description:'音乐创作与改编前先读取：可用 YuE2 自主作曲或 Agent 写谱 / 改谱，不保证减少重复或更好听。含乐器主次与轮换、riff 变奏、段落发展、谱例、时长检查和交付流程；只读，不启动模型，不强制短样。',schema:z.object({}).strict()},
   monitor_status:{description:'只读采样整机及当前服务和子进程的 CPU、内存占用；不会启动模型。CPU 按整机总算力归一化。',schema:z.object({}).strict()},
   resource_status:{description:'查看同一服务的硬件、估计预算、实际任务采样、队列、等待原因及模型驻留。查询不会启动模型。',schema:z.object({}).strict()},
   resource_pause:{description:'暂停后续重型任务；当前已取得执行权的任务继续。作品浏览和播放可用。',schema:z.object({}).strict()},
@@ -54,22 +56,22 @@ export const operations = {
   studio_music_edit_brief:{description:'导出可交给任意 AI / LLM 的改谱要求和完整原谱，不调用模型。',schema:z.object({draftId:id,instruction:z.string().trim().min(1).max(10000)}).strict()},
   studio_music_edit_generate:{description:'将已检查的草稿提交现有音乐队列，创建同声音的子版本；同一草稿修订重试返回同一版本。',schema:z.object({draftId:id,revision:z.number().int().min(0)}).strict()},
   studio_retry_music:{description:'在原音乐版本内重试或从已保存阶段继续，保留历次尝试记录；requestId 去重，expectedJobId 防止旧页面重复提交。',schema:z.object({versionId:id,requestId:z.string().min(1).max(120).optional(),expectedJobId:z.string().max(80).optional()}).strict()},
-  studio_generate:{description:'在指定声音内生成新版本，来源和结果均保存在当前声音。音乐可设 targetDuration=60/120/180/240/300（约 1–5 分钟），乐谱与最终音频均检查 ±15% 时长范围；规划最多三次，不达标报错。自带乐谱不自动改写，省略时长则由模型决定。音乐 ending 默认 natural（引导自然收尾），as-described 仅按原描述生成；不保证精确时长或收尾听感。',schema:z.object({targetDuration:z.number().refine(n=>musicDurations.some(value=>value===n),'目标时长请选择约 1–5 分钟').optional(),seed:z.number().int().min(0).max(2147483647).optional(),structure:z.string().max(musicInputLimits.lyrics).optional(),abc:z.string().max(musicInputLimits.abc).optional(),ending:z.enum(musicEndings).optional(),soundId:id,text:z.string().trim().min(1).max(musicInputLimits.style),voiceId:id.optional(),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),lyrics:z.string().max(musicInputLimits.lyrics).optional(),instrumental:z.boolean().optional(),preset:z.enum(['fast','quality']).optional(),parentId:id.optional()}).strict()},
+  studio_generate:{description:'语音：提供 referenceText（参考录音的完整文字稿）使用 Breeze TTS 2；省略或留空沿用 IndexTTS，生成失败不会自动换模型。音乐创作前先读取 get_music_creation_guide，可由 YuE2 自主作曲或提供完整 abc；改谱效果需试听，不保证减少重复。在指定声音内生成新版本，来源和结果均保存在当前声音。音乐可设 targetDuration=60/120/180/240/300（约 1–5 分钟），乐谱与最终音频均检查 ±15% 时长范围；规划最多三次，不达标报错。自带乐谱不自动改写，省略时长则由模型决定。音乐 ending 默认 natural（引导自然收尾），as-described 仅按原描述生成；不保证精确时长或收尾听感。',schema:z.object({referenceText:z.string().max(2000).optional(),targetDuration:z.number().refine(n=>musicDurations.some(value=>value===n),'目标时长请选择约 1–5 分钟').optional(),seed:z.number().int().min(0).max(2147483647).optional(),structure:z.string().max(musicInputLimits.lyrics).optional(),abc:z.string().max(musicInputLimits.abc).optional(),ending:z.enum(musicEndings).optional(),soundId:id,text:z.string().trim().min(1).max(musicInputLimits.style),voiceId:id.optional(),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),lyrics:z.string().max(musicInputLimits.lyrics).optional(),instrumental:z.boolean().optional(),preset:z.enum(['fast','quality']).optional(),parentId:id.optional()}).strict()},
   studio_update_version:{description:'保留灵感、选成品、可恢复删除版本。',schema:z.object({versionId:id,kept:z.boolean().optional(),deleted:z.boolean().optional(),final:z.boolean().optional()}).strict()},
   studio_cancel:{description:'取消指定声音版本的生成任务。',schema:z.object({versionId:id}).strict()},
   studio_import_score:{description:'将 Agent 交付的 JSON 乐谱导入指定声音，新版保留来源，不覆盖旧版。',schema:z.object({soundId:id,compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
   studio_save_speed:{description:'将已完成音频按指定速度保存为独立新版本，保持音调并保留原版。requestId 用于安全重试。',schema:z.object({versionId:id,rate:z.number().min(.5).max(2).refine(n=>n!==1),requestId:z.string().min(1).max(120)}).strict()},
   studio_save_mix:{description:'将当前乐谱混音保存为同一声音的新版本并后台合成，保留原版与成品选择；requestId 保证重试不重复创建。',schema:z.object({versionId:id,requestId:id,mix:mixSchema}).strict()},
   studio_render:{description:'把已有乐谱合成为试听文件。',schema:z.object({versionId:id}).strict()},
-  tts_status:{description:'查看固定的 IndexTTS 2.0 环境、模型准备状态和日志。',schema:z.object({}).strict()},
-  tts_prepare:{description:'在专用目录准备 IndexTTS 2.0 推理引擎和固定模型；Apple Silicon 默认使用 audio.cpp F16；后台准备，通过 tts_status 查询。',schema:z.object({directory:z.string().min(1).max(4096).optional()}).strict()},
+  tts_status:{description:'查看Breeze / IndexTTS 兼容环境、模型准备状态和日志。',schema:z.object({}).strict()},
+  tts_prepare:{description:'在专用目录准备 Breeze 4bit 和 IndexTTS 兼容引擎及固定模型；Breeze 使用 MLX，IndexTTS 使用 audio.cpp F16；后台准备，通过 tts_status 查询。',schema:z.object({directory:z.string().min(1).max(4096).optional()}).strict()},
   tts_cancel_preparation:{description:'取消语音环境准备，保留下载文件以便重试。',schema:z.object({}).strict()},
   tts_library:{description:'读取持久化的参考声音、项目语音及所有语音版本。',schema:z.object({}).strict()},
   tts_add_voice:{description:'保存 0.3–15 秒、16 位 PCM WAV 参考素材，默认在后台提取人声、降噪、去混响；轮询 tts_library 的 voices[].processing，succeeded 后才能生成。已干净素材可 cleanup=false。音色跨项目复用，原音保留。',schema:z.object({name:z.string().min(1).max(120),audioBase64:z.string().min(1).max(4*1024*1024),cleanup:z.boolean().default(true)}).strict()},
   tts_clean_voice:{description:'清理已有音色，旧音色另存清理版以免改变历史版本；失败或中断的清理可重试。轮询 tts_library 查看处理状态。',schema:z.object({voiceId:id}).strict()},
   tts_update_voice:{description:'给已保存音色改名、标记常用或移入/恢复回收站，所有项目共用同一个音色库。',schema:z.object({voiceId:id,name:z.string().trim().min(1).max(120).optional(),favorite:z.boolean().optional(),deleted:z.boolean().optional(),usage:z.enum(['all','conversion']).optional()}).strict()},
   tts_create_sound:{description:'在已有项目中创建一个语音，如片头旁白；后续生成均属于此声音。',schema:z.object({projectId:id,title:z.string().min(1).max(120)}).strict()},
-  tts_generate:{description:'使用 IndexTTS 2.0 根据参考人声、正文和可选情绪生成新版本；当前原生正文最多 8000 字，按每段最多 140 字串行合成完整音频；其他配置须有已验证档案。立即返回版本 id，后台继续执行。',schema:z.object({soundId:id,voiceId:id,text:z.string().trim().min(1).max(8000),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),parentId:id.optional(),seed:z.number().int().min(0).max(0xffffffff).optional()}).strict()},
+  tts_generate:{description:'语音：提供 referenceText（参考录音的完整文字稿）使用 Breeze TTS 2；省略或留空沿用 IndexTTS，生成失败不会自动换模型。根据参考人声、正文和可选情绪生成新版本；当前原生正文最多 8000 字，按每段最多 140 字串行合成完整音频；其他配置须有已验证档案。立即返回版本 id，后台继续执行。',schema:z.object({referenceText:z.string().max(2000).optional(),soundId:id,voiceId:id,text:z.string().trim().min(1).max(8000),emotion:z.string().max(2000).optional(),emotionStrength:z.enum(emotionStrengths).optional(),parentId:id.optional(),seed:z.number().int().min(0).max(0xffffffff).optional()}).strict()},
   tts_get_version:{description:'查询语音版本的真实状态、创作输入和音频校验信息。',schema:z.object({versionId:id}).strict()},
   tts_cancel:{description:'取消排队或生成中的语音版本，停止所属推理进程。',schema:z.object({versionId:id}).strict()},
   tts_update_version:{description:'语音版本保留灵感、选作成品或移入/恢复回收站；删除不会删除后续版本。',schema:z.object({versionId:id,kept:z.boolean().optional(),final:z.boolean().optional(),deleted:z.boolean().optional()}).strict()},
@@ -80,15 +82,15 @@ export const operations = {
   stop_yue2:{description:'停止所属 YuE2 及安装下载进程，保留文件；关闭自动启动。',schema:z.object({}).strict()},
   yue2_inspect_input:{description:'用已安装模型的真实分词器检查风格、歌词和 ABC 的上下文预算；有 targetDuration 和自定义 ABC 时同时检查谱长，不加载模型权重。',schema:z.object({targetDuration:z.number().refine(n=>musicDurations.some(value=>value===n),'目标时长请选择约 1–5 分钟').optional(),style:z.string().max(musicInputLimits.style),lyrics:z.string().max(musicInputLimits.lyrics),instrumental:z.boolean(),ending:z.enum(musicEndings).optional(),abc:z.string().max(musicInputLimits.abc).optional()}).strict()},
   yue2_score:{description:'读取已完成音乐版本的 ABC 乐谱副本。修改后作为新的 abc 输入生成，不覆盖原作品。',schema:z.object({jobId:yue2JobId}).strict()},
-  yue2_generate:{description:'使用本地真实 YuE2 模型生成音乐，立即返回 job.id。instrumental 默认 true，自动使用器乐适配器；lyrics 为段落结构（如 [instrumental]），cot=full。ending 默认 natural，引导完整尾声；as-described 关闭附加引导。targetDuration 可设 60/120/180/240/300 秒，先检查谱长并最多重规划两次，仍不符则失败；近似目标不保证音频精确长度。不会裁切或自动淡出。用 yue2_get_job 查询，done 后 audioPath 是本机 FLAC。',schema:z.object({targetDuration:z.number().refine(n=>musicDurations.some(value=>value===n),'目标时长请选择约 1–5 分钟').optional(),abc:z.string().max(musicInputLimits.abc).optional(),ending:z.enum(musicEndings).optional(),style:z.string().min(1).max(musicInputLimits.style),lyrics:z.string().min(1).max(musicInputLimits.lyrics).default('[instrumental]'),preset:z.enum(['fast','quality']).default('fast'),instrumental:z.boolean().default(true),seed:z.number().int().min(0).max(2147483647).optional(),title:z.string().min(1).max(200).optional()}).strict()},
+  yue2_generate:{description:'音乐创作前先读取 get_music_creation_guide；项目创作优先 studio_generate 保留声音与版本归属。使用本地真实 YuE2 模型生成音乐，立即返回 job.id。instrumental 默认 true，自动使用器乐适配器；lyrics 为段落结构（如 [instrumental]），cot=full。ending 默认 natural，引导完整尾声；as-described 关闭附加引导。targetDuration 可设 60/120/180/240/300 秒，先检查谱长并最多重规划两次，仍不符则失败；近似目标不保证音频精确长度。不会裁切或自动淡出。用 yue2_get_job 查询，done 后 audioPath 是本机 FLAC。',schema:z.object({targetDuration:z.number().refine(n=>musicDurations.some(value=>value===n),'目标时长请选择约 1–5 分钟').optional(),abc:z.string().max(musicInputLimits.abc).optional(),ending:z.enum(musicEndings).optional(),style:z.string().min(1).max(musicInputLimits.style),lyrics:z.string().min(1).max(musicInputLimits.lyrics).default('[instrumental]'),preset:z.enum(['fast','quality']).default('fast'),instrumental:z.boolean().default(true),seed:z.number().int().min(0).max(2147483647).optional(),title:z.string().min(1).max(200).optional()}).strict()},
   yue2_get_job:{description:'查询 YuE2 真实生成状态、失败原因及完成后音频路径。',schema:z.object({jobId:yue2JobId}).strict()},
   yue2_list_jobs:{description:'列出 YuE2 最近 30 个任务，网页重开后仍可查询和试听。',schema:z.object({}).strict()},
   yue2_cancel_job:{description:'取消 YuE2 排队或生成中的指定任务。',schema:z.object({jobId:yue2JobId}).strict()},
   status:{description:'查看本地创作服务、工作目录与引擎可用情况。',schema:z.object({}).strict()},
   list_projects:{description:'列出本地作品项目及每个项目的不可覆盖版本。',schema:z.object({}).strict()},
   get_project:{description:'读取项目版本、创作要求和逐版本听评。',schema:z.object({projectId:id}).strict()},
-  create_project:{description:'创建一首作品的本地项目，建议先创作 4/8 小节，满意后扩写。',schema:z.object({projectId:id,title:z.string().min(1).max(120),requirements:text.optional()}).strict()},
-  get_authoring_context:{description:'获取独立创作格式、示例、当前乐谱和反馈，不需要应用源码。先读取此工具再写音乐。four/eight 写短句，expand 扩写指定父版。',schema:z.object({projectId:id.optional(),revisionId:id.optional(),stage:z.enum(['four','eight','expand']).default('eight')}).strict()},
+  create_project:{description:'创建作品的本地项目；音乐创作流程见 get_music_creation_guide，可直接创作完整版。',schema:z.object({projectId:id,title:z.string().min(1).max(120),requirements:text.optional()}).strict()},
+  get_authoring_context:{description:'仅用于 MIDI / JSON 乐谱编辑与音源合成：获取格式、示例、当前乐谱和反馈。音乐音频创作先读 get_music_creation_guide，按需求选择自主作曲或 ABC 乐谱输入；本工具的 four/eight/expand 仅适用于旧乐谱路线。',schema:z.object({projectId:id.optional(),revisionId:id.optional(),stage:z.enum(['four','eight','expand']).default('eight')}).strict()},
   validate_score:{description:'校验 music-room-score v1 JSON 乐谱；不执行作曲源码，不评价音乐审美。',schema:z.object({compositionJson:z.string().min(1).max(4*1024*1024)}).strict()},
   import_revision:{description:'将 JSON 乐谱发布为新版本并写盘；沿用 work.id 扩写，同项目 parentId 保留来源，重复版本不会覆盖。',schema:z.object({compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
   get_revision:{description:'获取指定版本的原始创作乐谱、父版、原件哈希和已渲染产物。',schema:z.object(ref).strict()},
@@ -122,6 +124,7 @@ export type OperationResults = {
   yue2_inspect_input:{context:MusicContext|null};yue2_score:{abc:string};yue2_generate:YuE2JobResult;yue2_get_job:YuE2JobResult;yue2_cancel_job:YuE2JobResult;yue2_list_jobs:{jobs:YuE2Job[]};
   status:{name:string;version:string;workspace:string;engines:{id:string;available:boolean}[]};
   list_projects:{projects:Project[]};get_project:{project:Project;feedback:Feedback[]};create_project:Project;
+  get_music_creation_guide:MusicCreationGuide;
   get_authoring_context:AuthoringContext;validate_score:{valid:true;composition:Composition};
   import_revision:Revision;get_revision:RevisionDocument;render_revision:Job;
   list_jobs:{jobs:Job[]};get_job:Job;cancel_job:Job;add_feedback:Feedback;library:LibrarySnapshot;

@@ -21,3 +21,10 @@ test('only matched versions and bounded input envelopes receive measured model r
 });
 
 test('long speech reserves the same model envelope with sequential bounded segments',()=>{assert.equal(estimateResources('tts',{text:'文'.repeat(8000),resourceProfile:ttsProfile}).verified,true);});
+
+test('Breeze reservation requires the pinned streaming runtime, transcript and bounded reference',async()=>{
+ const {breezeProfile}=await import('../tts/breeze-runtime.ts');
+ const input={text:'正文',referenceText:'完整参考文字稿',referenceDuration:2.44,resourceProfile:breezeProfile};
+ const demand=estimateResources('tts',input);assert.equal(demand.verified,true);assert.equal(demand.peak.memory,5_000_000_000);
+ for(const patch of [{referenceText:''},{referenceDuration:16},{text:'字'.repeat(8001)},{resourceProfile:{...breezeProfile,program:'changed'}}])assert.equal(estimateResources('tts',{...input,...patch}).verified,false);
+});

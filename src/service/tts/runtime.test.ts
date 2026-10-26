@@ -184,11 +184,11 @@ exec(${JSON.stringify(entry)})
 });
 
 
-test('Apple Silicon defaults to native inference and explicit Python selection remains available',()=>{
+test('Apple Silicon defaults to transcript compatibility and explicit Python selection remains available',()=>{
  const old=process.env.MUSIC_ROOM_TTS_BACKEND;
  try{
   delete process.env.MUSIC_ROOM_TTS_BACKEND;
-  if(process.platform==='darwin'&&process.arch==='arm64')assert.equal(createSpeechDriver().engineLabel,'audio.cpp F16');
+  if(process.platform==='darwin'&&process.arch==='arm64')assert.match(createSpeechDriver().engineLabel??'',/有文字稿：MLX 4bit/);
   process.env.MUSIC_ROOM_TTS_BACKEND='python';assert.equal(createSpeechDriver().engineLabel,'PyTorch');
   process.env.MUSIC_ROOM_TTS_BACKEND='unknown';assert.throws(()=>createSpeechDriver(),/MUSIC_ROOM_TTS_BACKEND/);
  }finally{if(old===undefined)delete process.env.MUSIC_ROOM_TTS_BACKEND;else process.env.MUSIC_ROOM_TTS_BACKEND=old;}

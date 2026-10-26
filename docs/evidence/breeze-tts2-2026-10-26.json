@@ -1,0 +1,577 @@
+{
+  "date": "2026-10-26",
+  "device": "Apple M4, 32 GiB",
+  "precision": "BF16",
+  "waveform_checks_passed": 3,
+  "human_listening": {
+    "date": "2026-10-26",
+    "scope": "three original BF16 samples only",
+    "verdict": "user_positive",
+    "user_feedback": "三个版本的效果都不错，第三个长音频听起来也挺自然；内存占用过高。"
+  },
+  "reports": [
+    {
+      "id": "01-warm-female",
+      "title": "自然旁白 · 温和女声",
+      "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+      "instruct": "一位成年女性，普通话标准，声音温暖清晰。用自然、放松的日常口吻讲述，语速适中，停顿自然，情绪平和，不用播音腔，不要夸张表演。",
+      "model": "mlx-community/Breeze-TTS-2-mlx",
+      "revision": "3c8829fb7fd335818f085cd2ef49b4100c0e46c8",
+      "precision": "BF16",
+      "seed": 42,
+      "cfg_scale": 4,
+      "max_tokens": 750,
+      "model_load_seconds": 16.96866312500788,
+      "status": "audio_valid",
+      "listening_review": {
+        "date": "2026-10-26",
+        "scope": "three original BF16 samples only",
+        "verdict": "user_positive",
+        "user_feedback": "三个版本的效果都不错，第三个长音频听起来也挺自然；内存占用过高。"
+      },
+      "audio_path": "/Users/liu_y/Music/BreezeTTS2-Trial/samples/01-warm-female-20261026-141650.wav",
+      "duration_seconds": 9.92,
+      "generation_seconds": 47.35245737500372,
+      "real_time_factor": 4.773433203125375,
+      "sample_rate": 24000,
+      "tokens": 125,
+      "peak": 0.5554582476615906,
+      "rms": 0.07953105121850967,
+      "mlx_peak_memory_gb": 10.848389494,
+      "sha256": "0826184572ff1eb2dc19e629f517e4551c057ae70516084b975d8807a65c3714",
+      "saved_wav_clipped_samples": 0,
+      "process_peak_memory_footprint_gib": 13.304846458137035
+    },
+    {
+      "id": "02-calm-male",
+      "title": "自然旁白 · 沉稳男声",
+      "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+      "instruct": "一位成年男性，普通话标准，声音沉稳清晰。用自然、放松的日常口吻讲述，语速适中，停顿自然，情绪平和，不用播音腔，不要夸张表演。",
+      "model": "mlx-community/Breeze-TTS-2-mlx",
+      "revision": "3c8829fb7fd335818f085cd2ef49b4100c0e46c8",
+      "precision": "BF16",
+      "seed": 42,
+      "cfg_scale": 4,
+      "max_tokens": 750,
+      "model_load_seconds": 3.8283453340118285,
+      "status": "audio_valid",
+      "listening_review": {
+        "date": "2026-10-26",
+        "scope": "three original BF16 samples only",
+        "verdict": "user_positive",
+        "user_feedback": "三个版本的效果都不错，第三个长音频听起来也挺自然；内存占用过高。"
+      },
+      "audio_path": "/Users/liu_y/Music/BreezeTTS2-Trial/samples/02-calm-male-20261026-141806.wav",
+      "duration_seconds": 8.48,
+      "generation_seconds": 36.120475584000815,
+      "real_time_factor": 4.259490045283115,
+      "sample_rate": 24000,
+      "tokens": 107,
+      "peak": 0.902774453163147,
+      "rms": 0.0697798952460289,
+      "mlx_peak_memory_gb": 10.854287002,
+      "sha256": "1302877b862a09472967da092213fd7c8a300484a1389ee1b64734ac0a8a5dca",
+      "saved_wav_clipped_samples": 0,
+      "process_peak_memory_footprint_gib": 12.932089477777481
+    },
+    {
+      "id": "03-long-narration",
+      "title": "连续旁白 · 温和女声",
+      "text": "周末，我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张，正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得，有些东西虽然很久没见，却一直没有走远。",
+      "instruct": "一位成年女性，普通话标准，声音温暖清晰。像给朋友分享一次周末见闻，自然叙述，语速适中，句间停顿合理，语气平和而有细微变化。不用播音腔，不要夸张煽情。",
+      "model": "mlx-community/Breeze-TTS-2-mlx",
+      "revision": "3c8829fb7fd335818f085cd2ef49b4100c0e46c8",
+      "precision": "BF16",
+      "seed": 42,
+      "cfg_scale": 4,
+      "max_tokens": 750,
+      "model_load_seconds": 3.732612958003301,
+      "status": "audio_valid",
+      "listening_review": {
+        "date": "2026-10-26",
+        "scope": "three original BF16 samples only",
+        "verdict": "user_positive",
+        "user_feedback": "三个版本的效果都不错，第三个长音频听起来也挺自然；内存占用过高。"
+      },
+      "audio_path": "/Users/liu_y/Music/BreezeTTS2-Trial/samples/03-long-narration-20261026-141854.wav",
+      "duration_seconds": 38.4,
+      "generation_seconds": 167.31838487499044,
+      "real_time_factor": 4.357249606119543,
+      "sample_rate": 24000,
+      "tokens": 485,
+      "peak": 0.8050834536552429,
+      "rms": 0.06289299577474594,
+      "mlx_peak_memory_gb": 13.519131962,
+      "sha256": "6f2e4b70dae78d9bb680cca52f4181401e71c9bff54696244ae9eb5db6c8a363",
+      "saved_wav_clipped_samples": 0,
+      "process_peak_memory_footprint_gib": 23.941321045160294
+    }
+  ],
+  "schema": "music-room-tts-selection-trial-v1",
+  "scope": "isolated candidate trial, not production acceptance",
+  "low_memory": {
+    "model": "mlx-community/Breeze-TTS-2-mlx-4bit",
+    "revision": "3a06d26b172ea4ae1da2f42d708383e9c79d5526",
+    "target_bytes": 5000000000,
+    "reports": [
+      {
+        "id": "01-warm-female",
+        "title": "自然旁白 · 温和女声",
+        "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "instruct": "一位成年女性，普通话标准，声音温暖清晰。用自然、放松的日常口吻讲述，语速适中，停顿自然，情绪平和，不用播音腔，不要夸张表演。",
+        "precision": "4bit",
+        "seed": 42,
+        "cfg_scale": 4,
+        "stream": true,
+        "streaming_interval": 1.0,
+        "cache_limit_bytes": 0,
+        "status": "audio_valid",
+        "target_process_peak_bytes": 5000000000,
+        "listening_review": "pending",
+        "stage": "completed",
+        "physical": {
+          "current": 3390197168,
+          "peak": 4353707440
+        },
+        "load_seconds": 1.7683650410035625,
+        "first_chunk_seconds": 1.900216374982847,
+        "generation_seconds": 14.289907375001349,
+        "duration_seconds": 9.44,
+        "sample_rate": 24000,
+        "tokens": 118,
+        "audio_path": "/Users/liu_y/Music/BreezeTTS2-Trial/low-memory/samples/01-warm-female.wav",
+        "clipped_samples": 0,
+        "mlx_peak_bytes": 4008539950,
+        "sha256": "22dcb373e1aae79572f3ff31b16e33159b477ddbc82c004e9396a3bde615b5d3",
+        "monitor": {
+          "case": "01-warm-female",
+          "pid": 64104,
+          "exit_code": 0,
+          "peak_bytes": 4353707440,
+          "limit_bytes": 5000000000,
+          "elapsed_seconds": 19.638569833012298,
+          "stop_reason": null,
+          "within_target": true,
+          "method": "Kernel lifetime maximum physical footprint; sampled every 200 ms, includes load. Sampling watchdog is not an OS hard allocation cap."
+        }
+      },
+      {
+        "id": "02-calm-male",
+        "title": "自然旁白 · 沉稳男声",
+        "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "instruct": "一位成年男性，普通话标准，声音沉稳清晰。用自然、放松的日常口吻讲述，语速适中，停顿自然，情绪平和，不用播音腔，不要夸张表演。",
+        "precision": "4bit",
+        "seed": 42,
+        "cfg_scale": 4,
+        "stream": true,
+        "streaming_interval": 1.0,
+        "cache_limit_bytes": 0,
+        "status": "audio_valid",
+        "target_process_peak_bytes": 5000000000,
+        "listening_review": "pending",
+        "stage": "completed",
+        "physical": {
+          "current": 3383758256,
+          "peak": 4352691632
+        },
+        "load_seconds": 1.5026477909996174,
+        "first_chunk_seconds": 1.5344358749862295,
+        "generation_seconds": 13.25051058299141,
+        "duration_seconds": 9.12,
+        "sample_rate": 24000,
+        "tokens": 114,
+        "audio_path": "/Users/liu_y/Music/BreezeTTS2-Trial/low-memory/samples/02-calm-male.wav",
+        "clipped_samples": 0,
+        "mlx_peak_bytes": 4008539950,
+        "sha256": "9d7f9d3458612528f8f5b35b8ffb53ef151ac2682dbbda9bb19dcabed68920d0",
+        "monitor": {
+          "case": "02-calm-male",
+          "pid": 65174,
+          "exit_code": 0,
+          "peak_bytes": 4352691632,
+          "limit_bytes": 5000000000,
+          "elapsed_seconds": 15.183426250005141,
+          "stop_reason": null,
+          "within_target": true,
+          "method": "Kernel lifetime maximum physical footprint; sampled every 200 ms, includes load. Sampling watchdog is not an OS hard allocation cap."
+        }
+      },
+      {
+        "id": "03-long-narration",
+        "title": "连续旁白 · 温和女声",
+        "text": "周末，我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张，正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得，有些东西虽然很久没见，却一直没有走远。",
+        "instruct": "一位成年女性，普通话标准，声音温暖清晰。像给朋友分享一次周末见闻，自然叙述，语速适中，句间停顿合理，语气平和而有细微变化。不用播音腔，不要夸张煽情。",
+        "precision": "4bit",
+        "seed": 42,
+        "cfg_scale": 4,
+        "stream": true,
+        "streaming_interval": 1.0,
+        "cache_limit_bytes": 0,
+        "status": "audio_valid",
+        "target_process_peak_bytes": 5000000000,
+        "listening_review": {
+          "date": "2026-10-26",
+          "scope": "4bit 03-long-narration only",
+          "verdict": "user_acceptable",
+          "user_feedback": "这段效果已经够用了",
+          "transcript_completeness": "not independently verified"
+        },
+        "stage": "completed",
+        "physical": {
+          "current": 3390524896,
+          "peak": 4358131168
+        },
+        "load_seconds": 1.3670847499743104,
+        "first_chunk_seconds": 1.9668548749759793,
+        "generation_seconds": 47.123791207995964,
+        "duration_seconds": 30.64,
+        "sample_rate": 24000,
+        "tokens": 383,
+        "audio_path": "/Users/liu_y/Music/BreezeTTS2-Trial/low-memory/samples/03-long-narration.wav",
+        "clipped_samples": 0,
+        "mlx_peak_bytes": 4023123102,
+        "sha256": "b1938cd5881765fce1a80f7d6d0505978626e73c48233cdf3a2f70ab1c7c3522",
+        "monitor": {
+          "case": "03-long-narration",
+          "pid": 64284,
+          "exit_code": 0,
+          "peak_bytes": 4358131168,
+          "limit_bytes": 5000000000,
+          "elapsed_seconds": 49.004234249994624,
+          "stop_reason": null,
+          "within_target": true,
+          "method": "Kernel lifetime maximum physical footprint; sampled every 200 ms, includes load. Sampling watchdog is not an OS hard allocation cap."
+        }
+      }
+    ],
+    "human_listening": {
+      "status": "partial",
+      "accepted_samples": [
+        "03-long-narration"
+      ],
+      "pending_samples": [
+        "01-warm-female",
+        "02-calm-male"
+      ],
+      "review": {
+        "date": "2026-10-26",
+        "scope": "4bit 03-long-narration only",
+        "verdict": "user_acceptable",
+        "user_feedback": "这段效果已经够用了",
+        "transcript_completeness": "not independently verified"
+      }
+    },
+    "waveform_checks_passed": 3,
+    "memory_target_checks_passed": 3,
+    "baseline_failures": {
+      "limit_bytes": 5000000000,
+      "results": [
+        {
+          "case": "01-warm-female",
+          "peak_bytes": 14285970104,
+          "within_target": false
+        },
+        {
+          "case": "02-calm-male",
+          "peak_bytes": 13885725344,
+          "within_target": false
+        },
+        {
+          "case": "03-long-narration",
+          "peak_bytes": 25706797728,
+          "within_target": false
+        }
+      ]
+    }
+  },
+  "source_files": {
+    "/Users/liu_y/Music/BreezeTTS2-Trial/run.py": {
+      "sha256": "d39a2c99817e3886273d221525b2bebcda3b272ba0bbfe8c7a5e70e59caca0e7"
+    },
+    "/Users/liu_y/Music/BreezeTTS2-Trial/samples.json": {
+      "sha256": "1b1ca393d46e271610647299158b36284af5b6aa688fe4c270001bc2b1972d66"
+    },
+    "/Users/liu_y/Music/BreezeTTS2-Trial/requirements.lock.txt": {
+      "sha256": "7bff7b224cd4d95b55c7f625568146dd7c6add45df66cb233dc6d2769aa45a9c"
+    },
+    "/Users/liu_y/Music/BreezeTTS2-Trial/low-memory/trial.py": {
+      "sha256": "ebe9cc8fd17968bf3404416936aca59255fe491791337f340808284cbab420fd"
+    },
+    "/Users/liu_y/Music/BreezeTTS2-Trial/low-memory/monitor.py": {
+      "sha256": "31e1f4e4ea47c5de0c83acd749534dee80be3ee057b63729c858d19f34840ab0"
+    },
+    "/Users/liu_y/Music/BreezeTTS2-Trial/low-memory/footprint.c": {
+      "sha256": "473a3a9f6da5a57c5f1ba8a5fbd577551df8ef0f906ec3c31b584e2b2c041fea"
+    }
+  },
+  "limitations": [
+    "Three inputs only; not universal memory bound.",
+    "4bit long narration accepted by user; other samples and independent transcript completeness pending.",
+    "BF16 and 4bit produce different durations; not identical waveform comparison.",
+    "Memory watchdog samples kernel lifetime peak; not an OS hard allocation cap.",
+    "No production integration or continuous-session stress test. Clone evaluation covers one 2.44s reference, two outputs; user reports low similarity despite usability."
+  ],
+  "voice_clone": {
+    "reference_name": "示例声音 · 官方样音",
+    "reference_duration_seconds": 2.4387083333333335,
+    "reference_path": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+    "reference_sha256": "fd23ddac68f2db3710481c7cbfc1a50a117d9c38bc5c3ee51c33444f0a9b019a",
+    "model": "mlx-community/Breeze-TTS-2-mlx-4bit",
+    "revision": "3a06d26b172ea4ae1da2f42d708383e9c79d5526",
+    "mode": "voice_clone",
+    "instruct": null,
+    "cfg_scale": null,
+    "target_bytes": 5000000000,
+    "human_similarity_review": {
+      "date": "2026-10-26",
+      "scope": "04-official-clone-short and 05-official-clone-long",
+      "usable": true,
+      "perceived_similarity": "low",
+      "user_feedback": "其实克隆的都不太像，可能因为我对姜文的音色太熟悉了，不过这两个都在可用范围内。",
+      "expression_difference": "User noticed different emotional expressiveness; direction not specified."
+    },
+    "reference_transcript": {
+      "source": "Qwen3-ASR-0.6B local",
+      "text": "翻译翻译，什么叫惊喜？",
+      "language": "Chinese",
+      "seconds": 1.6934737499977928,
+      "human_transcript_verification": "pending"
+    },
+    "reports": [
+      {
+        "id": "04-official-clone-short",
+        "title": "官方样音 · 克隆短句",
+        "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "instruct": null,
+        "ref_audio": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+        "ref_text": "翻译翻译，什么叫惊喜？",
+        "reference_sha256": "fd23ddac68f2db3710481c7cbfc1a50a117d9c38bc5c3ee51c33444f0a9b019a",
+        "reference_duration_seconds": 2.4387083333333335,
+        "reference_transcription": {
+          "source": "Qwen3-ASR-0.6B local",
+          "text": "翻译翻译，什么叫惊喜？",
+          "language": "Chinese",
+          "seconds": 1.6934737499977928,
+          "human_transcript_verification": "pending"
+        },
+        "mode": "voice_clone",
+        "precision": "4bit",
+        "seed": 42,
+        "cfg_scale": null,
+        "stream": true,
+        "streaming_interval": 1.0,
+        "cache_limit_bytes": 0,
+        "status": "audio_valid",
+        "target_process_peak_bytes": 5000000000,
+        "listening_review": {
+          "date": "2026-10-26",
+          "scope": "04-official-clone-short and 05-official-clone-long",
+          "usable": true,
+          "perceived_similarity": "low",
+          "user_feedback": "其实克隆的都不太像，可能因为我对姜文的音色太熟悉了，不过这两个都在可用范围内。",
+          "expression_difference": "User noticed different emotional expressiveness; direction not specified.",
+          "volume_feedback": "音量有点小"
+        },
+        "stage": "completed",
+        "physical": {
+          "current": 3392753024,
+          "peak": 4355820928
+        },
+        "load_seconds": 2.645716665982036,
+        "first_chunk_seconds": 2.150354334007716,
+        "generation_seconds": 8.843719958997099,
+        "duration_seconds": 8.64,
+        "sample_rate": 24000,
+        "tokens": 108,
+        "audio_path": "/Users/liu_y/Music/BreezeTTS2-Trial/clone-official/samples/04-official-clone-short.wav",
+        "clipped_samples": 0,
+        "mlx_peak_bytes": 4005370434,
+        "sha256": "e84aceab04f640e37d7737aa15640dbe657003772912741d8b55dcc15ee12201",
+        "monitor": {
+          "case": "04-official-clone-short",
+          "pid": 70796,
+          "exit_code": 0,
+          "peak_bytes": 4355820928,
+          "limit_bytes": 5000000000,
+          "elapsed_seconds": 12.330342667002697,
+          "stop_reason": null,
+          "within_target": true,
+          "method": "Kernel lifetime maximum physical footprint; sampled every 200 ms, includes load. Sampling watchdog is not an OS hard allocation cap."
+        },
+        "reference_encoding_memory_stages": {
+          "loaded": {
+            "current": 3369225528,
+            "peak": 3417525560
+          },
+          "reference_encoding": {
+            "current": 3369471288,
+            "peak": 3417525560
+          },
+          "reference_encoded": {
+            "current": 3379596624,
+            "peak": 3601698128
+          }
+        },
+        "output_transcription_check": {
+          "id": "04-official-clone-short",
+          "expected_text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+          "recognized_text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+          "method": "Qwen3-ASR-0.6B, empty context, local inference after clone exited",
+          "human_verification": "pending",
+          "matches_input_ignoring_punctuation_and_spaces": true
+        }
+      },
+      {
+        "id": "05-official-clone-long",
+        "title": "官方样音 · 克隆长旁白",
+        "text": "周末，我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张，正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得，有些东西虽然很久没见，却一直没有走远。",
+        "instruct": null,
+        "ref_audio": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+        "ref_text": "翻译翻译，什么叫惊喜？",
+        "reference_sha256": "fd23ddac68f2db3710481c7cbfc1a50a117d9c38bc5c3ee51c33444f0a9b019a",
+        "reference_duration_seconds": 2.4387083333333335,
+        "reference_transcription": {
+          "source": "Qwen3-ASR-0.6B local",
+          "text": "翻译翻译，什么叫惊喜？",
+          "language": "Chinese",
+          "seconds": 1.6934737499977928,
+          "human_transcript_verification": "pending"
+        },
+        "mode": "voice_clone",
+        "precision": "4bit",
+        "seed": 42,
+        "cfg_scale": null,
+        "stream": true,
+        "streaming_interval": 1.0,
+        "cache_limit_bytes": 0,
+        "status": "audio_valid",
+        "target_process_peak_bytes": 5000000000,
+        "listening_review": {
+          "date": "2026-10-26",
+          "scope": "04-official-clone-short and 05-official-clone-long",
+          "usable": true,
+          "perceived_similarity": "low",
+          "user_feedback": "其实克隆的都不太像，可能因为我对姜文的音色太熟悉了，不过这两个都在可用范围内。",
+          "expression_difference": "User noticed different emotional expressiveness; direction not specified.",
+          "volume_feedback": "音量正常"
+        },
+        "stage": "completed",
+        "physical": {
+          "current": 3426913736,
+          "peak": 4374826416
+        },
+        "load_seconds": 2.4471675000095274,
+        "first_chunk_seconds": 1.3625438750023022,
+        "generation_seconds": 43.07747533399379,
+        "duration_seconds": 44.48,
+        "sample_rate": 24000,
+        "tokens": 556,
+        "audio_path": "/Users/liu_y/Music/BreezeTTS2-Trial/clone-official/samples/05-official-clone-long.wav",
+        "clipped_samples": 0,
+        "mlx_peak_bytes": 4008365634,
+        "sha256": "dbb5f65e895a685473ba12f5c4444349d5fa6e064de4171faa1075ed85be7c32",
+        "monitor": {
+          "case": "05-official-clone-long",
+          "pid": 71255,
+          "exit_code": 0,
+          "peak_bytes": 4374826416,
+          "limit_bytes": 5000000000,
+          "elapsed_seconds": 46.13349791697692,
+          "stop_reason": null,
+          "within_target": true,
+          "method": "Kernel lifetime maximum physical footprint; sampled every 200 ms, includes load. Sampling watchdog is not an OS hard allocation cap."
+        },
+        "reference_encoding_memory_stages": {
+          "loaded": {
+            "current": 3368996128,
+            "peak": 3417312568
+          },
+          "reference_encoding": {
+            "current": 3369241888,
+            "peak": 3417312568
+          },
+          "reference_encoded": {
+            "current": 3379072384,
+            "peak": 3690352000
+          }
+        },
+        "output_transcription_check": {
+          "id": "05-official-clone-long",
+          "expected_text": "周末，我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张，正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得，有些东西虽然很久没见，却一直没有走远。",
+          "recognized_text": "周末，我去了一家藏在巷子里的旧唱片店，老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得有些东西，虽然很久没见，却一直没有走远。",
+          "method": "Qwen3-ASR-0.6B, empty context, local inference after clone exited",
+          "human_verification": "pending",
+          "matches_input_ignoring_punctuation_and_spaces": true
+        }
+      }
+    ],
+    "not_run": {
+      "voice": "女网红",
+      "reason": "Dialect reference transcript uncertain; user authorized selecting a different voice before any clone generation."
+    },
+    "source_files": {
+      "/Users/liu_y/Music/BreezeTTS2-Trial/clone-official/cases.json": "6c1d64e6b51b8dfee7e274af2be8fcb721577560cb0bd3e13f3e0a18f947b4fc",
+      "/Users/liu_y/Music/BreezeTTS2-Trial/clone-official/trial.py": "3c322ade658fecab05cf0e7b05712ace431cd0325ddba26ddf2ea7ed190b1611",
+      "/Users/liu_y/Music/BreezeTTS2-Trial/clone-official/monitor.py": "31e1f4e4ea47c5de0c83acd749534dee80be3ee057b63729c858d19f34840ab0",
+      "/Users/liu_y/Music/BreezeTTS2-Trial/clone-official/footprint.c": "473a3a9f6da5a57c5f1ba8a5fbd577551df8ef0f906ec3c31b584e2b2c041fea"
+    },
+    "checks": {
+      "waveforms_valid": 2,
+      "within_5GB": 2,
+      "asr_transcript_matches_ignoring_punctuation": 2,
+      "subjective_similarity": "user: low similarity, both usable",
+      "longer_reference_memory": "not tested"
+    },
+    "loudness_measurements": [
+      {
+        "id": "04-official-clone-short",
+        "seed": 42,
+        "cfg_scale": null,
+        "instruct": null,
+        "reference_sha256": "fd23ddac68f2db3710481c7cbfc1a50a117d9c38bc5c3ee51c33444f0a9b019a",
+        "duration_seconds": 8.64,
+        "peak_dbfs": -14.100315580740903,
+        "rms_dbfs": -36.369819046893305,
+        "active_50ms_frame_rms_median_dbfs": -34.76526842649194
+      },
+      {
+        "id": "05-official-clone-long",
+        "seed": 42,
+        "cfg_scale": null,
+        "instruct": null,
+        "reference_sha256": "fd23ddac68f2db3710481c7cbfc1a50a117d9c38bc5c3ee51c33444f0a9b019a",
+        "duration_seconds": 44.48,
+        "peak_dbfs": -8.100571769715232,
+        "rms_dbfs": -29.261280516549448,
+        "active_50ms_frame_rms_median_dbfs": -28.40637842141433
+      }
+    ],
+    "diagnostic_volume_copy": {
+      "source": "/Users/liu_y/Music/BreezeTTS2-Trial/clone-official/samples/04-official-clone-short.wav",
+      "comparison_target": "/Users/liu_y/Music/BreezeTTS2-Trial/clone-official/samples/05-official-clone-long.wav",
+      "output": "/Users/liu_y/Music/BreezeTTS2-Trial/clone-official/samples/04-official-clone-short-volume-comparison.wav",
+      "gain_db": 7.108538530343862,
+      "source_rms_dbfs": -36.369819046893305,
+      "target_rms_dbfs": -29.261280516549448,
+      "output_rms_dbfs": -29.261266262017166,
+      "clipped_samples": 0,
+      "duration_seconds": 8.64,
+      "sha256": "fa0f671cf70fdbc6c4c9b75fc8bd229aa7c84bb17b9ae67252607877c32ddeaa",
+      "scope": "Diagnostic fixed-gain copy only; original unchanged. Matches whole-file RMS, not calibrated perceived loudness; does not change emotion or voice similarity."
+    },
+    "prosody_comparison_review": {
+      "date": "2026-10-26",
+      "type": "user_subjective_comparison",
+      "feedback": "这个模型的重音、断句比 indextts 要强不少",
+      "preferred_model": "Breeze TTS 2",
+      "comparison_model": "IndexTTS",
+      "dimensions": [
+        "重音",
+        "断句"
+      ],
+      "scope": "Current Breeze listening and previous IndexTTS experience; no matched blind A/B.",
+      "emotion_hypothesis": "User considers text-driven emotion plausible; cause not experimentally verified.",
+      "volume_comparison_review": "not explicitly confirmed"
+    }
+  }
+}

@@ -4,9 +4,9 @@
 
 打开内网导航 `http://10.144.144.104:9186/start/`，点击 Music Room 即可启动并打开网页。首次点击浏览器可能要求确认打开本机应用。
 
-这台 Mac 的 `~/Applications/Music Room Launcher.app` 注册了 `music-room-local://start`。启动器只接受这个固定动作，调用项目根目录「启动 Music Room.command」，不执行 URL 中传入的命令或参数。实际服务仍只监听本机；其他设备需有自己的安装才可使用。
+这台 Mac 的 `~/Applications/Music Room Launcher.app` 注册了 `music-room-local://start`。启动器只接受这个固定动作，调用项目根目录「启动 Music Room.command」，不执行 URL 中传入的命令或参数。命令优先使用 `~/Applications/MusicRoom/music-room`，未安装时才使用项目内的 `release/music-room`。实际服务仍只监听本机；其他设备需有自己的安装才可使用。
 
-重装启动器：运行 `scripts/install-mac-launcher.sh`，需要 Xcode Command Line Tools。启动器依赖当前项目路径；移动项目后重新安装。脚本使用 `~/Music/MusicRoom`，请求端口 5174，重复启动复用现有服务并打开实际地址。导航里的“直接进入网页”用于已启动且位于默认端口的服务。
+重装启动器：运行 `scripts/install-mac-launcher.sh`，需要 Xcode Command Line Tools。启动器依赖当前项目路径；移动项目后重新安装。脚本使用 `~/Music/MusicRoom`，请求端口 57923，重复启动复用现有服务并打开实际地址。导航里的“直接进入网页”用于已启动且位于默认端口的服务。
 
 仍可双击项目根目录的「启动 Music Room.command」。关闭网页不停止服务；停止方式见下文。
 
@@ -46,7 +46,7 @@ cp release/music-room release/start.sh "$HOME/Applications/MusicRoom/"
 
 基础版本支持 MIDI/JSON 导入、短乐句、扩写、多版本、听评、后台渲染和 WAV/MIDI/JSON 导出。YuE2 可在网页选择独立目录后由后台统一安排安装、下载，生成时按需加载，同一能力提供 MCP 工具，见 [YuE2 使用与目录管理](yue2.md)。音视频识谱尚未接入；未准备模型的 YuE2 状态仍显示不可生成。
 
-在首页项目内选择「新声音 → 语音」，可以用 IndexTTS 2.0 生成普通语音。参考声音、文字、情绪和每次生成的 WAV 随版本保存到工作目录，支持比较、选择成品和删除恢复。专用 Python 和模型由程序安装，无需手动配置，见 [语音创作](tts.md)。
+在首页项目内选择「新声音 → 语音」，可以生成普通语音：填写参考录音文字稿使用 Breeze 4bit，留空沿用 IndexTTS 2.0。参考声音、文字、情绪和每次生成的 WAV 随版本保存到工作目录，支持比较、选择成品和删除恢复。专用 Python 和模型由程序安装，无需手动配置，见 [语音创作](tts.md)。
 
 服务模式下，内置作品与导入作品都使用工作目录保存的乐谱原件；升级程序不会重新作曲替换已有版本。网页演奏、JSON 导出和后台渲染使用同一份乐谱。网页演奏与已保存 WAV 的播放互斥，原生音频控件恢复播放也遵守此规则；切换版本会取消尚未完成的试听请求。
 
@@ -71,21 +71,25 @@ HTTP MCP 地址为启动 URL 加 `/mcp`，采用 Streamable HTTP，带 `Authoriz
 
 ## 创作闭环与工具
 
-先对 agent 说：
+MCP 连接说明和音乐生成工具会引导 Agent 先读 `get_music_creation_guide`；也可读取资源 `music-room://music/creation-guide`。两者返回同一份有版本号的指南，无需应用源码，不会启动模型或创建任务。
 
-> 使用 music-room MCP。先读取项目和独立创作资料，为我的项目写八小节器乐主题，有明确 riff、回答和留白，避免机械重复。校验后导入为新版本并渲染，查询任务直至完成；告诉我版本和试听产物位置。根据我后面的听评扩写，保留父版，不能覆盖旧版。
+指南支持 **YuE2 自主作曲** 与 **Agent 写谱 / 改谱后生成音频**，按需求选择，不强制 Agent 重写整曲；不保证减少重复或更好听。内容包含乐器的主奏、回应、伴奏和低音分工、轮番进入与退出、riff 回归变奏、留白与段落发展，以及格式示例、时长和交付检查。可以直接按目标时长创作，短样不是必经步骤。具体音色与轮换是否落实，需要试听确认。
+
+> 使用 Music Room MCP，先读 get_music_creation_guide 和当前声音。按照我的风格与时长要求，结合已有听评选择自主作曲或写谱、改谱后生成音乐。不要承诺能解决重复问题。让乐器有主次、适时轮换，riff 回归要发展，不要直接重复或循环拼接。保留旧版，完成后给我音频试听。
 
 | 操作 | MCP 工具 |
 | --- | --- |
-| 查看能力和作品 | `status`、`list_projects`、`get_project` |
-| 新建项目与获取资料 | `create_project`、`get_authoring_context` |
-| 校验和发布新版本 | `validate_score`、`import_revision` |
-| 获取原件、来源和音频清单 | `get_revision` |
-| 提交后台渲染 | `render_revision` |
-| 查询或取消 | `list_jobs`、`get_job`、`cancel_job` |
-| 保存听评 | `add_feedback` |
+| 读取音乐创作手册 | `get_music_creation_guide` |
+| 查看声音、版本与当前要求 | `studio_library` |
+| 新建项目与声音 | `create_project`、`studio_create_sound` |
+| 检查模型状态、读取来源乐谱 | `yue2_status`、`yue2_score` |
+| 检查 ABC、时长与上下文 | `yue2_inspect_input` |
+| 生成同声音的新版本 | `studio_generate`；写谱或改谱时传入完整 `abc`，自主作曲且未指定乐谱时可省略 |
+| 跟踪生成 / 取消指定版本 | `yue2_get_job`（返回版本的 `source.id`）、`studio_cancel` |
 
-独立创作格式另有 MCP 资源 `music-room://authoring/guide`。创作包与示例同时内嵌在网页供下载，不需要应用源码。服务不会执行上传的作曲脚本，agent 可在自己的环境使用任意语言写乐谱。
+### MIDI / JSON 编辑路线
+
+仅在需要音符、音轨编辑或 MIDI 导出时使用 `get_authoring_context`、`validate_score`、`import_revision`、`render_revision` 与 `get_job`。旧资源 `music-room://authoring/guide` 和独立创作包继续提供 MIDI / JSON 格式；该路线的短句阶段不约束 YuE2 完整音乐创作。服务不会执行上传的作曲脚本。
 
 发布新版本需要 JSON 字符串 `compositionJson`，包含 `work.id`、`work.title` 和新的 `revision.id`；扩写时通过 `parentId` 指向同项目旧版。后台渲染提交 `projectId`、`revisionId`、`idempotencyKey` 和可选 `mix`；返回任务字段 `id`，随后用 `get_job` 的 `jobId` 查询。同幂等键与同请求复用原任务，不同请求拒绝；重试用新键。
 
