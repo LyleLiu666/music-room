@@ -1,0 +1,176 @@
+{
+  "date": "2026-10-27",
+  "purpose": "Change only reference audio while keeping text, reference transcript, seed and generation parameters fixed",
+  "runtime": {
+    "model": "mlx-community/Breeze-TTS-2-mlx-4bit",
+    "modelRevision": "3a06d26b172ea4ae1da2f42d708383e9c79d5526",
+    "mlxAudioRevision": "3674813a24db8cb9e6ff816a8dfe1834741b179d",
+    "seed": 42,
+    "stream": true,
+    "streamingInterval": 1.0,
+    "cacheLimitBytes": 0,
+    "mlxMemoryHintBytes": 4000000000,
+    "processLimitBytes": 5000000000,
+    "clonesInstruct": null,
+    "clonesCfgScale": null
+  },
+  "referenceOfficial": {
+    "path": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+    "sha256": "fd23ddac68f2db3710481c7cbfc1a50a117d9c38bc5c3ee51c33444f0a9b019a",
+    "durationSeconds": 2.4387083333333335,
+    "referenceText": "翻译翻译，什么叫惊喜？"
+  },
+  "referenceFemale": {
+    "origin": "Breeze voice design (not a real person); requested female voice",
+    "path": "/Users/liu_y/Music/BreezeTTS2-Trial/reference-control-2026-10-27/samples/01-female-reference.wav",
+    "sha256": "d390a2b4db063421fd505003ecdd792107f6c561e629df67219864ccfd1fba94",
+    "durationSeconds": 2.16,
+    "referenceText": "翻译翻译，什么叫惊喜？"
+  },
+  "results": [
+    {
+      "id": "01-female-reference",
+      "case": {
+        "mode": "voice_design_reference",
+        "text": "翻译翻译，什么叫惊喜？",
+        "instruct": "一位成年女性，普通话标准，声音自然清晰。"
+      },
+      "status": "generated",
+      "humanListening": "pending",
+      "memoryLimitBytes": 5000000000,
+      "loadSeconds": 2.738710042031016,
+      "loadedPeakBytes": 3417820472,
+      "generationSeconds": 2.735485291981604,
+      "durationSeconds": 2.16,
+      "sampleRate": 24000,
+      "peak": 0.6014163494110107,
+      "clippedSamples": 0,
+      "lifetimePeakBytes": 3927854440,
+      "audioPath": "/Users/liu_y/Music/BreezeTTS2-Trial/reference-control-2026-10-27/samples/01-female-reference.wav",
+      "sha256": "d390a2b4db063421fd505003ecdd792107f6c561e629df67219864ccfd1fba94",
+      "tokens": 27,
+      "resourceSamplePeakBytes": 3588692040
+    },
+    {
+      "id": "02-clone-official",
+      "case": {
+        "mode": "clone",
+        "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "reference": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+        "referenceText": "翻译翻译，什么叫惊喜？"
+      },
+      "status": "generated",
+      "humanListening": "pending",
+      "memoryLimitBytes": 5000000000,
+      "loadSeconds": 2.454876333998982,
+      "loadedPeakBytes": 3422309688,
+      "generationSeconds": 6.847474417008925,
+      "durationSeconds": 8.64,
+      "sampleRate": 24000,
+      "peak": 0.19725260138511658,
+      "clippedSamples": 0,
+      "lifetimePeakBytes": 4294364568,
+      "audioPath": "/Users/liu_y/Music/BreezeTTS2-Trial/reference-control-2026-10-27/samples/02-clone-official.wav",
+      "sha256": "e84aceab04f640e37d7737aa15640dbe657003772912741d8b55dcc15ee12201",
+      "tokens": 108,
+      "resourceSamplePeakBytes": 4226652688
+    },
+    {
+      "id": "03-clone-female",
+      "case": {
+        "mode": "clone",
+        "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "reference": "/Users/liu_y/Music/BreezeTTS2-Trial/reference-control-2026-10-27/samples/01-female-reference.wav",
+        "referenceText": "翻译翻译，什么叫惊喜？"
+      },
+      "status": "generated",
+      "humanListening": "pending",
+      "memoryLimitBytes": 5000000000,
+      "loadSeconds": 1.2376127080060542,
+      "loadedPeakBytes": 3418279224,
+      "generationSeconds": 5.974265834025573,
+      "durationSeconds": 7.84,
+      "sampleRate": 24000,
+      "peak": 0.5887657999992371,
+      "clippedSamples": 0,
+      "lifetimePeakBytes": 4323495296,
+      "audioPath": "/Users/liu_y/Music/BreezeTTS2-Trial/reference-control-2026-10-27/samples/03-clone-female.wav",
+      "sha256": "22186bcdf96fe0109ed8ec5bbc15815813bc691bcfd5168c0f8587cef5577fc6",
+      "tokens": 98,
+      "resourceSamplePeakBytes": 4120418352
+    }
+  ],
+  "originalOfficialOutputSha256": "e84aceab04f640e37d7737aa15640dbe657003772912741d8b55dcc15ee12201",
+  "independentAsrReferences": {
+    "results": [
+      {
+        "name": "official-reference",
+        "audio": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+        "text": "翻译翻译，什么叫惊喜？",
+        "transcription": "翻译翻译，什么叫惊喜？",
+        "matchIgnoringPunctuation": true,
+        "characterSimilarity": 1.0
+      },
+      {
+        "name": "female-reference",
+        "audio": "/Users/liu_y/Music/BreezeTTS2-Trial/reference-control-2026-10-27/samples/01-female-reference.wav",
+        "text": "翻译翻译，什么叫惊喜？",
+        "transcription": "翻译翻译，什么叫惊喜？",
+        "matchIgnoringPunctuation": true,
+        "characterSimilarity": 1.0
+      }
+    ],
+    "asrModel": "Qwen3-ASR-0.6B local",
+    "peakBytes": 3061597960
+  },
+  "independentAsrOutputs": {
+    "results": [
+      {
+        "name": "02-clone-official",
+        "audio": "/Users/liu_y/Music/BreezeTTS2-Trial/reference-control-2026-10-27/samples/02-clone-official.wav",
+        "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "transcription": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "matchIgnoringPunctuation": true,
+        "characterSimilarity": 1.0
+      },
+      {
+        "name": "03-clone-female",
+        "audio": "/Users/liu_y/Music/BreezeTTS2-Trial/reference-control-2026-10-27/samples/03-clone-female.wav",
+        "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "transcription": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "matchIgnoringPunctuation": true,
+        "characterSimilarity": 1.0
+      }
+    ],
+    "asrModel": "Qwen3-ASR-0.6B local",
+    "peakBytes": 3061663544
+  },
+  "volumeComparison": {
+    "source": "/Users/liu_y/Music/BreezeTTS2-Trial/reference-control-2026-10-27/samples/02-clone-official.wav",
+    "sourceSha256": "e84aceab04f640e37d7737aa15640dbe657003772912741d8b55dcc15ee12201",
+    "targetRmsFrom": "/Users/liu_y/Music/BreezeTTS2-Trial/reference-control-2026-10-27/samples/03-clone-female.wav",
+    "fixedGainDb": 12.986398696290362,
+    "sourceRmsDbfs": -36.369819046893305,
+    "targetRmsDbfs": -23.383420350602947,
+    "outputRmsDbfs": -23.38342244722224,
+    "outputPeakDbfs": -1.1142150644031696,
+    "method": "fixed gain matching full-file RMS; not LUFS; original samples unchanged",
+    "output": "/Users/liu_y/Music/BreezeTTS2-Trial/reference-control-2026-10-27/samples/02-clone-official-volume-comparison.wav",
+    "outputSha256": "951b14ae15bebae72641e95f57e75ef1b653c91189ddfdf462837b945f07f9f5"
+  },
+  "conclusions": {
+    "officialRepeatBitIdentical": true,
+    "referenceChangedOutputWaveform": true,
+    "referenceChangedDuration": true,
+    "timbreSimilarityListening": "两段音色有变化但不明显；分别与参考声音的相似度未单独评价",
+    "specificSpeakerCloneFidelity": "pending",
+    "limitations": "Only two audio references; fixed-seed generation; waveform differences alone do not prove timbre similarity. Transcriptions checked by ASR, not yet human verified.",
+    "timbreComparisonFeedback": {
+      "date": "2026-10-27",
+      "scope": "同正文同文字稿，仅参考录音不同的两段 Breeze 克隆结果；官方样音版本为响度调整副本",
+      "feedback": "有变化但不明显",
+      "meaning": "用户听到参考切换导致的音色差异较小；没有单独评价每段与其参考的相似程度"
+    }
+  },
+  "experimentDirectory": "/Users/liu_y/Music/BreezeTTS2-Trial/reference-control-2026-10-27"
+}

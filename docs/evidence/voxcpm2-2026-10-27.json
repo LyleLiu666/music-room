@@ -1,0 +1,448 @@
+{
+  "date": "2026-10-27",
+  "device": "Apple M4 / 32 GiB / macOS 27.0.1",
+  "model": {
+    "repository": "mlx-community/VoxCPM2-4bit",
+    "revision": "dc9e5c187858da5f4a13dc4c247e297339216381",
+    "precision": "4bit (language model layers; VAE/DiT full precision)",
+    "files": [
+      {
+        "file": "README.md",
+        "bytes": 2206,
+        "sha256": "335e9c23fc33613d8266381b5518d208f2eb29d54f5cd4de15fe1cf91eed5bc0",
+        "verified_against": "Hugging Face pinned revision Git blob SHA-1",
+        "modelscope_revision": "c523466da1ff69acd148625cb011a552d580cb85"
+      },
+      {
+        "file": "config.json",
+        "bytes": 5332,
+        "sha256": "91bff6db1be27bc0f4f2a287cca7a8fbb8b1d7a0b026a5dc4a71bc5f2f1ddcfb",
+        "verified_against": "Hugging Face pinned revision Git blob SHA-1",
+        "modelscope_revision": "c523466da1ff69acd148625cb011a552d580cb85"
+      },
+      {
+        "file": "model.safetensors",
+        "bytes": 2297215329,
+        "sha256": "25bddc99a7cc6d28214f12dd676ed0afa9b0a805d6477f85c275bb113cb8acee",
+        "verified_against": "Hugging Face pinned revision LFS SHA-256",
+        "modelscope_revision": "c523466da1ff69acd148625cb011a552d580cb85"
+      },
+      {
+        "file": "special_tokens_map.json",
+        "bytes": 1632,
+        "sha256": "068594063e37662c02b21acf42ebb334ef6a74fb810e68a2368f88f08351de76",
+        "verified_against": "Hugging Face pinned revision Git blob SHA-1",
+        "modelscope_revision": "c523466da1ff69acd148625cb011a552d580cb85"
+      },
+      {
+        "file": "tokenizer.json",
+        "bytes": 3676772,
+        "sha256": "f8984687e4a92a3503d521396d454b7d68e9fdaab2a0288eb3536c7c1aa4bc20",
+        "verified_against": "Hugging Face pinned revision Git blob SHA-1",
+        "modelscope_revision": "c523466da1ff69acd148625cb011a552d580cb85"
+      },
+      {
+        "file": "tokenizer_config.json",
+        "bytes": 4952,
+        "sha256": "466575c55f0cf49530666c2e46ed14f26237dbd227ba7f4bb3bbec93df90edfc",
+        "verified_against": "Hugging Face pinned revision Git blob SHA-1",
+        "modelscope_revision": "c523466da1ff69acd148625cb011a552d580cb85"
+      }
+    ]
+  },
+  "runtime": {
+    "mlxAudioVersion": "0.6.1",
+    "mlxAudioRevision": "3674813a24db8cb9e6ff816a8dfe1834741b179d",
+    "mlx": "0.32.4",
+    "python": "3.12.12",
+    "seed": 42,
+    "inferenceTimesteps": 10,
+    "cfg": 2.0,
+    "cacheLimitBytes": 0,
+    "mlxMemoryHintBytes": 4000000000,
+    "processLimitBytes": 5000000000,
+    "watchdog": "lifetime physical footprint sampled every 200ms; not hard allocation limit",
+    "coordinator": "user-level resource lease, shared resource monitoring; 5GB experimental cap, not a production verified profile"
+  },
+  "download": {
+    "reason": "resume existing download using parallel HTTP byte ranges",
+    "existingPrefixBytes": 938475520,
+    "ranges": [
+      [
+        938475520,
+        1210223481
+      ],
+      [
+        1210223482,
+        1481971443
+      ],
+      [
+        1481971444,
+        1753719405
+      ],
+      [
+        1753719406,
+        2025467367
+      ],
+      [
+        2025467368,
+        2297215328
+      ]
+    ],
+    "modelBytes": 2297215329,
+    "sourceRevision": "c523466da1ff69acd148625cb011a552d580cb85",
+    "expectedSHA256": "25bddc99a7cc6d28214f12dd676ed0afa9b0a805d6477f85c275bb113cb8acee"
+  },
+  "attempts": [
+    {
+      "id": "01-clone-short-no-transcript",
+      "status": "completed",
+      "mode": "reference",
+      "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+      "reference": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+      "referenceTranscriptPassed": false,
+      "elapsedSeconds": 27.984,
+      "loadSeconds": 1.181785165972542,
+      "generationSeconds": 24.968547334021423,
+      "durationSeconds": 7.680166666666667,
+      "sampleRate": 48000,
+      "processPeakBytes": 4611640416,
+      "resourceSamplePeakBytes": 2892486464,
+      "stoppedBy": null,
+      "reportedError": null,
+      "clippedSamples": 0,
+      "possibleTokenLimit": false,
+      "audioPath": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/01-clone-short-no-transcript.wav",
+      "sha256": "d3a28a53a2edde69ed67462d2f2ffa4a621eaaec3b01d081863b03055493b755",
+      "humanListening": "pending"
+    },
+    {
+      "id": "05-influencer-short-no-transcript",
+      "status": "completed",
+      "mode": "reference",
+      "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+      "reference": "/Users/liu_y/code/music/public/tts-presets/influencer.wav",
+      "referenceTranscriptPassed": false,
+      "elapsedSeconds": 25.986,
+      "loadSeconds": 1.1424563330365345,
+      "generationSeconds": 24.13101012504194,
+      "durationSeconds": 6.5601666666666665,
+      "sampleRate": 48000,
+      "processPeakBytes": 4580674344,
+      "resourceSamplePeakBytes": 3455604328,
+      "stoppedBy": null,
+      "reportedError": null,
+      "clippedSamples": 0,
+      "possibleTokenLimit": false,
+      "audioPath": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/05-influencer-short-no-transcript.wav",
+      "sha256": "c9d86072df72ccaebf5761d3e8bebb108b6881c75912e9c82d974d828c3bd5fe",
+      "humanListening": {
+        "date": "2026-10-27",
+        "feedback": "还行，不是特别像，但是重音是对的。",
+        "scope": "仅该女网红短旁白"
+      }
+    },
+    {
+      "id": "02-clone-long-no-transcript",
+      "status": "failed",
+      "mode": "reference",
+      "text": "周末，我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张，正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得，有些东西虽然很久没见，却一直没有走远。",
+      "reference": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+      "referenceTranscriptPassed": false,
+      "elapsedSeconds": 72.649,
+      "loadSeconds": 1.8003707089810632,
+      "generationSeconds": null,
+      "durationSeconds": null,
+      "sampleRate": null,
+      "processPeakBytes": null,
+      "resourceSamplePeakBytes": 5041903400,
+      "stoppedBy": "resource_coordinator_5GB",
+      "reportedError": "Error: 任务实际占用超过内存预算，已停止",
+      "clippedSamples": null,
+      "possibleTokenLimit": null,
+      "audioPath": null,
+      "sha256": null,
+      "humanListening": "pending"
+    },
+    {
+      "id": "03-clone-short-with-transcript",
+      "status": "completed",
+      "mode": "combined",
+      "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+      "reference": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+      "referenceTranscriptPassed": true,
+      "elapsedSeconds": 22.929,
+      "loadSeconds": 1.5214250409626402,
+      "generationSeconds": 20.849690083006863,
+      "durationSeconds": 7.040166666666667,
+      "sampleRate": 48000,
+      "processPeakBytes": 4635708488,
+      "resourceSamplePeakBytes": 4470773208,
+      "stoppedBy": null,
+      "reportedError": null,
+      "clippedSamples": 0,
+      "possibleTokenLimit": null,
+      "audioPath": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/03-clone-short-with-transcript.wav",
+      "sha256": "9054830432e4f2f47332cc263fe72ce65d3934a4ecfeb03b2f88fd202f6cb416",
+      "humanListening": "pending"
+    },
+    {
+      "id": "04-narration-design-long",
+      "status": "failed",
+      "mode": "design",
+      "text": "周末，我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张，正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得，有些东西虽然很久没见，却一直没有走远。",
+      "reference": null,
+      "referenceTranscriptPassed": false,
+      "elapsedSeconds": 68.473,
+      "loadSeconds": 0.9144180830335245,
+      "generationSeconds": null,
+      "durationSeconds": null,
+      "sampleRate": null,
+      "processPeakBytes": null,
+      "resourceSamplePeakBytes": 4655355856,
+      "stoppedBy": "process_lifetime_peak_5GB",
+      "reportedError": "Error: 命令失败：75",
+      "clippedSamples": null,
+      "possibleTokenLimit": null,
+      "audioPath": null,
+      "sha256": null,
+      "humanListening": "pending"
+    },
+    {
+      "id": "06-long-segment-01",
+      "status": "completed",
+      "mode": "reference",
+      "text": "周末，我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。",
+      "reference": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+      "referenceTranscriptPassed": false,
+      "elapsedSeconds": 29.572,
+      "loadSeconds": 0.9232587090227753,
+      "generationSeconds": 27.025335374986753,
+      "durationSeconds": 9.440166666666666,
+      "sampleRate": 48000,
+      "processPeakBytes": 4745055400,
+      "resourceSamplePeakBytes": 4580022152,
+      "stoppedBy": null,
+      "reportedError": null,
+      "clippedSamples": 0,
+      "possibleTokenLimit": false,
+      "audioPath": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/06-long-segment-01.wav",
+      "sha256": "4638847d8cfe005d9f842a6c45ee40350658751adabe39b03083a463ce2798c2",
+      "humanListening": "pending"
+    },
+    {
+      "id": "06-long-segment-02",
+      "status": "failed",
+      "mode": "reference",
+      "text": "我随手翻了几张唱片，发现其中一张，正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。",
+      "reference": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+      "referenceTranscriptPassed": false,
+      "elapsedSeconds": 32.269,
+      "loadSeconds": 1.0590550829656422,
+      "generationSeconds": null,
+      "durationSeconds": null,
+      "sampleRate": null,
+      "processPeakBytes": null,
+      "resourceSamplePeakBytes": 3456259520,
+      "stoppedBy": "process_lifetime_peak_5GB",
+      "reportedError": "Error: 命令失败：75",
+      "clippedSamples": null,
+      "possibleTokenLimit": null,
+      "audioPath": null,
+      "sha256": null,
+      "humanListening": "pending"
+    },
+    {
+      "id": "06-long-segment-03",
+      "status": "failed",
+      "mode": "reference",
+      "text": "走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得，有些东西虽然很久没见，却一直没有走远。",
+      "reference": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+      "referenceTranscriptPassed": false,
+      "elapsedSeconds": 32.994,
+      "loadSeconds": 0.9854084579856135,
+      "generationSeconds": null,
+      "durationSeconds": null,
+      "sampleRate": null,
+      "processPeakBytes": null,
+      "resourceSamplePeakBytes": 4026193536,
+      "stoppedBy": "process_lifetime_peak_5GB",
+      "reportedError": "Error: 命令失败：75",
+      "clippedSamples": null,
+      "possibleTokenLimit": null,
+      "audioPath": null,
+      "sha256": null,
+      "humanListening": "pending"
+    },
+    {
+      "id": "07-long-sentence-01",
+      "status": "completed",
+      "mode": "reference",
+      "text": "我随手翻了几张唱片，发现其中一张，正是很多年前在朋友家听过的。",
+      "reference": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+      "referenceTranscriptPassed": false,
+      "elapsedSeconds": 25.716,
+      "loadSeconds": 1.2519412499968894,
+      "generationSeconds": 23.255336667003576,
+      "durationSeconds": 6.400166666666666,
+      "sampleRate": 48000,
+      "processPeakBytes": 4517203064,
+      "resourceSamplePeakBytes": 4359969032,
+      "stoppedBy": null,
+      "reportedError": null,
+      "clippedSamples": 0,
+      "possibleTokenLimit": false,
+      "audioPath": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/07-long-sentence-01.wav",
+      "sha256": "3955432ed5e9aa64db6cb8734c5575b5e635ad6d05fdea5cc8fc8b7a9b2c4a29",
+      "humanListening": "pending"
+    },
+    {
+      "id": "07-long-sentence-02",
+      "status": "completed",
+      "mode": "reference",
+      "text": "那时候，我们总觉得以后的日子还很长。",
+      "reference": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+      "referenceTranscriptPassed": false,
+      "elapsedSeconds": 15.922,
+      "loadSeconds": 1.2480103329871781,
+      "generationSeconds": 14.037141375010833,
+      "durationSeconds": 4.6401666666666666,
+      "sampleRate": 48000,
+      "processPeakBytes": 4207201400,
+      "resourceSamplePeakBytes": 3692434952,
+      "stoppedBy": null,
+      "reportedError": null,
+      "clippedSamples": 0,
+      "possibleTokenLimit": false,
+      "audioPath": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/07-long-sentence-02.wav",
+      "sha256": "99ff5bb696f5e6a2f83ac6dbb78b8a8ffa1485d561581ecea550108ffc0728c1",
+      "humanListening": "pending"
+    },
+    {
+      "id": "07-long-sentence-03",
+      "status": "completed",
+      "mode": "reference",
+      "text": "走出店门，天已经暗了，路口的灯一盏接一盏亮起来。",
+      "reference": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+      "referenceTranscriptPassed": false,
+      "elapsedSeconds": 17.76,
+      "loadSeconds": 0.9498200829839334,
+      "generationSeconds": 16.289702541951556,
+      "durationSeconds": 5.6001666666666665,
+      "sampleRate": 48000,
+      "processPeakBytes": 4223142960,
+      "resourceSamplePeakBytes": 4122384000,
+      "stoppedBy": null,
+      "reportedError": null,
+      "clippedSamples": 0,
+      "possibleTokenLimit": false,
+      "audioPath": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/07-long-sentence-03.wav",
+      "sha256": "1ca1ad43f9a75922aa239d918bd4673b12bbab1ab7a4739116652396d39a3281",
+      "humanListening": "pending"
+    },
+    {
+      "id": "07-long-sentence-04",
+      "status": "completed",
+      "mode": "reference",
+      "text": "我忽然觉得，有些东西虽然很久没见，却一直没有走远。",
+      "reference": "/Users/liu_y/code/music/public/tts-presets/official.wav",
+      "referenceTranscriptPassed": false,
+      "elapsedSeconds": 18.347,
+      "loadSeconds": 1.1421492919907905,
+      "generationSeconds": 16.6704089580453,
+      "durationSeconds": 5.280166666666666,
+      "sampleRate": 48000,
+      "processPeakBytes": 4331146312,
+      "resourceSamplePeakBytes": 3264386544,
+      "stoppedBy": null,
+      "reportedError": null,
+      "clippedSamples": 0,
+      "possibleTokenLimit": false,
+      "audioPath": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/07-long-sentence-04.wav",
+      "sha256": "2a93152c56dae435dfc6f6eb687ab30099baa7752dfd200151c7c2ae5f078228",
+      "humanListening": "pending"
+    }
+  ],
+  "segmentedOutput": {
+    "status": "generated",
+    "method": "5 sequential model calls, concatenated without processing",
+    "text": "周末，我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张，正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得，有些东西虽然很久没见，却一直没有走远。",
+    "segments": [
+      "06-long-segment-01",
+      "07-long-sentence-01",
+      "07-long-sentence-02",
+      "07-long-sentence-03",
+      "07-long-sentence-04"
+    ],
+    "durationSeconds": 31.360833333333332,
+    "maxProcessPeakBytes": 4745055400,
+    "totalGenerationSeconds": 97.27792491699802,
+    "totalLoadSeconds": 5.515179666981567,
+    "sha256": "6d39fd99ee5701a7b36a1bb2d27c5f95b7023c827d7d0fdd5e2c13ccbb31c251",
+    "audioPath": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/08-official-clone-long-segmented.wav",
+    "humanListening": "用户听评：表演感明显，内容可用；与 IndexTTS 既有听感相近"
+  },
+  "independentASR": {
+    "results": [
+      {
+        "name": "01-clone-short-no-transcript",
+        "audio": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/01-clone-short-no-transcript.wav",
+        "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "transcription": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "matchIgnoringPunctuation": true,
+        "characterSimilarity": 1.0
+      },
+      {
+        "name": "05-influencer-short-no-transcript",
+        "audio": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/05-influencer-short-no-transcript.wav",
+        "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "transcription": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "matchIgnoringPunctuation": true,
+        "characterSimilarity": 1.0
+      },
+      {
+        "name": "03-clone-short-with-transcript",
+        "audio": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/03-clone-short-with-transcript.wav",
+        "text": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "transcription": "下午的阳光落在窗边，咖啡还有一点温热。我们不急着出发，先把这首歌听完，再慢慢走回家。",
+        "matchIgnoringPunctuation": true,
+        "characterSimilarity": 1.0
+      },
+      {
+        "name": "08-official-clone-long-segmented",
+        "audio": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27/samples/08-official-clone-long-segmented.wav",
+        "text": "周末，我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张，正是很多年前在朋友家听过的。那时候，我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得，有些东西虽然很久没见，却一直没有走远。",
+        "transcription": "周末我去了一家藏在巷子里的旧唱片店。老板没有急着介绍，只是把正在播放的音乐调小了一点。我随手翻了几张唱片，发现其中一张正是很多年前在朋友家听过的。那时候我们总觉得以后的日子还很长。走出店门，天已经暗了，路口的灯一盏接一盏亮起来。我忽然觉得有些东西虽然很久没见，却一直没有走远。",
+        "matchIgnoringPunctuation": true,
+        "characterSimilarity": 1.0
+      }
+    ],
+    "asrModel": "Qwen3-ASR-0.6B local",
+    "peakBytes": 3059861232
+  },
+  "userReview": {
+    "date": "2026-10-27",
+    "feedback": "还行，不是特别像，但是重音是对的。",
+    "scope": "仅该女网红短旁白"
+  },
+  "comparisons": {
+    "breezeOfficialShort": {
+      "generationSeconds": 8.843719958997099,
+      "durationSeconds": 8.64,
+      "processPeakBytes": 4355820928
+    },
+    "breezeOfficialLong": {
+      "generationSeconds": 43.07747533399379,
+      "durationSeconds": 44.48,
+      "processPeakBytes": 4374826416
+    },
+    "caveat": "same machine, text and reference, but different models, generation modes, decoding and audio durations; no blind listening comparison"
+  },
+  "filesRoot": "/Users/liu_y/Music/VoxCPM2-Trial/2026-10-27",
+  "prosodyComparisonReview": {
+    "date": "2026-10-27",
+    "scope": "VoxCPM2 分段长旁白、Breeze 长旁白和用户以往 IndexTTS 听感",
+    "feedback": "VoxCPM2 和 IndexTTS 有点像，都有点戏精的语气，虽然没啥大问题，但是一听就知道是表演性质，正常人都不会这么说话；Breeze 是那种深夜电台的语气，情感丰富，但是不大像姜文，可能参考音色没作用。",
+    "assessment": "主观听评；参考音色是否生效待对照，不能据此断言无效。"
+  }
+}
