@@ -31,6 +31,10 @@ Breeze 参考声音对照显示：本次只更换参考录音时，生成的时�
 
 这些记录来自同一台 M4 / 32 GiB，但**不是同台词、同音色、同测量方法的公平速度或音质排名**。IndexTTS 的历史峰值包含采样误差，Breeze 本次使用内核记录的进程生命周期峰值；均不能外推为任意输入的内存上限。
 
+## 同正文、同参考的三款克隆
+
+使用同一段正文与合成女声参考，并将试听音量粗略对齐后，用户对 Breeze、VoxCPM2 和 IndexTTS 的整体评价是：**各有利弊，没办法直接排名**。没有逐项评分，这不是盲听结果，也不能推断哪款更像参考或更自然。IndexTTS 在首次内存监测失败后，保留失败记录并完成同条件生成；这次未复现错误，原因尚不确定。[同参考对照记录](testing/verification-tts-clone-comparison-2026-10-27.md)保存音频条件、耗时和内存口径。
+
 ## 替换范围与兼容规则
 
 | 项目功能 | 引擎与规则 |
@@ -55,6 +59,7 @@ Breeze 参考声音对照显示：本次只更换参考录音时，生成的时�
 - [2026-10-26 Breeze 本机试听与低内存试验](testing/verification-breeze-2026-10-26.md)：本次选型证据。
 - [2026-10-27 VoxCPM2 与 Breeze 对照](testing/verification-voxcpm-2026-10-27.md)：候选能力、资源及听评边界。
 - [2026-10-27 Breeze 参考声音对照](testing/verification-breeze-reference-2026-10-27.md)：同正文、同文字稿、只换参考录音的试验。
+- [2026-10-27 三款同参考克隆试听](testing/verification-tts-clone-comparison-2026-10-27.md)：一致正文与合成参考、用户整体反馈及不同的资源测量口径。
 - [IndexTTS 原生引擎历史验收](tts-native-engine.md)：原生迁移、收尾修复与用户听评；其中历史常驻模式不代表当前生命周期。
 - [2026-10-10 固定引擎资源档案](design/model-resource-evidence.json)：指定输入的进程组资源采样。
 - [IndexTTS 历史内存诊断](tts-memory.md)：旧 Python 方案的成本及排查结果。
