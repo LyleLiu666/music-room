@@ -2900,3 +2900,5 @@ body:has(#dialog[open]) #global-status-bar{visibility:hidden}
 .task-title-link:focus-visible{outline:2px solid var(--accent);outline-offset:3px;border-radius:3px}
 
 .music-attempts{list-style:none;padding:0;margin:0}.music-attempts li{padding:1rem 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.music-attempts li:last-child{border-bottom:0}.music-attempts p{margin:.5rem 0}
+
+.welcome-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;width:min(100%,520px);margin:20px auto}.welcome-options button{display:flex;flex-direction:column;gap:6px;padding:20px;white-space:normal}.welcome-options small{font-weight:400}.welcome{min-width:0}.welcome p{max-width:560px;margin:12px auto}#backup-commands{width:100%;box-sizing:border-box;font-family:monospace}

@@ -1,3 +1,4 @@
+import {streamAudioFile} from './audio-file.ts';
 import {lyricsLrc} from '../service/studio/lyrics.ts';
 import {exportMp3} from '../service/studio/mp3.ts';
 import {BufferGate,importRequest,readAudioUpload} from './resource-io.ts';
@@ -97,6 +98,7 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
       if(path.startsWith('/artifacts/')) {
         if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
         const parts=path.slice(11).split('/');if(parts.length!==3)throw new ServiceError('NOT_FOUND','产物不存在');
+        if(url.searchParams.get('format')!=='mp3'){await audioBuffers.run(controller.signal,async()=>{const {metadata,file}=await service.store.openArtifact(parts[0],parts[1],parts[2],controller.signal);await streamAudioFile(req,res,file,metadata.bytes,controller.signal,`${parts[2]}.wav`);});return;}
         await audio('audio/wav',async()=>(await service.store.artifact(parts[0],parts[1],parts[2])).bytes,`${parts[2]}.wav`,'attachment');return;
       }
       if(path.startsWith('/yue2-audio/')) {

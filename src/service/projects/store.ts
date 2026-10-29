@@ -1,4 +1,5 @@
-import {readAudioFile,verifyAudioFile} from './audio-files.ts';
+import {acquireWorkspace,assertWorkspaceComplete} from './workspace-ownership.ts';
+import {readAudioFile,verifyAudioFile,openVerifiedAudioFile} from './audio-files.ts';
 import { randomUUID, createHash } from 'node:crypto';
 import { mkdirSync, openSync, closeSync, writeFileSync, readFileSync, renameSync, unlinkSync, rmSync, readdirSync, lstatSync, realpathSync, fsyncSync } from 'node:fs';
 import { resolve, join, relative, sep } from 'node:path';
@@ -16,40 +17,20 @@ export type Revision = { id: string; label: string; parentId?: string; scorePath
 export type Project = { format: 'music-room-project'; version: 1; id: string; title: string; requirements: string; deleted?:boolean; purged?:boolean; removedRevisionIds?:string[]; defaultRevisionId?: string; revisions: Revision[] };
 export type Feedback = { id: string; revisionId: string; text: string; range?: {start:number;end:number}; createdAt: string };
 function fail(code: string, message: string): never { throw new ServiceError(code,message); }
-const alive = (pid: number) => { try { process.kill(pid,0); return true; } catch (e: any) { return e.code !== 'ESRCH'; } };
 const exists = (path: string) => { try { lstatSync(path); return true; } catch (e: any) { if (e.code==='ENOENT') return false; throw e; } };
 
 /** One owner per workspace. Files, not browser state, are the durable source of truth. */
 export class ProjectStore {
   root: string;
-  private owner = randomUUID();
+  private releaseOwnership=()=>{};
   private closed = false;
   private pending: Promise<unknown> = Promise.resolve();
   private constructor(root: string) { this.root = root; }
   static async open(directory: string) {
     const absolute = resolve(directory); mkdirSync(absolute,{recursive:true,mode:0o700});
     const store = new ProjectStore(realpathSync(absolute));
-    const lock = join(store.root,'.music-room.lock');
-    try {
-      const fd = openSync(lock,'wx',0o600);
-      try { writeFileSync(fd,JSON.stringify({pid:process.pid,owner:store.owner})); fsyncSync(fd); } finally { closeSync(fd); }
-    } catch (error: any) {
-      if (error.code!=='EEXIST') throw error;
-      if (lstatSync(lock).isSymbolicLink()) fail('UNSAFE_PATH','锁文件不能是符号链接');
-      let old: any;
-      try { old = JSON.parse(readFileSync(lock,'utf8')); } catch { fail('WORKSPACE_LOCKED','工作目录锁损坏，请先检查原服务'); }
-      if (!Number.isInteger(old.pid) || old.pid<=0 || alive(old.pid)) fail('WORKSPACE_LOCKED','工作目录正在使用，请连接已有服务');
-      // Stale locks are recovered with an exclusive recovery lock, never by racing unlink/open.
-      const recovery = join(store.root,'.music-room.recovery');
-      let recoveryFd: number;
-      try { recoveryFd = openSync(recovery,'wx',0o600); } catch { return fail('WORKSPACE_LOCKED','工作目录正在恢复锁，请稍后重试'); }
-      try {
-        const now = JSON.parse(readFileSync(lock,'utf8'));
-        if (now.owner!==old.owner || alive(now.pid)) fail('WORKSPACE_LOCKED','工作目录正在使用');
-        unlinkSync(lock); const fd = openSync(lock,'wx',0o600);
-        try { writeFileSync(fd,JSON.stringify({pid:process.pid,owner:store.owner})); fsyncSync(fd); } finally { closeSync(fd); }
-      } finally { closeSync(recoveryFd); unlinkSync(recovery); }
-    }
+    assertWorkspaceComplete(store.root);
+    store.releaseOwnership=acquireWorkspace(store.root);
     try { mkdirSync(store.path('projects'),{recursive:true}); mkdirSync(store.path('jobs'),{recursive:true}); }
     catch (error) { await store.close(); throw error; }
     return store;
@@ -192,6 +173,11 @@ export class ProjectStore {
   async verifyArtifact(projectId:string,revisionId:string,id:string){
     const a=await this.artifactRecord(projectId,revisionId,id);verifyAudioFile(this.path('projects',projectId,a.path),a.sha256,undefined,a.bytes);return {metadata:a};
   }
+  async openArtifact(projectId:string,revisionId:string,id:string,signal:AbortSignal){
+    const metadata=await this.artifactRecord(projectId,revisionId,id);
+    const file=await openVerifiedAudioFile(this.path('projects',projectId,metadata.path),metadata.sha256,metadata.bytes,signal);
+    return {metadata,file};
+  }
   async artifact(projectId: string, revisionId: string, id: string) {
     const a=await this.artifactRecord(projectId,revisionId,id);
     const bytes = readAudioFile(this.path('projects',projectId,a.path),undefined,a.bytes);
@@ -201,8 +187,7 @@ export class ProjectStore {
   async close() {
     await this.pending;
     if (this.closed) return;
-    const lock = this.path('.music-room.lock');
-    if (exists(lock) && JSON.parse(readFileSync(lock,'utf8')).owner===this.owner) unlinkSync(lock);
+    this.releaseOwnership();
     this.closed = true;
   }
 }

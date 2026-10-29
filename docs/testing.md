@@ -37,6 +37,8 @@ TTS 候选横向比较见[本机 TTS 模型选型](tts-model-selection.md)，模
 | [执行指南](testing/running.md) | 命令怎么运行，怎样准备隔离环境、保存证据和清理 |
 | [固定语料与听评](testing/quality.md) | 输入、种子、模型效果评分和歌词真值如何验收 |
 | [维护规则](testing/maintenance.md) | 新增 / 修改 / 删除用例，处理失败与维护基线时遵循什么规则 |
+| [2026-10-29 审查修复与本机安装](testing/verification-review-fixes-2026-10-29.md) | 备份异常中断、恢复完成协议、只读文件、音频请求归属与发布安装 |
+| [2026-10-29 首次创作、备份与读取成本](testing/verification-ux-performance-2026-10-29.md) | 快速创作、停服备份恢复、刷新降频、音频缓存与产物区间读取 |
 | [2026-10-26 AI 编曲与 MCP 指南](testing/verification-music-agent-2026-10-26.md) | 创作入口、乐器轮换与 riff 变奏指南、MCP 发现与独立包验证 |
 | [2026-10-26 目标时长修复](testing/verification-duration-2026-10-26.md) | 短谱误接受复现、乐谱与最终音频检查、专项验证及本机更新 |
 | [2026-10-23 执行记录](testing/verification-2026-10-23.md) | 这一次实际通过、失败或未完成了什么 |

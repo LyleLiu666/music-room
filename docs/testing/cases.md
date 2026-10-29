@@ -91,3 +91,14 @@ HTTP 新建操作的契约区别：带 `requestId` 的保存 / 转换等操作�
 | TTS-BREEZE-02 | 固定程序与模型、正文和参考边界匹配才允许 5 GB 预约；修改身份或越界不放行 | `src/service/resources/profiles.test.ts` |
 | TTS-BREEZE-03 | 文字稿草稿和再创作可恢复；换音色清空旧稿；小屏幕保持可提交 | `scripts/verify-emotion-strength-ui.test.mjs`、`scripts/verify-studio-conversion-ui.test.mjs` |
 | TTS-BREEZE-04 | 真实流式短句、分段长文、长参考资源边界、IndexTTS 兼容及取消不发布半成品 | `scripts/verify-breeze-real.ts` |
+
+
+## 首次使用、备份与读取成本
+
+| ID | 场景与预期 | 断言位置 |
+| --- | --- | --- |
+| FIRST-USE-01 | 空工作区选择创作类型，一次命名进入表单；确认生成前没有版本；刷新已有项目不再展示欢迎入口；窄屏不横溢 | `scripts/verify-first-use-ui.test.mjs` |
+| BACKUP-02 | 停服备份保留历史与未知文件、空目录和权限；拒绝运行中、损坏状态、链接和重叠目录；备份 SIGKILL 后源目录仍能打开、恢复 SIGKILL 后残缺目录拒绝打开；只读文件原权限保留；拒绝覆盖目标；校验发现增删、同尺寸篡改和清单异常；CLI 恢复后工作区可打开 | `src/server/workspace-backup.test.ts` |
+| REFRESH-01 | 活跃任务 1.8 秒、空闲 10 秒、隐藏 30 秒；隐藏不采样监控；时钟推进后页面继续同步，播放菜单保持打开 | `src/workbench/studio/refresh-loop.test.ts`、`scripts/verify-monitor-ui.test.mjs`、`scripts/verify-player-menu-ui.test.mjs` |
+| AUDIO-READ-01 | 同路径并发读取共用 URL；失败可重试；容量预算、活动播放器保留与清理有效；删除无关版本不取消当前音频读取；指定路径取消与页面销毁分别验证 | `src/workbench/studio/audio-cache.test.ts`、`scripts/verify-audio-loading-ui.test.mjs` |
+| AUDIO-RANGE-01 | 乐谱 WAV 产物支持完整与单区间读取；鉴权、来源、原件哈希、路径保护有效；断开释放门控；MP3 导出保持原行为 | `src/server/audio-file.test.ts` |

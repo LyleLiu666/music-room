@@ -18,26 +18,27 @@ test('sidebar monitor stays visible across pages, keeps navigation above it and 
   return route.fulfill({json:{projects:[{id:'p',title:'项目'}],sounds:[],versions:[],voices:[],engines:{speech:{logs:[],message:'测试语音'},music:{logs:[],message:'测试音乐'},conversion:{message:'测试转换'}}}});
  });
  await page.addInitScript(()=>localStorage.setItem('music-room-studio:monitor-test',JSON.stringify({workspaceView:'monitor'})));
+ await page.clock.install();
  await page.goto(server.resolvedUrls.local[0]);await page.locator('.sidebar #machine-monitor').waitFor();
  assert.equal(await page.locator('[data-action="monitor"]').count(),0);
  assert.equal(await page.getByRole('heading',{name:'监控',exact:true}).count(),0);
  assert.equal(await page.getByText('保存在本机',{exact:true}).count(),0);
  await page.getByText('12.0 GiB',{exact:true}).waitFor();assert.ok(await page.getByText('采样中',{exact:true}).count()>0);
- await page.getByText('压力正常',{exact:true}).waitFor();await page.getByText('本程序可再用约 31.0 GiB',{exact:true}).waitFor();await page.getByText('62.5%',{exact:true}).waitFor();await page.getByText('37.5%',{exact:true}).waitFor();
+ await page.getByText('压力正常',{exact:true}).waitFor();await page.getByText('本程序可再用约 31.0 GiB',{exact:true}).waitFor();await page.clock.fastForward(10000);await page.getByText('62.5%',{exact:true}).waitFor();await page.getByText('37.5%',{exact:true}).waitFor();
  const layout=await page.locator('.sidebar').evaluate(el=>{const rect=s=>{const r=el.querySelector(s).getBoundingClientRect();return {top:r.top,bottom:r.bottom,height:r.height};};return {pagination:rect('#project-pagination'),nav:rect('.sidebar-libraries'),monitor:rect('#machine-monitor'),settings:rect('[data-action="settings"]')};});
  assert.ok(layout.monitor.top-layout.nav.bottom<=16,'navigation sits directly above resource monitor');assert.equal(await page.locator('.sidebar-libraries .library-entry').first().evaluate(el=>getComputedStyle(el).fontSize),'16px');assert.ok(layout.nav.bottom<=layout.monitor.top);assert.ok(layout.monitor.bottom<=layout.settings.top);assert.ok(900-layout.settings.bottom<35);assert.ok(layout.monitor.height<150,'compact sidebar resource table');
- await page.locator('.monitor-details summary').click();await page.locator('.monitor-details').getByText('64.0 GiB',{exact:true}).waitFor();assert.equal(await page.locator('.monitor-details dt').count(),4);assert.ok(await page.locator('#machine-monitor').evaluate(el=>el.getBoundingClientRect().height)<240);await page.locator('#machine-monitor').screenshot({path:'test-results/monitor-compact-details.png'});await page.waitForTimeout(2300);assert.equal(await page.locator('.monitor-details').evaluate(el=>el.open),true);await page.locator('.monitor-details summary').click();
+ await page.locator('.monitor-details summary').click();await page.locator('.monitor-details').getByText('64.0 GiB',{exact:true}).waitFor();assert.equal(await page.locator('.monitor-details dt').count(),4);assert.ok(await page.locator('#machine-monitor').evaluate(el=>el.getBoundingClientRect().height)<240);await page.locator('#machine-monitor').screenshot({path:'test-results/monitor-compact-details.png'});await page.clock.fastForward(10000);await page.waitForTimeout(100);assert.equal(await page.locator('.monitor-details').evaluate(el=>el.open),true);await page.locator('.monitor-details summary').click();
  await mkdir('test-results/monitor',{recursive:true});
  for(const theme of ['light','dark']){await page.locator(`[data-theme-choice="${theme}"]`).first().click();await page.screenshot({path:`test-results/monitor/sidebar-${theme}-desktop.png`,fullPage:true});}
- await page.getByRole('button',{name:'任务列表',exact:true}).click();await page.getByRole('heading',{name:'任务列表',exact:true}).waitFor();const before=samples;await page.waitForFunction(()=>document.querySelector('.sidebar #machine-monitor'));await page.waitForTimeout(2300);assert.ok(samples>before,'monitor keeps sampling on other pages');
+ await page.getByRole('button',{name:'任务列表',exact:true}).click();await page.getByRole('heading',{name:'任务列表',exact:true}).waitFor();const before=samples;await page.waitForFunction(()=>document.querySelector('.sidebar #machine-monitor'));await page.clock.fastForward(10000);await page.waitForTimeout(100);assert.ok(samples>before,'monitor keeps sampling on other pages');
  assert.equal(await page.getByText('统计说明',{exact:true}).count(),0);
  // Same CSS viewport as 1440×912 at 200% browser zoom. The fixed transport
  // spans the sidebar here, so scrolling must expose Settings above it.
  await page.setViewportSize({width:720,height:456});await page.locator('[data-action="settings"]').click();await page.getByRole('dialog').waitFor();await page.keyboard.press('Escape');
  await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'test-results/monitor/sidebar-mobile.png',fullPage:true});
  await page.reload();await page.locator('.sidebar #machine-monitor').waitFor();await page.getByText('12.0 GiB',{exact:true}).waitFor();
- offline=true;await page.getByText('暂不可用',{exact:true}).first().waitFor();assert.equal(await page.getByText('12.0 GiB',{exact:true}).count(),0);
- offline=false;await page.getByText('12.0 GiB',{exact:true}).waitFor();
- await page.evaluate(()=>Object.defineProperty(document,'hidden',{configurable:true,value:true}));const hiddenSamples=samples;await page.waitForTimeout(2300);assert.equal(samples,hiddenSamples);
- await page.evaluate(()=>{delete document.hidden;document.dispatchEvent(new Event('visibilitychange'));});await page.waitForTimeout(2300);assert.ok(samples>hiddenSamples);assert.deepEqual(errors,[]);
+ offline=true;await page.clock.fastForward(10000);await page.getByText('暂不可用',{exact:true}).first().waitFor();assert.equal(await page.getByText('12.0 GiB',{exact:true}).count(),0);
+ offline=false;await page.clock.fastForward(10000);await page.getByText('12.0 GiB',{exact:true}).waitFor();
+ await page.evaluate(()=>Object.defineProperty(document,'hidden',{configurable:true,value:true}));const hiddenSamples=samples;await page.clock.fastForward(10000);await page.waitForTimeout(100);assert.equal(samples,hiddenSamples);
+ await page.evaluate(()=>{delete document.hidden;document.dispatchEvent(new Event('visibilitychange'));});await page.clock.fastForward(10000);await page.waitForTimeout(100);assert.ok(samples>hiddenSamples);assert.deepEqual(errors,[]);
 });

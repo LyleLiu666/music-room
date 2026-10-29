@@ -40,7 +40,7 @@ cp release/music-room release/start.sh "$HOME/Applications/MusicRoom/"
 
 没有 `.app`、安装器、桌面外壳、Developer ID 或公证流程。macOS 可执行文件本身的本地有效性由构建工具处理，不要求用户申请 Apple 开发者账号。
 
-项目在 `projects/<项目 ID>/` 下；版本原件为 `revisions/<版本 ID>/score.json`，后台音频为对应目录中的 `job-….wav`。清理浏览器不会删除项目。停止服务后复制整个工作目录可备份或迁移，模型/运行时无需复制到每个项目。
+项目在 `projects/<项目 ID>/` 下；版本原件为 `revisions/<版本 ID>/score.json`，后台音频为对应目录中的 `job-….wav`。清理浏览器不会删除项目。使用下面的备份命令保存整个工作目录；模型/运行时无需复制到每个项目。
 
 模型资源与取消、预算、支持范围见[本机模型与资源](model-resources.md)。准备好文件后保持空闲，所有重型任务共用队列。
 
@@ -114,3 +114,28 @@ SDK、解码器与运行时版本变更后必须重跑独立验收。Bun 打包�
 源代码运行可用 `npm run build`、`npm run serve -- --workspace <目录>`，启动后可关闭终端，此模式使用现有开发 Node 和 `dist`。停止使用 `node src/server/dev.ts stop --workspace <目录>`；需要前台调试时使用 `node src/server/dev.ts serve --workspace <目录>`。服务测试为 `npm run test:service`，浏览器服务验证为 `npm run verify:service`，包含听评保存期间继续编辑/切换版本、保存失败和首次连接失败后的版本链接恢复；静态网页仍可用 `npm run dev`。
 
 产品、存储与逐轮设计见[本地服务方案](design/local-service.md)。音色与组件声明见[署名页](../public/credits.html)和[服务依赖说明](../public/service-licenses.txt)。
+
+
+## 备份与恢复
+
+设置 →「备份与恢复」会生成适合当前启动方式与工作目录的命令。等待生成任务结束，复制命令后在终端逐行执行；每行成功后再执行下一行。源码开发启动时，把下例的 `music-room` 换成 `node src/server/dev.ts`。
+
+```sh
+music-room stop --workspace "$HOME/Music/MusicRoom"
+music-room backup --workspace "$HOME/Music/MusicRoom" --destination "$HOME/Music/MusicRoom-backup-2026-10-29"
+music-room verify-backup --backup "$HOME/Music/MusicRoom-backup-2026-10-29"
+music-room start --workspace "$HOME/Music/MusicRoom"
+```
+
+目标目录必须尚不存在，并且不能位于来源目录内。备份保留文件、空目录与执行权限，逐文件记录大小和 SHA-256，再校验副本；清单位于备份根目录，实际工作目录位于其 `workspace/`。只排除根目录的临时服务锁与连接令牌文件。运行中、状态不明、符号链接或特殊文件会明确拒绝，不静默跳过文件。目录中的模型文件也会复制，需预留对应空间；目录外的模型和运行环境不会复制。含符号链接的 Python 环境目前不能用此命令备份，不应为绕过检查而删除原环境。
+
+恢复会先验证清单，再复制到新目录并复验，不覆盖原来的作品：
+
+```sh
+music-room restore-backup --backup "$HOME/Music/MusicRoom-backup-2026-10-29" --destination "$HOME/Music/MusicRoom-restored"
+music-room start --workspace "$HOME/Music/MusicRoom-restored"
+```
+
+恢复中断后，目标目录会保留“恢复未完成”标记，服务拒绝打开该目录，避免把部分文件当成完整作品。请使用原备份恢复到另一个新目录，不要手工删除标记绕过校验。备份进程异常退出后，其普通工作目录锁可由服务重新启动时回收。
+
+使用新服务输出的地址打开恢复目录。浏览器草稿未包含在备份中；需要保留的文字应先提交或另存。外部模型路径仍指向原位置，迁移到其他电脑时需重新配置。备份包含私人作品和工作目录内配置，应妥善保管。校验用于发现损坏，不提供加密或防篡改签名。

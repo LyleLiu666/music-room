@@ -20,6 +20,15 @@ const env={...process.env,PATH:'/usr/bin:/bin'};let client,httpClient,browser;
 const results=[];
 try {
   assert.match(execFileSync(binary,['--help'],{cwd:root,env,encoding:'utf8'}),/stdio MCP/);results.push('copied executable runs without Node/Bun in PATH');
+  const backupSource=join(root,'backup-source'),backupTarget=join(root,'backup-copy'),restored=join(root,'backup-restored');
+  await mkdir(backupSource);await writeFile(join(backupSource,'readonly.json'),'{}');await chmod(join(backupSource,'readonly.json'),0o444);
+  const backupCall=args=>JSON.parse(execFileSync(binary,args,{cwd:root,env,encoding:'utf8',timeout:10000}));
+  assert.equal(backupCall(['backup','--workspace',backupSource,'--destination',backupTarget]).fileCount,1);
+  assert.equal(backupCall(['verify-backup','--backup',backupTarget]).fileCount,1);
+  assert.equal(backupCall(['restore-backup','--backup',backupTarget,'--destination',restored]).fileCount,1);
+  assert.equal(await readFile(join(restored,'readonly.json'),'utf8'),'{}');assert.equal((await stat(join(restored,'readonly.json'))).mode&0o777,0o444);
+  results.push('compiled backup, verify and restore preserve read-only files without starting models');
+
   const connect=async()=> {const transport=new StdioClientTransport({command:binary,args:['mcp','--workspace',workspace],cwd:root,env,stderr:'pipe'});const client=new Client({name:'binary-agent',version:'1'});await client.connect(transport);return client;};
   client=await connect();
   const tool=async(name,args={})=>{const r=await client.callTool({name,arguments:args});assert.ok(!r.isError,JSON.stringify(r));return JSON.parse(r.content[0].text);};

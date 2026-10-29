@@ -10,3 +10,17 @@ export function readAudioFile(path:string,limit=maxAudioBytes,expectedBytes?:num
 export function verifyAudioFile(path:string,sha256:string,limit=maxAudioBytes,expectedBytes?:number){
  const fd=openSync(path,constants.O_RDONLY|(constants.O_NOFOLLOW??0));try{const info=fstatSync(fd);if(!info.isFile()||info.size>limit||expectedBytes!==undefined&&info.size!==expectedBytes)throw new ServiceError('SOURCE_CHANGED','音频文件长度发生变化');const hash=createHash('sha256'),chunk=Buffer.allocUnsafe(65536);let at=0;while(at<info.size){const count=readSync(fd,chunk,0,Math.min(chunk.length,info.size-at),at);if(!count)throw new ServiceError('SOURCE_CHANGED','音频读取期间发生变化');hash.update(chunk.subarray(0,count));at+=count;}if(fstatSync(fd).size!==info.size||hash.digest('hex')!==sha256)throw new ServiceError('SOURCE_CHANGED','音频原件哈希不符');}finally{closeSync(fd);}
 }
+
+/** Verify and stream from the same descriptor, keeping memory bounded and paths
+ * immune to replacement between the integrity check and opening the response. */
+export async function openVerifiedAudioFile(path:string,sha256:string,expectedBytes:number,signal:AbortSignal){
+ const {open}=await import('node:fs/promises');
+ const file=await open(path,constants.O_RDONLY|(constants.O_NOFOLLOW??0));
+ try{
+  const before=await file.stat();if(!before.isFile()||before.size!==expectedBytes||before.size>maxAudioBytes)throw new ServiceError('SOURCE_CHANGED','音频文件长度发生变化');
+  const digest=createHash('sha256'),chunk=Buffer.allocUnsafe(65536);let at=0;
+  while(at<before.size){signal.throwIfAborted();const {bytesRead}=await file.read(chunk,0,Math.min(chunk.length,before.size-at),at);if(!bytesRead)throw new ServiceError('SOURCE_CHANGED','音频文件读取期间发生变化');digest.update(chunk.subarray(0,bytesRead));at+=bytesRead;}
+  const after=await file.stat();if(after.size!==before.size||after.mtimeMs!==before.mtimeMs||digest.digest('hex')!==sha256)throw new ServiceError('SOURCE_CHANGED','音频原件哈希不符');
+  signal.throwIfAborted();return file;
+ }catch(e){await file.close();throw e;}
+}
