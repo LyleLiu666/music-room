@@ -37,6 +37,9 @@ TTS 候选横向比较见[本机 TTS 模型选型](tts-model-selection.md)，模
 | [执行指南](testing/running.md) | 命令怎么运行，怎样准备隔离环境、保存证据和清理 |
 | [固定语料与听评](testing/quality.md) | 输入、种子、模型效果评分和歌词真值如何验收 |
 | [维护规则](testing/maintenance.md) | 新增 / 修改 / 删除用例，处理失败与维护基线时遵循什么规则 |
+| [2026-11-08 音效接入与复验](testing/verification-sound-effects-integration-2026-11-08.md) | 固定模型、MCP 与声音库、内存保护、取消、备份和已知待验收项 |
+| [2026-11-07 语音工作区 UX](testing/verification-voicestudio-ux-2026-11-07.md) | 正文/参考音色双栏、TXT 导入、草稿恢复与浏览器回归 |
+| [2026-10-29 目标时长重规划反馈](testing/verification-duration-feedback-2026-10-29.md) | 实测谱长偏差反馈、上下文预算保护、规则回归与真实模型内存压力阻塞 |
 | [2026-10-29 审查修复与本机安装](testing/verification-review-fixes-2026-10-29.md) | 备份异常中断、恢复完成协议、只读文件、音频请求归属与发布安装 |
 | [2026-10-29 首次创作、备份与读取成本](testing/verification-ux-performance-2026-10-29.md) | 快速创作、停服备份恢复、刷新降频、音频缓存与产物区间读取 |
 | [2026-10-26 AI 编曲与 MCP 指南](testing/verification-music-agent-2026-10-26.md) | 创作入口、乐器轮换与 riff 变奏指南、MCP 发现与独立包验证 |

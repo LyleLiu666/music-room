@@ -85,3 +85,18 @@ test('MCP onboarding discovers one music creation guide through instructions, to
  assert.equal((await service.store.projects()).length,0);assert.equal(service.resources.snapshot().active,undefined);assert.equal(service.resources.snapshot().queued.length,0);
  assert.ok((await client.callTool({name:'get_music_creation_guide',arguments:{generate:true}})).isError);
 });
+
+test('MCP sound effect jobs preserve inputs, queue independently of client, and expose the saved WAV',async t=>{
+ const {encodeWav}=await import('../wav.ts');const root=await mkdtemp(join(tmpdir(),'music-sfx-mcp-'));const resources=testResources();
+ const driver={profile:{id:'fixture'},installed:()=>true,prepare:async()=>{},generate:async(req:any)=>Buffer.from(encodeWav([Float32Array.from({length:req.seconds*24000},(_,i)=>Math.sin(i*.1)*.1)],24000))};
+ const service=await MusicService.open(root,processRenderer(),assets.read,false,undefined,undefined,undefined,resources,undefined,driver),http=await serveHttp(service,assets),client=new Client({name:'sfx-test',version:'1'});
+ t.after(async()=>{await client.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});});
+ await client.connect(new StreamableHTTPClientTransport(new URL(http.runtime.url+'/mcp'),{requestInit:{headers:{authorization:`Bearer ${http.runtime.token}`}}}));
+ for(const name of ['sound_effect_status','sound_effect_prepare','sound_effect_generate','sound_effect_job','sound_effect_cancel'])assert.ok((await client.listTools()).tools.some(x=>x.name===name),name);
+ const invoke=async(name:string,args:Record<string,unknown>={})=>{const r=await client.callTool({name,arguments:args});assert.ok(!r.isError,JSON.stringify(r));return JSON.parse((r.content as any)[0].text);};
+ const args={requestId:'mcp-effect-1',title:'碎纸机',prompt:'Paper shredder',seconds:3,seed:42};const job=await invoke('sound_effect_generate',args);assert.equal((await invoke('sound_effect_generate',args)).id,job.id);
+ let result:any;for(let i=0;i<200;i++){result=await invoke('sound_effect_job',{jobId:job.id});if(!['queued','running'].includes(result.state))break;await new Promise(r=>setTimeout(r,10));}
+ assert.equal(result.state,'succeeded',result.message);assert.equal(result.item.origin,'sound-effect');assert.equal(result.item.source.kind,'sound-effect');assert.equal(result.item.source.prompt,args.prompt);
+ const response=await fetch(http.runtime.url+result.item.audioPath,{headers:{authorization:`Bearer ${http.runtime.token}`}});assert.equal(response.status,200);assert.ok((await response.arrayBuffer()).byteLength>44);
+ assert.ok((await client.callTool({name:'sound_effect_generate',arguments:{...args,requestId:'invalid',seconds:6}})).isError);
+});

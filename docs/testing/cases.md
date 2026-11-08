@@ -6,6 +6,9 @@
 
 | ID / 优先级 | 前置条件与操作 | 必须观察到的结果 | 自动化位置 |
 | --- | --- | --- | --- |
+| SFX-01 / P1 | 文字提交 1–5 秒音效，MCP 查询状态并从声音库读取 | 任务可追踪；音频时长与输入一致、来源和种子保留，重复请求不重复创建 | `src/service/studio/sound-effects.test.ts`、`src/server/mcp.test.ts`、`scripts/verify-sound-library-ui.test.mjs` |
+| SFX-02 / P0 | 队列暂停或生成中取消；超内存；重启时已提交 / 未提交产物 | 停止所属工作且不假报成功；已保存音频校验后恢复，不创建重复记录 | `src/service/studio/sound-effects.test.ts`、`src/service/studio/sound-effects-runtime.test.ts`、`src/service/resources/profiles.test.ts` |
+| SFX-03 / P1 | 在声音库准备模型并生成音效，与外部导入分别筛选 | 明确准备、取消及生成状态；声音可试听，来源分类正确 | `scripts/verify-sound-library-ui.test.mjs` |
 | DRAFT-01 / P0 | 同浏览器两窗口打开同一目录，分别编辑不同声音；旧窗口导航后刷新 | 两份草稿都保留；不能用整个旧快照覆盖新稿 | `src/workbench/studio/drafts.test.ts`、`scripts/verify-drafts-ui.test.mjs` |
 | DRAFT-02 / P0 | 两窗口编辑同一声音，分别选择保留当前 / 使用已保存内容 | 冲突可见；选择前当前输入不丢失；选择后刷新符合决定；转换的升降调也适用 | 同上 |
 | DRAFT-03 / P0 | 保存时模拟浏览器配额耗尽；继续编辑；恢复存储并重试 | 失败提示、输入保留、重试保存最新内容；不能假称成功 | 同上 |
@@ -14,12 +17,14 @@
 | SAVE-01 / P0 | 导入声音在写入文件后 / 索引提交后分别 SIGKILL | 提交前不出现可播放条目，孤立自有文件回收；提交后保留；同 requestId 重试只一条 | `src/service/studio/publication-crash.test.ts` |
 | SAVE-02 / P0 | 导入乐谱在项目清单提交前 / 后 SIGKILL | 提交前清理未发布文件；提交后恢复到原声音；原版与成品不变 | 同上 |
 | SAVE-03 / P0 | 混音项目清单已提交、声音记录尚未保存时 SIGKILL | 父版本、所属声音、混音参数与 requestId 保留；重试不重复创建 | 同上 |
+| SAVE-04 / P0 | 首次创作、普通新建或从音色新建旁白时项目或声音创建成功但响应丢失，随后重试 / 重启 | 同一项目和声音各保留一份；编号相同但内容不同返回冲突；已保存的项目不会被误改名 | `src/server/lost-response.test.ts`、`scripts/verify-first-use-ui.test.mjs`、`scripts/verify-studio-ui.test.mjs` |
 | DELETE-01 / P0 | 写入永久删除意图后 SIGKILL；重启，尝试恢复，再重试删除 | 不假装恢复成功；删除可继续；再次重启不复活 | 同上，另见 `studio.test.ts` 中分层删除用例 |
 | RETRY-01 / P0 | 实际 HTTP 保存成功后代理断开 TCP；重启；同请求并发重试 8 次 | 导入和混音各只一份；相同 ID 不同参数拒绝；原成品不变 | `src/server/lost-response.test.ts` |
 | RETRY-02 / P0 | 调速已保存，浏览器收到失败，再点保存 | 复用 requestId；同一新版本；下载的速度和重新打开后播放速度正确 | `scripts/verify-speed-ui.test.mjs`、`src/service/studio/speed.test.ts` |
 | RETRY-03 / P1 | 音乐失败后重试或从检查点恢复 | 原版本编号不变；旧尝试归档；参数、种子与检查点匹配；删除后不可复活 | `music-retry.test.ts`、`src/service/yue2/recovery.test.ts`、`verify-studio-ui.test.mjs` |
 | MUSIC-PLAN-01 / P1 | 模型给出截断、无效或偏离所选目标时长的乐谱；成品音频提前结束 | 指定目标时乐谱与最终音频均须在 ±15% 范围内；规划最多三次，仍不达标报错且不合成；音频不达标保留诊断但任务失败；自定义谱不自动改写，自动时长不限制 | `src/service/yue2/duration.test.ts`、`duration_runtime_test.py`；真实失败保留在执行记录 |
 | MUSIC-PLAN-02 / P1 | 使用原失败提示词、seed 42、fast、纯音乐、自动时长与自然收尾 | 首轮参数不变；失败后的采样恢复不改提示词 / 歌词，不增加输出预算；三次内写出完整乐谱并生成可播放音频。原始失败与后续结果分别留存 | `tests/quality/music-planning-regression.json`、`scripts/verify-music-planning-real.ts`、`duration_runtime_test.py` |
+| MUSIC-PLAN-03 / P1 | 显式目标时长，上一轮有效谱过长 / 过短，或输入已接近上下文上限 | 后续只附加最新时长偏差及按速度 / 拍号计算的拍数 / 小节数；首轮、歌词与输出预算不变；说明不超 512 token 余量或完整上下文，容量不足时省略；自动时长与无效谱不附加说明；合格谱及合成请求保留原输入，仍执行原时长门槛 | `src/service/yue2/duration_runtime_test.py` 的 `test_explicit_duration_retry_uses_measured_error_to_obtain_an_in_range_score`、`test_feedback_*`、`test_auto_and_invalid_scores_do_not_receive_duration_feedback`；由 `duration.test.ts` 接入服务入口 |
 | UPGRADE-01 / P0 | 用提交 `c3a213395f31501d081f6269e2c6983796b4986b` 生成的真实旧格式目录，升级、关闭、再打开 | 原件哈希、父子关系、保留 / 成品选择、删除状态和反馈不变，无重复声音 | `src/service/projects/upgrade.test.ts`；样本见 `tests/fixtures/workspace-2026-10-10/` |
 | BACKUP-01 / P0 | 升级前完整备份；升级后恢复某条旧记录；再用备份恢复到新目录 | 备份字节不变；恢复目录回到备份时状态，音频可读 | 同上 |
 | QUOTA-01 / P0 | 北京时间 08:00 前预留，跨日收到回执；新日已有请求 | 不能从新日计数中扣旧日预约；新日增加已知用量 | `src/service/studio/lyrics-review.test.ts` |
@@ -102,3 +107,14 @@ HTTP 新建操作的契约区别：带 `requestId` 的保存 / 转换等操作�
 | REFRESH-01 | 活跃任务 1.8 秒、空闲 10 秒、隐藏 30 秒；隐藏不采样监控；时钟推进后页面继续同步，播放菜单保持打开 | `src/workbench/studio/refresh-loop.test.ts`、`scripts/verify-monitor-ui.test.mjs`、`scripts/verify-player-menu-ui.test.mjs` |
 | AUDIO-READ-01 | 同路径并发读取共用 URL；失败可重试；容量预算、活动播放器保留与清理有效；删除无关版本不取消当前音频读取；指定路径取消与页面销毁分别验证 | `src/workbench/studio/audio-cache.test.ts`、`scripts/verify-audio-loading-ui.test.mjs` |
 | AUDIO-RANGE-01 | 乐谱 WAV 产物支持完整与单区间读取；鉴权、来源、原件哈希、路径保护有效；断开释放门控；MP3 导出保持原行为 | `src/server/audio-file.test.ts` |
+
+## SPEECH-UX：正文优先的语音创作
+
+- `scripts/verify-first-use-ui.test.mjs`：桌面正文/音色双栏、窄屏无横向溢出；TXT 追加保留正文，超限拒绝且不改稿；关闭并刷新恢复正文；导入不触发生成。
+- `scripts/verify-emotion-strength-ui.test.mjs`：新工作区沿用情绪、参考文字稿、模型选择与版本迭代流程。
+
+## VOICE-FLOW：从音色与历史继续创作
+
+- `src/workbench/studio/voice-browsing.test.ts`：搜索与常用/可用筛选组合，排除已删除或处理未完成的音色。
+- `src/workbench/studio/task-history.test.ts`：音频记录提供试听；只有有原始输入的语音/音乐版本提供复用，缺失输入不冒充可复用。
+- `scripts/verify-studio-ui.test.mjs` 的全局音色库流程：一键试听、从音色新建第一个项目或已有项目中的旁白、取消不创建、生成前保留原草稿、历史试听、复用参数前确认、延迟创建后关闭不跳回编辑器。

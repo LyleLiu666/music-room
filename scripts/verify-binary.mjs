@@ -33,6 +33,8 @@ try {
   client=await connect();
   const tool=async(name,args={})=>{const r=await client.callTool({name,arguments:args});assert.ok(!r.isError,JSON.stringify(r));return JSON.parse(r.content[0].text);};
   const status=await tool('status');assert.equal(status.workspace,await realpath(workspace));assert.equal(status.engines.find(e=>e.id==='yue2').available,false);
+  const effectStatus=await tool('sound_effect_status');assert.equal(typeof effectStatus.installed,'boolean');for(const name of ['sound_effect_prepare','sound_effect_generate','sound_effect_job','sound_effect_cancel'])assert.ok((await client.listTools()).tools.some(t=>t.name===name));
+  if(!effectStatus.installed){const notReady=await client.callTool({name:'sound_effect_generate',arguments:{requestId:'binary-sfx',title:'音效',prompt:'A paper shredder',seconds:3}});assert.equal(notReady.isError,true);}results.push('sound effect MCP tools are discoverable and report the actual model readiness');
   assert.equal((await tool('yue2_status')).phase,'uninstalled');assert.ok((await client.listTools()).tools.some(t=>t.name==='yue2_generate'));
   const runtime=JSON.parse(await readFile(join(workspace,'.music-room.runtime.json'),'utf8'));assert.equal(runtime.command,await realpath(binary));
   const speech=await tool('tts_library');

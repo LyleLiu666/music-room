@@ -2902,3 +2902,31 @@ body:has(#dialog[open]) #global-status-bar{visibility:hidden}
 .music-attempts{list-style:none;padding:0;margin:0}.music-attempts li{padding:1rem 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}.music-attempts li:last-child{border-bottom:0}.music-attempts p{margin:.5rem 0}
 
 .welcome-options{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;width:min(100%,520px);margin:20px auto}.welcome-options button{display:flex;flex-direction:column;gap:6px;padding:20px;white-space:normal}.welcome-options small{font-weight:400}.welcome{min-width:0}.welcome p{max-width:560px;margin:12px auto}#backup-commands{width:100%;box-sizing:border-box;font-family:monospace}
+
+/* Speech creation: script first, reusable reference and expression alongside. */
+dialog.wide:has(.speech-workspace) { width: min(1120px, calc(100vw - 30px)); }
+.speech-workspace { display: grid; grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); gap: 28px; align-items: start; }
+.speech-workspace > *, .speech-reference > * { min-width: 0; }
+.speech-workspace .speech-script { margin-top: 0; }
+.speech-script textarea { min-height: 340px; line-height: 1.85; resize: vertical; }
+.speech-script-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.speech-script-toolbar output { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.speech-import { position: relative; cursor: pointer; margin: 0; overflow: hidden; }
+.speech-import input { position: absolute; inset: 0; opacity: 0; width: 100%; cursor: pointer; }
+.speech-import:focus-within { outline: 2px solid var(--text); outline-offset: 3px; }
+.speech-reference { padding-left: 24px; border-left: 1px solid var(--line); }
+.speech-reference .form-group:first-child { margin-top: 0; }
+.speech-reference audio { max-width: 100%; }
+@media (max-width: 760px) {
+ .speech-workspace { grid-template-columns: minmax(0, 1fr); gap: 16px; }
+ .speech-reference { padding-left: 0; border-left: 0; }
+ .speech-script textarea { min-height: 240px; }
+}
+.voice-filters, #voice-use, .task-row-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.voice-filters { margin: 12px 0; }
+.voice-filters [aria-pressed="true"] { background: var(--text); color: var(--dialog); }
+.voice-card-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.voice-card-row .voice-card { flex: 1; min-width: 0; }
+.voice-card-row > .secondary { flex: 0 0 auto; }
+.task-row-actions { min-width: 110px; }
+#voice-use { margin-top: 16px; }

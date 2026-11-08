@@ -35,3 +35,37 @@ test('sound library collects decisions, imports and downloads audio, preserves p
   await page.setViewportSize({width:390,height:844});const voice=await page.locator('[data-action="voice-library"]').boundingBox(),sounds=await page.locator('[data-action="sound-library"]').boundingBox();assert.ok(sounds.x>=voice.x+voice.width||sounds.y>=voice.y+voice.height);assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.deepEqual(errors,[]);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
+
+test('sound effects can be created as separate recordings from the library and keep their source',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'sound-effects-ui-')),assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
+ const effectDriver={profile:{id:'fixture'},installed:()=>true,prepare:async()=>{},generate:async req=>Buffer.from(encodeWav([Float32Array.from({length:req.seconds*24000},(_,i)=>Math.sin(i*.1)*.1)],24000))};
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,effectDriver);
+ const http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1200,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ try{await page.goto(http.runtime.url);await page.click('[data-action="sound-library"]');await page.click('#generate-library-effect');
+  await page.fill('#effect-title','我的碎纸机');await page.fill('#effect-prompt','   ');await page.locator('#effect-submit:enabled').waitFor();await page.click('#effect-submit');assert.equal(await page.locator('#effect-prompt').evaluate(e=>e.validity.customError),true);await page.fill('#effect-prompt','A paper shredder shredding paper');await page.selectOption('#effect-seconds','3');await page.click('#effect-submit');
+  await page.locator('#effect-status').filter({hasText:'音效已保存到声音库'}).waitFor();await page.click('[data-action="close"]');
+  await page.locator('.sound-library-card').filter({hasText:'我的碎纸机'}).waitFor();assert.match(await page.locator('.sound-library-card').filter({hasText:'我的碎纸机'}).innerText(),/音效生成/);
+  await page.selectOption('#sound-library-filter','effects');assert.equal(await page.locator('.sound-library-card').count(),1);
+  await page.locator('.sound-library-card').click();await page.waitForFunction(()=>{const a=document.querySelector('#sound-library-audio');return a?.readyState>=2&&!a.paused;});
+  const item=service.soundLibrary.list()[0];assert.equal(item.source.kind,'sound-effect');assert.equal(item.source.seconds,3);assert.equal(item.source.prompt,'A paper shredder shredding paper');assert.deepEqual(errors,[]);
+ }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});
+
+test('sound effect model preparation is explicit, cancellable and does not generate audio',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'sound-effects-setup-ui-')),assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};let installs=0,stopped=0;
+ const driver={profile:{id:'fixture'},installed:()=>false,prepare:async(execution)=>{installs++;await new Promise((_,reject)=>execution.signal.addEventListener('abort',()=>{stopped++;reject(execution.signal.reason);},{once:true}));},generate:async()=>{throw Error('must not generate');}};
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,driver),http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage();
+ try{await page.goto(http.runtime.url);await page.click('[data-action="sound-library"]');await page.click('#generate-library-effect');await page.locator('#effect-prepare').waitFor({state:'visible'});assert.equal(installs,0);assert.equal(await page.locator('#effect-submit').isDisabled(),true);
+  await page.click('#effect-prepare');await page.locator('#effect-cancel-prepare').waitFor({state:'visible'});await page.click('#effect-cancel-prepare');await page.waitForFunction(()=>document.querySelector('#effect-status')?.textContent.includes('已取消'));assert.equal(installs,1);assert.equal(stopped,1);assert.equal(service.soundLibrary.list().length,0);
+ }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});
+
+test('reopening sound effect creation shows a background failure rather than hiding it',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'sound-effects-failure-ui-')),assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};let rejectRun,started=false;
+ const driver={profile:{id:'fixture'},installed:()=>true,prepare:async()=>{},generate:async()=>{started=true;return new Promise((_,reject)=>{rejectRun=reject;});}};
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,driver),http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage();
+ try{await page.goto(http.runtime.url);await page.click('[data-action="sound-library"]');await page.click('#generate-library-effect');await page.fill('#effect-title','雨声');await page.fill('#effect-prompt','rain falling');await page.locator('#effect-submit:enabled').waitFor();await page.click('#effect-submit');
+  for(let i=0;i<100&&!started;i++)await new Promise(r=>setTimeout(r,20));assert.equal(started,true);await page.click('[data-action="close"]');rejectRun(Error('模型发生故障'));
+  for(let i=0;i<100&&service.effects.status().jobs[0].state!=='failed';i++)await new Promise(r=>setTimeout(r,20));assert.equal(service.effects.status().jobs[0].state,'failed');await page.click('#generate-library-effect');await page.locator('#effect-status').filter({hasText:'模型发生故障'}).waitFor({timeout:3000});
+ }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});

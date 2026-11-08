@@ -41,3 +41,23 @@ test('lost HTTP response after commit: import and mix retries survive restart wi
   const snapshot=await service.studio.snapshot();assert.equal(snapshot.versions.length,2);assert.equal(service.soundLibrary.list().length,1);assert.equal(snapshot.sounds[0].finalVersionId,source.id);
  }finally{await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
+
+test('an explicitly identified speech sound can be retried after a committed response is lost, including after restart',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'lost-speech-create-'));const open=()=>MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources());let service=await open(),http=await serveHttp(service,assets);
+ const args={projectId:'retry-speech',title:'旁白',kind:'speech',soundId:'speech-stable-retry'};
+ const request=()=>fetch(http.runtime.url+'/api/studio_create_sound',{method:'POST',headers:{authorization:`Bearer ${http.runtime.token}`,'content-type':'application/json'},body:JSON.stringify(args)});
+ try{await service.call('create_project',{projectId:args.projectId,title:'旁白项目'});let saved:any,proxyError:unknown;const proxy=createServer(async(_req,res)=>{try{const response=await request();assert.equal(response.status,200);saved=await response.json();}catch(error){proxyError=error;}finally{res.destroy();}});proxy.listen(0,'127.0.0.1');await once(proxy,'listening');try{await assert.rejects(fetch(`http://127.0.0.1:${(proxy.address() as any).port}`));if(proxyError)throw proxyError;assert.equal(saved.id,args.soundId);}finally{proxy.closeAllConnections();await new Promise<void>(r=>proxy.close(()=>r()));}
+  await http.close();await service.close();service=await open();http=await serveHttp(service,assets);const retries=await Promise.all(Array.from({length:5},async()=>{const retry=await request();assert.equal(retry.status,200);return retry.json();}));assert.ok(retries.every(value=>value.id===args.soundId));assert.equal((await service.call('studio_library',{})).sounds.filter(x=>x.id===args.soundId).length,1);
+  const conflict=await fetch(http.runtime.url+'/api/studio_create_sound',{method:'POST',headers:{authorization:`Bearer ${http.runtime.token}`,'content-type':'application/json'},body:JSON.stringify({...args,title:'另一个名称'})});assert.equal(conflict.status,409);
+ }finally{await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});
+
+test('speech sound retry recovers a committed speech record after the studio index write fails',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'speech-index-recovery-')),service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources());
+ const write=service.store.atomicJSON.bind(service.store);let failOnce=true;
+ try{await service.call('create_project',{projectId:'speech-index',title:'旁白项目'});service.store.atomicJSON=(path,value)=>{if(path.endsWith('/studio.json')&&failOnce){failOnce=false;throw Error('模拟写入失败');}return write(path,value);};
+  const input={projectId:'speech-index',title:'旁白',kind:'speech' as const,soundId:'speech-stable-recovery'};await assert.rejects(service.call('studio_create_sound',input),/模拟写入失败/);service.store.atomicJSON=write;
+  const recovered=await service.call('studio_create_sound',input);assert.equal(recovered.id,input.soundId);const list=await service.call('studio_library',{});assert.equal(list.sounds.filter(s=>s.id===input.soundId).length,1);assert.equal(service.speech.snapshot().sounds.filter(s=>s.id===input.soundId).length,1);
+  await assert.rejects(service.call('studio_create_sound',{...input,kind:'music'}),/编号|不同/);
+ }finally{service.store.atomicJSON=write;await service.close();await rm(root,{recursive:true,force:true});}
+});

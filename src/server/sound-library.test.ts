@@ -34,3 +34,10 @@ test('saving external recordings stays available while model generation holds th
  let release!:()=>void,entered!:()=>void;const hold=new Promise<void>(r=>release=r),ready=new Promise<void>(r=>entered=r);resources.register('hold',{resident:()=>undefined,unload:async()=>{}});const model=resources.run({id:'held-model',engine:'hold',demand:resources.estimate('hold',{}),execute:async()=>{entered();await hold;}});await ready;
  try{const wav=Buffer.from(encodeWav([new Float32Array(22050)],22050)),res=await fetch(http.runtime.url+'/sound-library/import?name=test.wav&requestId=during-model',{method:'POST',headers:{authorization:`Bearer ${http.runtime.token}`},body:wav,signal:AbortSignal.timeout(1500)});assert.equal(res.status,200);assert.equal(resources.snapshot().active?.id,'held-model');assert.equal(resources.snapshot().queued.length,0);assert.equal(service.soundLibrary.list().length,1);}finally{release();await model;await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
+
+test('default sound effect runtime stays outside the workspace so backups never contain Python environment symlinks',async()=>{
+ const {homedir}=await import('node:os');const {resolve,relative,sep}=await import('node:path');
+ const root=await mkdtemp(join(tmpdir(),'sound-effect-location-')),service=await MusicService.open(root,()=>{throw Error('unused');},async()=>new Uint8Array(),false,undefined,undefined,undefined,testResources());
+ try{const location=(await service.call('sound_effect_status',{})).directory;assert.ok(location);assert.equal(resolve(location),join(homedir(),'Music','MusicRoom-SoundEffects'));const rel=relative(root,location);assert.ok(rel==='..'||rel.startsWith('..'+sep));}
+ finally{await service.close();await rm(root,{recursive:true,force:true});}
+});

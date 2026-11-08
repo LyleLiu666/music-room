@@ -12,8 +12,10 @@ from abc_tools import parse_abc
 TARGETS=(60,120,180,240,300)
 TOLERANCE=.15
 MAX_ATTEMPTS=3
-# A failed decoder run needs a different sampling distribution, not more prose
-# in the user's style. First-pass sampling and all token budgets stay unchanged.
+# Already reserved by the input inspector for generated-score prefixes.
+FEEDBACK_TOKENS=512
+# Decoder failures change sampling; measured duration misses also receive feedback.
+# First-pass sampling and all token budgets stay unchanged.
 RETRY_SAMPLING=(
  dict(temperature=.85,top_p=.95,top_k=60,repetition_penalty=1.02),
  dict(temperature=1.,top_p=.98,top_k=100,repetition_penalty=1.04),
@@ -25,6 +27,19 @@ def score_seconds(abc):
 
 def within_target(seconds,target):
  return math.isfinite(seconds) and seconds>0 and (target is None or target*(1-TOLERANCE)<=seconds<=target*(1+TOLERANCE))
+
+def duration_correction(previous,target):
+ """Use only a complete, valid off-target score; never repair or rewrite it."""
+ if target is None or not previous or not previous.get('arrangement'):return None
+ seconds=previous['scoreSeconds'];arrangement=previous['arrangement']
+ if seconds is None or within_target(seconds,target):return None
+ bpm=arrangement['bpm'];n,d=arrangement['meter'];beats=target*bpm/60;bars=beats/(4*n/d)
+ feedback=dict(previousSeconds=seconds,targetSeconds=target,bpm=bpm,meter=[n,d],quarterBeats=beats,bars=bars)
+ direction='Use fewer bars and shorter sections.' if seconds>target else 'Develop the themes across more bars and complete sections.'
+ text=(f'\n\nDuration correction: the previous score was {seconds:.1f} seconds; the target is {target:.1f} seconds. '
+       f'Plan approximately {beats:.1f} quarter-note beats, or {bars:.1f} bars in {n}/{d} at {bpm} BPM, across the whole piece including the outro. '
+       f'{direction} Do not change tempo merely to fill time. Preserve all supplied lyric words and their order; do not sing these instructions. Write a new complete score with a resolved ending.')
+ return text,feedback
 
 def validate_audio_duration(summary,target,out_dir):
  if target is None:return summary
@@ -58,6 +73,14 @@ def plan_for_duration(pipe,native,sampling,cancelled,on_token,target,out_dir):
   # The first seed is untouched; bounded subsequent seeds make retries reproducible.
   request=native if attempt==1 else replace(native,seed=(native.seed+attempt-1)%2147483648)
   attempt_sampling=base_sampling if attempt==1 else replace(base_sampling,**{name:max(getattr(base_sampling,name),value) for name,value in RETRY_SAMPLING[attempt-2].items()})
+  feedback=None;correction=duration_correction(attempts[-1] if attempts else None,target)
+  if correction:
+   text,feedback=correction;candidate=replace(request,style=native.style+text)
+   original_tokens=len(token_prefixes(request,pipe.tokenizer));candidate_tokens=len(token_prefixes(candidate,pipe.tokenizer))
+   config=pipe.generation_config;semantic_tokens=getattr(getattr(config,'semantic',None),'max_tokens',9000)
+   if candidate_tokens-original_tokens<=FEEDBACK_TOKENS and candidate_tokens+attempt_sampling.max_tokens+2+semantic_tokens<=getattr(config,'context',24576):
+    request=candidate
+   else:feedback={**feedback,'omitted':'context_budget'}
   pipe.log(f'正在规划完整乐谱（{attempt}/{MAX_ATTEMPTS}）')
   plan=pipe.plan(request=request,abc_sampling=attempt_sampling,cancelled=cancelled,on_token=on_token)
   pipe.check_execution()
@@ -66,11 +89,13 @@ def plan_for_duration(pipe,native,sampling,cancelled,on_token,target,out_dir):
   seconds=None;problem=None;arrangement=None
   try:
    if plan.truncated: raise ValueError('乐谱写作达到长度上限')
-   seconds=score_seconds(plan.abc or '')
+   score=parse_abc(plan.abc or '')
+   seconds=float(score.voices['Vocal'].time*60/score.bpm)
    if not math.isfinite(seconds) or seconds<=0:raise ValueError('乐谱时长无效')
+   arrangement=dict(bpm=score.bpm,meter=list(score.voices['Vocal'].meter))
    if not within_target(seconds,target):raise ValueError(f'乐谱预计 {seconds:.1f} 秒，未达到目标时长 {target} 秒（允许偏差 ±15%）')
   except ValueError as exc: problem=str(exc)
-  attempts.append(dict(attempt=attempt,seed=request.seed,sampling=asdict(attempt_sampling),scoreSeconds=seconds,problem=problem,arrangement=arrangement))
+  attempts.append(dict(attempt=attempt,seed=request.seed,sampling=asdict(attempt_sampling),scoreSeconds=seconds,problem=problem,arrangement=arrangement,durationFeedback=feedback))
   evidence=dict(targetSeconds=target,tolerance=TOLERANCE,attempts=attempt,scoreSeconds=seconds,accepted=problem is None,withinTarget=seconds is not None and within_target(seconds,target),plans=attempts)
   (out_dir/'duration.json').write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
   if problem is None:return accept(plan,seconds,attempt)
@@ -115,7 +140,7 @@ def install():
    pipe.set_loras(loras)
    def planner(pipe,native,sampling,cancelled,observer):
     return plan_for_duration(pipe,native,sampling,cancelled,observer,target,out_dir)
-   summary=self._run_create(pipe,fields,generation,abc_sampling,semantic_sampling,out_dir,options=options,cancelled=cancelled,planner=planner,config_extra={'music_room_duration':{'targetSeconds':target,'tolerance':TOLERANCE,'maxAttempts':MAX_ATTEMPTS,'retrySampling':RETRY_SAMPLING,'version':5}})
+   summary=self._run_create(pipe,fields,generation,abc_sampling,semantic_sampling,out_dir,options=options,cancelled=cancelled,planner=planner,config_extra={'music_room_duration':{'targetSeconds':target,'tolerance':TOLERANCE,'maxAttempts':MAX_ATTEMPTS,'retrySampling':RETRY_SAMPLING,'feedbackTokens':FEEDBACK_TOKENS,'version':6}})
    return validate_audio_duration(summary,target,out_dir)
  Engine.create_song=create_song
  Engine._music_room_duration=True

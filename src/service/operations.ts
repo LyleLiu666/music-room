@@ -1,4 +1,5 @@
 import type {MusicCreationGuide} from './yue2/authoring-guide.ts';
+import {effectRequest,type SoundEffects} from './studio/sound-effects.ts';
 import {catalogQuery,playlistSave,type SoundCatalog} from './studio/sound-catalog.ts';
 import type {MonitorSnapshot} from './resources/monitor.ts';
 import {musicEditKinds,type MusicEditDraft} from './studio/music-edits.ts';
@@ -22,6 +23,12 @@ const ref={projectId:id,revisionId:id};
 const text=z.string().min(1).max(8000);
 const mixSchema=z.object({volume:z.number().optional(),lead:z.enum(['piano','rhodes','flute']).optional(),levels:z.partialRecord(z.enum(TRACK_IDS),z.number()).optional(),muted:z.array(z.enum(TRACK_IDS)).optional(),solo:z.array(z.enum(TRACK_IDS)).optional()}).strict();
 export const operations = {
+  sound_effect_status:{description:'查看本机音效模型准备状态及最近音效任务，不启动模型。',schema:z.object({}).strict()},
+  sound_effect_prepare:{description:'在本机共享模型目录准备固定版 Stable Audio 3 Small-SFX；后台下载和安装，通过 sound_effect_status 查看。',schema:z.object({}).strict()},
+  sound_effect_cancel_preparation:{description:'取消音效模型准备并等待所属进程退出，保留下载文件。',schema:z.object({}).strict()},
+  sound_effect_generate:{description:'生成独立 1–5 秒音效并保存到声音库；建议英文描述具体声音，无需参考音频。立即返回任务，用 sound_effect_job 查询；requestId 去重，seed 可选。',schema:effectRequest},
+  sound_effect_job:{description:'查看音效任务状态；succeeded 时 item.audioPath 是受保护的 WAV，item.source 保留输入与种子。',schema:z.object({jobId:z.string().regex(/^sfx-[a-f0-9-]{36}$/)}).strict()},
+  sound_effect_cancel:{description:'取消排队或运行中的音效任务并等待释放；已保存音频不会删除。',schema:z.object({jobId:z.string().regex(/^sfx-[a-f0-9-]{36}$/)}).strict()},
   get_music_creation_guide:{description:'音乐创作与改编前先读取：可用 YuE2 自主作曲或 Agent 写谱 / 改谱，不保证减少重复或更好听。含乐器主次与轮换、riff 变奏、段落发展、谱例、时长检查和交付流程；只读，不启动模型，不强制短样。',schema:z.object({}).strict()},
   monitor_status:{description:'只读采样整机及当前服务和子进程的 CPU、内存占用；不会启动模型。CPU 按整机总算力归一化。',schema:z.object({}).strict()},
   resource_status:{description:'查看同一服务的硬件、估计预算、实际任务采样、队列、等待原因及模型驻留。查询不会启动模型。',schema:z.object({}).strict()},
@@ -42,7 +49,7 @@ export const operations = {
   sound_playlist_save:{description:'保存具体音频版本的播放列表，revision 防止覆盖其他窗口的修改。',schema:playlistSave},
   sound_playlist_remove:{description:'删除播放列表，不删除原音频。',schema:z.object({id,revision:z.number().int().positive()}).strict()},
   studio_library:{description:'统一读取项目、声音和版本。',schema:z.object({includeSoundLibrary:z.boolean().optional(),compactLibrary:z.boolean().optional(),paginateConversions:z.boolean().optional(),includeDeletedConversions:z.boolean().optional(),conversionSoundId:id.optional(),conversionPage:z.number().int().positive().optional(),conversionPageSize:z.number().int().positive().max(50).optional(),selectedVersionId:id.optional()}).strict()},
-  studio_create_sound:{description:'在项目内创建音乐片段、完整音乐或语音。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120),kind:z.enum(['clip','music','speech','conversion'])}).strict()},
+  studio_create_sound:{description:'在项目内创建音乐片段、完整音乐或语音。可指定 soundId；相同编号和内容的重试返回原声音，不同内容拒绝。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120),kind:z.enum(['clip','music','speech','conversion']),soundId:id.optional()}).strict()},
   studio_update_project:{description:'项目重命名或移入/恢复回收站；整个层级保持原状态，生成中拒绝删除。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
   studio_update_sound:{description:'片段重命名或移入/恢复回收站，保留其版本和成品选择。',schema:z.object({soundId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
   studio_purge:{description:'彻底删除回收站中的项目、片段、版本或音色及其保存文件；不可恢复。',schema:z.object({kind:z.enum(['project','sound','version','voice']),id}).strict()},
@@ -109,6 +116,8 @@ export type LibrarySnapshot = {projects:Project[];documents:Composition[];jobs:J
 export type AuthoringContext = {project?:Project;revision?:RevisionDocument;feedback:Feedback[];guide:string;example:Composition;prompt:string;rules:string;workflow:Operation[];tracks:string};
 export type ResourceStatus=Awaited<ReturnType<ResourceCoordinator['status']>>;
 export type OperationResults = {
+  sound_effect_status:ReturnType<SoundEffects['status']>;sound_effect_prepare:ReturnType<SoundEffects['status']>;sound_effect_cancel_preparation:Awaited<ReturnType<SoundEffects['cancelPreparation']>>;
+  sound_effect_generate:ReturnType<SoundEffects['start']>;sound_effect_job:ReturnType<SoundEffects['get']>;sound_effect_cancel:Awaited<ReturnType<SoundEffects['cancel']>>;
   studio_music_edit_open:MusicEditDraft;studio_music_edit_prepare:MusicEditDraft;studio_music_edit_brief:{text:string};studio_music_edit_generate:StudioVersion;
   monitor_status:MonitorSnapshot;
   resource_status:ResourceStatus;resource_pause:ResourceStatus;resource_resume:ResourceStatus;resource_cancel:ResourceStatus;resource_release:ResourceStatus;resource_set_limit:ResourceStatus;

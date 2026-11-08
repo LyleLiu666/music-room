@@ -3,8 +3,8 @@ import {z} from 'zod';
 import {ProjectStore,ServiceError,hash,identity} from '../projects/store.ts';
 import type {LibrarySound} from './sound-library.ts';
 const key=z.string().min(1).max(80).regex(/^[a-z0-9][a-z0-9-]*$/);
-export const catalogQuery={query:z.string().max(240).optional(),filter:z.enum(['all','final','kept','imported']).optional(),sort:z.enum(['newest','oldest','title']).optional(),playlistId:key.optional()};
-export type CatalogQuery={query?:string;filter?:'all'|'final'|'kept'|'imported';sort?:'newest'|'oldest'|'title';playlistId?:string};
+export const catalogQuery={query:z.string().max(240).optional(),filter:z.enum(['all','final','kept','imported','effects']).optional(),sort:z.enum(['newest','oldest','title']).optional(),playlistId:key.optional()};
+export type CatalogQuery={query?:string;filter?:'all'|'final'|'kept'|'imported'|'effects';sort?:'newest'|'oldest'|'title';playlistId?:string};
 export type CatalogEntry={id:string;title:string;item:LibrarySound|null};
 const entry=z.object({id:key,title:z.string().min(1).max(240)}).strict();
 const playlist=z.object({id:key,title:z.string().trim().min(1).max(120),revision:z.number().int().positive(),entries:z.array(entry).max(20000)}).strict();
@@ -27,10 +27,10 @@ export class SoundCatalog{
  private write(records:Playlist[]){mkdirSync(this.store.path('sound-library'),{recursive:true,mode:0o700});this.store.atomicJSON(this.store.path('sound-library','playlists.json'),{format:'music-room-playlists',version:1,playlists:records});this.records=records;}
  private async entries(options:CatalogQuery){
   const all=await this.available(),byId=new Map(all.map(i=>[i.id,i]));
-  const collected=all.filter(i=>i.origin==='imported'||i.final||i.kept);
+  const collected=all.filter(i=>i.origin!=='generated'||i.final||i.kept);
   let entries:CatalogEntry[]=options.playlistId?this.get(options.playlistId).entries.map(e=>({id:e.id,title:byId.get(e.id)?.title??e.title,item:byId.get(e.id)??null})):collected.map(item=>({id:item.id,title:item.title,item}));
   const query=(options.query??'').trim().toLocaleLowerCase();
-  entries=entries.filter(({title,item})=>(!options.filter||options.filter==='all'||(options.filter==='imported'?item?.origin==='imported':item?.origin==='generated'&&(options.filter==='final'?item.final:item.kept)))&&`${title} ${item?.origin==='generated'?item.projectTitle:item?.origin==='imported'?item.filename:''}`.toLocaleLowerCase().includes(query));
+  entries=entries.filter(({title,item})=>(!options.filter||options.filter==='all'||(options.filter==='imported'?item?.origin==='imported':options.filter==='effects'?item?.origin==='sound-effect':item?.origin==='generated'&&(options.filter==='final'?item.final:item.kept)))&&`${title} ${item?.origin==='generated'?item.projectTitle:item?item.filename:''}`.toLocaleLowerCase().includes(query));
   if(!options.playlistId)entries.sort((a,b)=>options.sort==='title'?a.title.localeCompare(b.title)||a.id.localeCompare(b.id):options.sort==='oldest'?(a.item!.createdAt.localeCompare(b.item!.createdAt)||a.id.localeCompare(b.id)):(b.item!.createdAt.localeCompare(a.item!.createdAt)||b.id.localeCompare(a.id)));
   return {entries,libraryTotal:collected.length,revision:soundCatalogRevision(all,this.playlists())};
  }

@@ -17,3 +17,11 @@ test('task pagination filters by explicit status and search without leaking othe
  assert.equal(taskHistorySlice(library,{page:99}).page,3);assert.equal(taskHistorySlice(library,{state:'queued'}).total,1);assert.equal(taskHistorySlice(library,{query:'不存在'}).total,0);
  const html=taskHistoryRows(library);assert.match(html,/task-state--running/);assert.match(html,/task-state--queued/);assert.match(html,/<details/);assert.equal((html.match(/class="task-history-row"/g)||[]).length,10);
 });
+
+test('history offers playback only for audio and parameter reuse only for stored generation inputs',()=>{
+ const base={id:'v',soundId:'s',number:1,state:'succeeded',stage:'done',createdAt:'2026-11-07',hasAudio:true};
+ const library={projects:[{id:'p',title:'项目'}],sounds:[{id:'s',projectId:'p',title:'旁白'}],taskHistory:[base],versions:[{...base,source:{kind:'speech'},input:{text:'正文'}}]} as any;
+ assert.match(taskHistoryRows(library),/data-action="task-listen"/);assert.match(taskHistoryRows(library),/data-action="task-reuse"/);
+ library.taskHistory[0].hasAudio=false;library.versions[0].input=undefined;
+ assert.doesNotMatch(taskHistoryRows(library),/data-action="task-listen"|data-action="task-reuse"/);
+});

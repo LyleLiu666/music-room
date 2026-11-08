@@ -28,3 +28,11 @@ test('Breeze reservation requires the pinned streaming runtime, transcript and b
  const demand=estimateResources('tts',input);assert.equal(demand.verified,true);assert.equal(demand.peak.memory,5_000_000_000);
  for(const patch of [{referenceText:''},{referenceDuration:16},{text:'字'.repeat(8001)},{resourceProfile:{...breezeProfile,program:'changed'}}])assert.equal(estimateResources('tts',{...input,...patch}).verified,false);
 });
+
+test('sound effect resource admission is limited to the verified fixed runtime and short bounded requests',async()=>{
+ const {effectProfile}=await import('../studio/sound-effects-assets.ts');
+ const valid={resourceProfile:effectProfile,seconds:3,prompt:'paper shredder'};
+ assert.equal(estimateResources('sound-effects',valid).peak.memory,5_000_000_000);
+ assert.equal(estimateResources('sound-effects',valid).verified,true);
+ for(const bad of [{...valid,seconds:6},{...valid,seconds:0},{...valid,prompt:''},{...valid,resourceProfile:{...effectProfile,program:'changed'}}])assert.equal(estimateResources('sound-effects',bad).verified,false);
+});

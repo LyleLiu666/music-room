@@ -53,7 +53,8 @@
     "verify:system:network": "node scripts/verify-system-network.mjs",
     "observe:system:sleep": "node scripts/observe-system-sleep.mjs",
     "verify:breeze:real": "node scripts/verify-breeze-real.ts",
-    "verify:breeze:binary": "node scripts/verify-breeze-binary.mjs"
+    "verify:breeze:binary": "node scripts/verify-breeze-binary.mjs",
+    "verify:sound-effects:real": "node scripts/verify-sound-effects-real.ts"
   },
   "dependencies": {
     "@breezystack/lamejs": "1.2.7",

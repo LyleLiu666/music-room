@@ -8,6 +8,8 @@
 
 侧栏「声音库」汇总所有项目中选为成品或保留为灵感的完整音频，可搜索、分类、试听、下载和返回来源版本。成品与灵感同时标记的版本只收录一次；取消标记或删除来源后同步移出。外部导入支持 WAV / FLAC（最多 100 MiB、10 分钟，单声道或立体声，8–96 kHz），将原文件复制到本机工作目录的 `sound-library/`，不依赖原目录，也不需要启动模型。「音色库」继续用于生成时的参考音色。
 
+声音库中的「生成音效」可在本机按描述生成独立的 1–5 秒 WAV，例如打字、碎纸或饮水机水声；首次使用需准备模型。生成记录保留描述与种子，完成后可试听、下载并加入播放列表。MCP 也可提交和查询音效任务；用法与 5 GB 内存保护见[音效生成](docs/sound-effects.md)。
+
 已完成的音频可在播放器下方调整速度（0.5–2.0 倍，支持 0.8 倍快捷选择和 0.01 倍细调），试听后点击「保存调速版」。系统保持音调，将结果保存为独立的 WAV 新版本，保留原版；新版本以 1.0 倍播放，下载时也包含调整后的速度。再次调整是相对于当前版本的音频。
 
 macOS 保存调速版使用 Rubber Band R3 双遍离线处理，这是实际人声 0.5 倍[听感对照](scripts/speed-quality-trial/README.md)中用户选择的方案。处理程序、对应源代码和许可随独立应用内嵌，使用时无需安装编译工具。整段统一降低过高峰值，避免削波，保持音高和声道。浏览器即时试听仍使用浏览器算法，听感可能与保存结果不同，请以保存版试听为准。其他平台暂保留 WSOLA。旧调速文件不会自动改变，需从原版重新保存。
@@ -18,7 +20,7 @@ macOS 保存调速版使用 Rubber Band R3 双遍离线处理，这是实际人�
 
 ## 新 UX 提案
 
-[本机模型与资源](docs/model-resources.md)说明已实现的统一队列、动态内存预算、所属进程释放和当前支持范围。三个引擎与辅助处理按实际硬件准入；不假设每台电脑都有 32 GiB。架构见[设计](docs/design/model-resource-management.md)，实施和验收见[开发计划](docs/design/model-resource-management-plan.md)及[逐轮记录](docs/design/model-resource-development.md)。
+[本机模型与资源](docs/model-resources.md)说明已实现的统一队列、动态内存预算、所属进程释放和当前支持范围。各引擎与辅助处理按实际硬件准入；不假设每台电脑都有 32 GiB。架构见[设计](docs/design/model-resource-management.md)，实施和验收见[开发计划](docs/design/model-resource-management-plan.md)及[逐轮记录](docs/design/model-resource-development.md)。
 
 正式首页已采用统一创作空间，启动本地服务即可使用。`/speech.html` 为兼容入口；`/score.html#版本ID` 仅保留为旧链接兼容入口，自动定位回对应声音版本。MIDI 与音轨从版本菜单在当前空间打开。早期 [UX 提案](docs/design/sound-first-ux.md)及 `public/prototypes/sound-first/` 仅保留为设计历史，不是正式入口。
 

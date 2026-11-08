@@ -36,6 +36,7 @@
 | 范围 | 命令 / 前置条件 | 必须保留 |
 | --- | --- | --- |
 | 固定语料 | 先 `npm run prepare:quality`，再 `MUSIC_ROOM_QUALITY_REAL=1 MUSIC_ROOM_RESOURCE_RUN=/绝对路径/隔离模型 npm run verify:quality:real` | `test-results/quality/real/execution.json`、各次音频和推理日志；详见[质量标准](quality.md) |
+| 音效真实模型与 MCP | `npm run verify:sound-effects:real` | 隔离工作区安装固定模型并通过正式资源队列与 MCP 生成 3 / 5 秒 WAV、校验内存和重启；可用 `MUSIC_ROOM_SFX_TEST_ARCHIVE` / `MUSIC_ROOM_SFX_TEST_CACHE` 指向固定来源缓存，均经哈希校验 |
 | 资源校准 | `MUSIC_ROOM_RESOURCE_RUN=/绝对路径/隔离模型 npm run verify:resources:real` | 安装目录内 `verification.json`；真实 TTS、两次参考清理、转换和 YuE2 两档 |
 | 正式策略混合队列 | `MUSIC_ROOM_MIXED_REAL=1 MUSIC_ROOM_RESOURCE_RUN=/绝对路径/隔离模型 npm run verify:mixed:real` | `test-results/mixed-real/run-*/verification.json`；暂停、排队取消、恢复、真实引擎完成和释放 |
 | 原提示词规划回归 | `MUSIC_ROOM_PLANNING_REAL=1 MUSIC_ROOM_RESOURCE_RUN=/绝对路径/隔离模型 npm run verify:music:planning:real` | `test-results/music-planning/run-*/verification.json`；固定原提示词与种子，保存每次乐谱、采样参数及完整音频 |

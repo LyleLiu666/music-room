@@ -2,12 +2,16 @@ import {musicCreationGuide} from './yue2/authoring-guide.ts';
 import {createMachineMonitor} from './resources/monitor.ts';
 import {LyricsGeneration,localLyricsProcessor} from './studio/lyrics-generation.ts';
 import {existsSync,readFileSync,lstatSync,mkdirSync} from 'node:fs';
+import {homedir} from 'node:os';
+import {join} from 'node:path';
 import {processSpeed,type SpeedProcessor} from './studio/speed-process.ts';
 import {ConversionService,type ConversionDriver} from './conversion/conversion.ts';
 import {createNativeConversionDriver} from './conversion/native.ts';
 import {StudioService} from './studio/studio.ts';
 import {SoundCatalog} from './studio/sound-catalog.ts';
 import {SoundLibrary} from './studio/sound-library.ts';
+import {SoundEffects,type EffectDriver} from './studio/sound-effects.ts';
+import {createEffectDriver} from './studio/sound-effects-runtime.ts';
 import {SpeechService,type SpeechDriver} from './tts/speech.ts';
 import {createSpeechDriver} from './tts/runtime.ts';
 import {ProjectStore,ServiceError} from './projects/store.ts';
@@ -26,19 +30,19 @@ import type {ResourceCoordinator} from './resources/coordinator.ts';
 export type {ServiceCaller} from './operations.ts';
 export class MusicService {
   lyricsGeneration:LyricsGeneration;
-  resources!:ResourceCoordinator;speedProcessor:SpeedProcessor=processSpeed();soundLibrary:SoundLibrary;soundCatalog:SoundCatalog;
+  resources!:ResourceCoordinator;speedProcessor:SpeedProcessor=processSpeed();soundLibrary:SoundLibrary;soundCatalog:SoundCatalog;effects:SoundEffects;
   private monitor:ReturnType<typeof createMachineMonitor>;
   private closing?:Promise<void>;
   store:ProjectStore; jobs:JobManager; read:AssetReader;yue2:YuE2Engine;yue2Client:YuE2Client;speech:SpeechService;studio:StudioService;conversion:ConversionService;
-  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator) {this.monitor=createMachineMonitor(read,resources);this.resources=resources;resources.register('import',{resident:()=>undefined,unload:async()=>{}});this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources);this.soundLibrary=new SoundLibrary(store);this.studio=new StudioService(this);this.soundCatalog=new SoundCatalog(store,()=>this.studio.soundItems());this.lyricsGeneration=new LyricsGeneration(store.path('lyrics'),resources,id=>this.studio.lyricSource(id),localLyricsProcessor(store.path('engines','lyrics'),read));}
-  static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver,resources:ResourceCoordinator=createResources(),speedProcessor:SpeedProcessor=processSpeed()) {
+  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator,effectDriver?:EffectDriver) {this.monitor=createMachineMonitor(read,resources);this.resources=resources;resources.register('import',{resident:()=>undefined,unload:async()=>{}});this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources);this.soundLibrary=new SoundLibrary(store);this.effects=new SoundEffects(store,resources,this.soundLibrary,effectDriver??createEffectDriver(join(homedir(),'Music','MusicRoom-SoundEffects')));this.studio=new StudioService(this);this.soundCatalog=new SoundCatalog(store,()=>this.studio.soundItems());this.lyricsGeneration=new LyricsGeneration(store.path('lyrics'),resources,id=>this.studio.lyricSource(id),localLyricsProcessor(store.path('engines','lyrics'),read));}
+  static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver,resources:ResourceCoordinator=createResources(),speedProcessor:SpeedProcessor=processSpeed(),effectDriver?:EffectDriver) {
     const store=await ProjectStore.open(root);
     let jobs:JobManager|undefined,yue2:YuE2Engine|undefined,speech:SpeechService|undefined,conversion:ConversionService|undefined;
     try {
     const settings=store.path('engines','resources.json');if(existsSync(settings)){try{if(lstatSync(settings).isSymbolicLink())throw Error('设置文件不能是符号链接');const config=JSON.parse(readFileSync(settings,'utf8'));if(config.version!==1||config.memoryBytes!==null&&(!Number.isSafeInteger(config.memoryBytes)||config.memoryBytes<0))throw Error('设置格式无效');resources.setLimits(config.memoryBytes===null?undefined:{memory:config.memoryBytes});}catch{resources.setConfigurationError('内存设置损坏，重型任务已阻止；请在设置中恢复自动管理');}}
 
       jobs=await JobManager.open(store,renderer,resources);yue2=await YuE2Engine.open(store,driver,resources);
-      speech=await SpeechService.open(store,speechDriver,()=>false,resources);conversion=ConversionService.open(store,conversionDriver??createNativeConversionDriver(store.path('engines','voice-conversion')),()=>false,resources);const service=new MusicService(store,jobs,read,yue2,speech,conversion,resources);service.resources=resources;service.speedProcessor=speedProcessor;
+      speech=await SpeechService.open(store,speechDriver,()=>false,resources);conversion=ConversionService.open(store,conversionDriver??createNativeConversionDriver(store.path('engines','voice-conversion')),()=>false,resources);const service=new MusicService(store,jobs,read,yue2,speech,conversion,resources,effectDriver);service.resources=resources;service.speedProcessor=speedProcessor;
       if(seed) {
         const existing=await store.documents(),records=await store.projects(true);
         for(const song of SONGS) if(!existing.some(d=>d.revision.id===song.id)&&!records.some(p=>p.id===song.workId&&(p.deleted||p.purged||p.removedRevisionIds?.includes(song.id)))) {
@@ -49,10 +53,11 @@ export class MusicService {
     } catch(error){await Promise.allSettled([resources.close(),conversion?.close(),speech?.close(),yue2?.close(),jobs?.close()]);await store.close();throw error;}
   }
   private async cancelResource(taskId:string){const snapshot=this.resources.snapshot(),task=[...(snapshot.active?[snapshot.active]:[]),...snapshot.queued].find(t=>t.id===taskId);if(!task){await this.resources.cancel(taskId);return this.resources.status();}
-    switch(task.engine){case 'tts':await this.speech.cancel(taskId);break;case 'reference':await this.speech.cancelReference(taskId);break;case 'conversion':await this.conversion.cancel(taskId);break;case 'yue2':await this.yue2Client.cancel(taskId);break;case 'render':await this.jobs.cancel(taskId);break;case 'speed':await this.studio.cancelSpeed(taskId);break;case 'installation':if(taskId==='install-tts')await this.speech.cancelPreparation();else if(taskId==='install-yue2')await this.yue2.stop();else await this.resources.cancel(taskId);break;default:await this.resources.cancel(taskId);}
+    switch(task.engine){case 'sound-effects':await this.effects.cancel(taskId);break;case 'tts':await this.speech.cancel(taskId);break;case 'reference':await this.speech.cancelReference(taskId);break;case 'conversion':await this.conversion.cancel(taskId);break;case 'yue2':await this.yue2Client.cancel(taskId);break;case 'render':await this.jobs.cancel(taskId);break;case 'speed':await this.studio.cancelSpeed(taskId);break;case 'installation':if(taskId==='install-tts')await this.speech.cancelPreparation();else if(taskId==='install-yue2')await this.yue2.stop();else if(taskId==='install-sound-effects')await this.effects.cancelPreparation();else await this.resources.cancel(taskId);break;default:await this.resources.cancel(taskId);}
     return this.resources.status();
   }
   private handlers:OperationHandlers = {
+    sound_effect_status:async()=>this.effects.status(),sound_effect_prepare:async()=>this.effects.prepare(),sound_effect_cancel_preparation:async()=>this.effects.cancelPreparation(),sound_effect_generate:async args=>this.effects.start(args),sound_effect_job:async args=>this.effects.get(args.jobId),sound_effect_cancel:async args=>this.effects.cancel(args.jobId),
     get_music_creation_guide:async()=>musicCreationGuide(),
     monitor_status:async()=>this.monitor.status(),
     resource_status:async()=>this.resources.status(),resource_pause:async()=>this.resources.pause(),resource_resume:async()=>this.resources.resume(),resource_cancel:async args=>this.cancelResource(args.taskId),resource_release:async()=>{await this.resources.releaseIdle();return this.resources.status();},resource_set_limit:async args=>{this.resources.setLimits(args.memoryBytes===null?undefined:{memory:args.memoryBytes},()=>{mkdirSync(this.store.path('engines'),{recursive:true});this.store.atomicJSON(this.store.path('engines','resources.json'),{version:1,memoryBytes:args.memoryBytes});});return this.resources.status();},
@@ -107,6 +112,6 @@ export class MusicService {
   };
   close():Promise<void> {
     if(this.closing)return this.closing;
-    this.closing=(async()=>{const results=await Promise.allSettled([this.monitor.close(),this.lyricsGeneration.close(),this.resources.close(),this.yue2Client.close(),this.conversion.close(),this.studio.close(),this.soundLibrary.close(),this.soundCatalog.close(),this.speech.close(),this.yue2.close(),this.jobs.close()]);await this.store.close();const errors=results.filter(r=>r.status==='rejected').map(r=>r.reason);if(errors.length)throw new AggregateError(errors,'关闭服务时部分资源未释放');})();return this.closing;
+    this.closing=(async()=>{const results=await Promise.allSettled([this.monitor.close(),this.lyricsGeneration.close(),this.effects.close(),this.resources.close(),this.yue2Client.close(),this.conversion.close(),this.studio.close(),this.soundLibrary.close(),this.soundCatalog.close(),this.speech.close(),this.yue2.close(),this.jobs.close()]);await this.store.close();const errors=results.filter(r=>r.status==='rejected').map(r=>r.reason);if(errors.length)throw new AggregateError(errors,'关闭服务时部分资源未释放');})();return this.closing;
   }
 }

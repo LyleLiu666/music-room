@@ -338,10 +338,34 @@ test('day/night themes and the global voice library work without a project and p
   await page.getByRole('button',{name:'夜间',exact:true}).click();await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await page.screenshot({path:'test-results/studio/voice-library-dark-mobile.png',fullPage:true});await page.setViewportSize({width:1440,height:1000});
   await page.click(`[data-action="select-voice"][data-id="${second.id}"]`);await page.click('[data-action="clean-voice"]');await page.locator('#voice-preview').filter({hasText:'处理后人声'}).waitFor();assert.equal(await page.locator('#voice-preview audio').count(),2);assert.equal(service.speech.snapshot().voices.length,3);
   await page.reload();await page.getByRole('heading',{name:'音色库',exact:true}).waitFor();assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
-  await page.click('[data-action="new-project"]');await page.fill('#project-name','音色复用');await page.locator('#project-form button').click();await page.locator('[name="kind"][value="speech"]').check();await page.fill('#sound-title','旁白');await page.locator('#sound-form button').click();
+  await page.click(`[data-action="select-voice"][data-id="${second.id}"]`);await page.click('[data-action="new-voice-speech"]');assert.equal(await page.inputValue('#voice-speech-project'),'');await page.click('[data-action="close"]');assert.equal((await service.call('studio_library',{})).projects.length,0);
+  await page.click(`[data-action="select-voice"][data-id="${second.id}"]`);await page.click('[data-action="new-voice-speech"]');await page.fill('#voice-speech-project-name','音色复用');await page.fill('#voice-speech-title','旁白');await page.locator('#voice-speech-form button[type="submit"]').click();await page.locator('#creation-text').waitFor();assert.equal(await page.inputValue('#voice'),second.id);
   await page.fill('#creation-text','保留我的创作草稿');await page.click('[data-action="close"]');await page.click('[data-action="voice-library"]');await page.click(`[data-action="select-voice"][data-id="${second.id}"]`);await page.click('[data-action="use-voice"]');
   assert.equal(await page.inputValue('#voice'),second.id);assert.equal(await page.inputValue('#creation-text'),'保留我的创作草稿');await page.click('[data-action="close"]');
   await page.screenshot({path:'test-results/studio/workspace-dark-desktop.png',fullPage:true});await page.getByRole('button',{name:'日间',exact:true}).click();await page.screenshot({path:'test-results/studio/workspace-light-desktop.png',fullPage:true});
+  const originalSound=service.speech.snapshot().sounds.find(s=>s.title==='旁白');
+  await page.click('[data-action="voice-library"]');await page.locator('[data-action="voice-filter"][data-filter="favorite"]').click();
+  assert.equal(await page.locator('[data-action="select-voice"]').count(),1);
+  await page.locator('[data-action="voice-filter"][data-filter="ready"]').click();
+  await page.locator(`[data-action="preview-voice"][data-id="${second.id}"]`).click();
+  await page.waitForFunction(()=>[...document.querySelectorAll('#voice-preview audio')].some(a=>!a.paused));
+  await page.click('[data-action="new-voice-speech"]');await page.fill('#voice-speech-title','复用音色的新旁白');
+  const beforeSounds=service.speech.snapshot().sounds.length;
+  await page.click('[data-action="close"]');assert.equal(service.speech.snapshot().sounds.length,beforeSounds);
+  await page.locator(`[data-action="select-voice"][data-id="${second.id}"]`).click();await page.click('[data-action="new-voice-speech"]');await page.fill('#voice-speech-title','复用音色的新旁白');await page.locator('#voice-speech-form button[type="submit"]').click();
+  await page.locator('#creation-text').waitFor();assert.equal(await page.inputValue('#voice'),second.id);assert.equal(await page.inputValue('#creation-text'),'');
+  await page.fill('#creation-text','新旁白测试正文');await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor();
+  await page.click('[data-action="task-list"]');await page.locator('[data-action="task-listen"]').first().click();await page.waitForFunction(()=>!!document.querySelector('#version-audio')&&!document.querySelector('#version-audio').paused);
+  await page.click('[data-action="task-list"]');await page.locator('[data-action="task-reuse"]').first().click();await page.getByRole('button',{name:'保留当前草稿',exact:true}).click();assert.equal(await page.locator('#dialog').isVisible(),false);
+  await page.click('[data-action="task-list"]');await page.locator('[data-action="task-reuse"]').first().click();await page.getByRole('button',{name:'载入参数',exact:true}).click();assert.equal(await page.inputValue('#creation-text'),'新旁白测试正文');assert.equal(await page.inputValue('#voice'),second.id);await page.click('[data-action="close"]');
+  await page.locator(`[data-action="sound"][data-id="${originalSound.id}"]`).click();await page.locator('[data-action="compose"]').first().click();assert.equal(await page.inputValue('#creation-text'),'保留我的创作草稿');await page.click('[data-action="close"]');
+  await page.click('[data-action="voice-library"]');await page.locator(`[data-action="select-voice"][data-id="${second.id}"]`).click();await page.click('[data-action="new-voice-speech"]');await page.fill('#voice-speech-title','延迟创建的旁白');
+  let releaseCreation,creationRequested=false;const creationGate=new Promise(resolve=>releaseCreation=resolve);
+  await page.route('**/api/studio_create_sound',async route=>{creationRequested=true;await creationGate;await route.continue();});
+  await page.locator('#voice-speech-form button[type="submit"]').click();
+  try{for(let i=0;i<100&&!creationRequested;i++)await new Promise(r=>setTimeout(r,20));assert.equal(creationRequested,true);await page.click('[data-action="close"]');}finally{releaseCreation();}
+  await page.waitForFunction(()=>!document.body.classList.contains('busy'));
+  assert.equal(await page.locator('#dialog').isVisible(),false);assert.equal(await page.locator('#voice-library').count(),1);assert.ok(service.speech.snapshot().sounds.some(s=>s.title==='延迟创建的旁白'));
   assert.deepEqual(errors,[]);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
@@ -358,7 +382,7 @@ test('five built-in dry voices are visible and playable in day and night themes 
   await page.waitForFunction(()=>document.querySelectorAll('.voice-card').length===5);
   assert.match(await page.locator('#voice-count').textContent(),/5 个内置/);
   for(const name of ['迪丽热巴','天津团团记','女网红','示例声音 · 官方样音','沈腾']){
-   await page.getByRole('button',{name:new RegExp(name)}).click();
+   await page.locator('[data-action="select-voice"]').filter({hasText:name}).click();
    await page.waitForFunction(()=>!!document.querySelector('#voice-preview audio')?.src);
    assert.equal(await page.locator('#library-voice-heading .eyebrow').textContent(),'内置音色');
    await page.locator('#voice-preview audio').evaluate(async a=>{await a.play();});
@@ -417,5 +441,18 @@ test('hierarchy trash, permanent deletion and historical voice labels work throu
  await openTrash(page);await page.click('[data-action="clear-trash"]');await page.click('[data-action="confirm-clear-trash"]');await page.locator('#toast').filter({hasText:'测试删除失败'}).waitFor();assert.equal(await page.locator('.trash-row').count(),1);assert.ok((await service.call('studio_library',{})).versions.some(v=>v.id===liveVersion.id));assert.deepEqual(service.speech.audio(liveVersion.id),new Uint8Array(wav));
  rejectOne=false;await page.click('[data-action="clear-trash"]');await page.click('[data-action="confirm-clear-trash"]');await page.locator('dialog').filter({hasText:'回收站是空的'}).waitFor();assert.equal(await page.locator('[data-action="clear-trash"]').isDisabled(),true);assert.ok(!(await service.call('studio_library',{})).versions.some(v=>v.id===deadVersion.id));await assert.rejects(readFile(join(root,'speech/audio',deadVersion.id+'.wav')),{code:'ENOENT'});
  await page.click('[data-action="close"]');await page.reload();await openTrash(page);assert.equal(await page.locator('.trash-row').count(),0);
+ }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});
+
+test('voice-based creation recovers lost project and sound responses without duplicating content',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'voice-create-lost-ui-')),assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources());const voice=service.speech.addVoice('参考音色',wav);
+ const http=await serveHttp(service,assets),browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1200,height:900}});let lostProject=false,lostSound=false;
+ try{await page.route('**/api/create_project',async route=>{if(lostProject)return route.continue();lostProject=true;const response=await route.fetch();assert.equal(response.status(),200);await route.abort('failed');});
+  await page.route('**/api/studio_create_sound',async route=>{if(lostSound)return route.continue();lostSound=true;const response=await route.fetch();assert.equal(response.status(),200);await route.abort('failed');});
+  await page.goto(http.runtime.url);await page.click('[data-action="voice-library"]');await page.locator(`[data-action="select-voice"][data-id="${voice.id}"]`).click();await page.click('[data-action="new-voice-speech"]');await page.fill('#voice-speech-project-name','不重复项目');await page.fill('#voice-speech-title','不重复旁白');
+  await page.locator('#voice-speech-form button[type="submit"]').click();await page.waitForFunction(()=>!document.body.classList.contains('busy'));assert.equal(await page.locator('#voice-speech-project-name').isEditable(),false);assert.equal(await page.locator('#voice-speech-project').isDisabled(),true);
+  for(let i=0;i<3&&await page.locator('#voice-speech-form').count();i++){await page.locator('#voice-speech-form button[type="submit"]').click();await page.waitForFunction(()=>!document.body.classList.contains('busy'));}
+  await page.locator('#creation-text').waitFor();assert.equal(lostProject,true);assert.equal(lostSound,true);const snapshot=await service.call('studio_library',{});assert.equal(snapshot.projects.filter(p=>p.title==='不重复项目').length,1);assert.equal(snapshot.sounds.filter(s=>s.title==='不重复旁白').length,1);assert.equal(await page.inputValue('#voice'),voice.id);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });

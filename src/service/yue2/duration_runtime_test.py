@@ -56,6 +56,58 @@ class DurationTests(unittest.TestCase):
   self.protocol=patch.dict(sys.modules,{'yue2.protocol':SimpleNamespace(token_prefixes=lambda r,t,ids=None:[9]+(ids or []),resolve_sampling=lambda value,default:replace(default,**value) if isinstance(value,dict) else value or default)})
   self.protocol.start();self.addCleanup(self.protocol.stop)
  def run_plan(self,pipe,request=Request(),cancelled=None):return plan_for_duration(pipe,request,None,cancelled,None,180,self.out)
+ def test_explicit_duration_retry_uses_measured_error_to_obtain_an_in_range_score(self):
+  class ResponsivePipe(Pipe):
+   def plan(self,**kw):
+    self.requests.append(kw['request']);self.samplings.append(kw['abc_sampling'])
+    # A controlled planner that needs a concrete duration correction, not a new seed.
+    corrected='60.0 seconds' in kw['request'].style and '15.0 bars' in kw['request'].style
+    return Plan(kw['request'],score(60 if corrected else 112),[1,2],[0,1,2])
+  p=ResponsivePipe([]);native=Request(style='Acoustic piano and bass; natural ending.')
+  result=plan_for_duration(p,native,None,None,None,60,self.out)
+  self.assertEqual(result.abc,score(60));self.assertEqual(result.request,native)
+  self.assertEqual(p.requests[0],native);self.assertEqual(p.requests[1].lyrics,native.lyrics)
+  self.assertTrue(p.requests[1].style.startswith(native.style))
+  self.assertIn('112.0 seconds',p.requests[1].style)
+  self.assertIn('60.0 quarter-note beats',p.requests[1].style)
+  self.assertIn('Do not change tempo',p.requests[1].style)
+  self.assertEqual([r.seed for r in p.requests],[42,43])
+  self.assertEqual(result.prefix,[9,1,2])
+  report=json.loads((self.out/'duration.json').read_text())
+  self.assertTrue(report['accepted']);self.assertEqual(report['selectedAttempt'],2)
+  self.assertEqual(report['plans'][1]['durationFeedback']['previousSeconds'],112)
+ def test_feedback_is_latest_only_and_does_not_rewrite_score_or_lyrics(self):
+  p=Pipe([(score(60),False),(score(240),False),(score(180),False)])
+  native=Request(style='Folk, natural ending.',lyrics='[Verse]\n原词不增删')
+  result=self.run_plan(p,native)
+  self.assertEqual([r.lyrics for r in p.requests],[native.lyrics]*3)
+  self.assertEqual(p.requests[2].style.count('Duration correction:'),1)
+  self.assertIn('240.0 seconds',p.requests[2].style)
+  self.assertNotIn('previous score was 60.0 seconds',p.requests[2].style)
+  self.assertEqual(result.abc,score(180));self.assertEqual(result.request,native)
+ def test_feedback_uses_score_tempo_and_meter_and_preserves_context_budget(self):
+  # 3/4 at 90 BPM: 60 seconds needs 90 quarter beats / 30 bars.
+  abc=score(224).replace('M:4/4','M:3/4').replace('Q:1/4=60','Q:1/4=90').replace('C32|','C24|').replace('z32|','z24|')
+  p=Pipe([(abc,False),(score(60),False)])
+  plan_for_duration(p,Request(),None,None,None,60,self.out)
+  self.assertIn('90.0 quarter-note beats',p.requests[1].style)
+  self.assertIn('30.0 bars in 3/4 at 90 BPM',p.requests[1].style)
+  # An unusually long prompt must not acquire unreserved tokens on a retry.
+  protocol=sys.modules['yue2.protocol']
+  with patch.object(protocol,'token_prefixes',lambda r,t,ids=None:list(range(len(r.style))),create=True):
+   p=Pipe([(score(112),False),(score(60),False)])
+   p.generation_config=SimpleNamespace(abc=Sampling(),semantic=SimpleNamespace(max_tokens=9000),context=24576)
+   native=Request(style='x'*(24576-9000-4096-2))
+   result=plan_for_duration(p,native,None,None,None,60,self.out)
+   self.assertEqual([r.style for r in p.requests],[native.style]*2)
+   self.assertEqual(result.request,native)
+   report=json.loads((self.out/'duration.json').read_text())
+   self.assertEqual(report['plans'][1]['durationFeedback']['omitted'],'context_budget')
+ def test_auto_and_invalid_scores_do_not_receive_duration_feedback(self):
+  for target in (None,60):
+   p=Pipe([('invalid',False),(score(60),False)])
+   plan_for_duration(p,Request(),None,None,None,target,self.out)
+   self.assertEqual([r.style for r in p.requests],[Request().style]*2)
  def test_short_complete_plan_replans_until_target_met_without_changing_lyrics(self):
   p=Pipe([(score(60),False),(score(180),False)]);r=Request(lyrics='[Verse]\n原词不变')
   result=self.run_plan(p,r)
@@ -159,7 +211,8 @@ class DurationTests(unittest.TestCase):
   with patch.dict(sys.modules,modules),patch.object(sys.modules['yue2.protocol'],'SongRequest',lambda **kw:None,create=True):
    install();engine=Engine();engine.seconds=59
    with self.assertRaisesRegex(ValueError,'音频实际时长'):engine.create_song({'target_duration_seconds':240},self.out,options=SimpleNamespace(loras=[]))
-   self.assertEqual(engine.policy['version'],5)
+   self.assertEqual(engine.policy['version'],6)
+   self.assertEqual(engine.policy['feedbackTokens'],512)
    engine.seconds=236.84
    self.assertEqual(engine.create_song({'target_duration_seconds':240},self.out,options=SimpleNamespace(loras=[]))['status'],'complete')
  def test_auto_duration_accepts_any_complete_score(self):
