@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {resourcePanel,resourceFailure} from './resources.ts';import {testResources} from '../../service/resources/testing.ts';
+import test from 'node:test';import assert from 'node:assert/strict';import {resourceOverview,memoryLimitSummary,resourceFailure} from './resources.ts';import {testResources} from '../../service/resources/testing.ts';
 test('memory failures explain recovery using structured reasons and keep diagnostics separate',()=>{
  const html=resourceFailure({reason:'PRESSURE_PROTECTION',message:'系统交换空间增长超过安全阈值，已停止任务'},true);
  assert.match(html,/为保护电脑，生成已停止/);assert.match(html,/关闭暂时不用的应用/);
@@ -19,8 +19,15 @@ test('telemetry failures explain a monitoring problem and expose escaped diagnos
  assert.match(html,/内存监测失败/);assert.match(html,/无需修改创作内容/);assert.match(html,/vmmap &lt;timeout&gt;/);
  assert.doesNotMatch(resourceFailure({reason:'PRESSURE_PROTECTION'},false,false),/retry-generation/);
 });
-test('resource panel distinguishes capacity, estimates, task samples and absent telemetry',async()=>{
- const c=testResources();let s=c.snapshot();assert.match(resourcePanel(s),/暂时无法读取/);s=await c.status();const html=resourcePanel(s);assert.match(html,/16.0 GiB/);assert.match(html,/应用上限 12.0 GiB/);assert.match(html,/可用估计/);assert.match(html,/当前没有重型任务/);c.pause();assert.match(resourcePanel(c.snapshot()),/恢复后续任务/);await c.close();
+test('resource overview distinguishes capacity, estimates, residents and absent telemetry',async()=>{
+ assert.match(resourceOverview(undefined),/正在读取电脑资源/);assert.match(resourceOverview(undefined,'',true),/暂时无法读取电脑资源/);
+ const c=testResources();let s=c.snapshot();assert.match(resourceOverview(s),/暂时无法读取/);assert.equal(memoryLimitSummary(s),'正在读取当前上限…');
+ s=await c.status();const html=resourceOverview(s,'<table id="cpu"></table>');
+ assert.match(html,/16.0 GiB/);assert.match(html,/应用上限 <b>12.0 GiB<\/b>（自动）/);assert.match(html,/系统可用估计/);assert.match(html,/模型驻留<\/span><span>无/);
+ assert.match(html,/data-action="resource-release" >/);assert.match(html,/<table id="cpu"><\/table>/);assert.match(html,/role="img" aria-label="[^"]*内存分布：系统保留/);
+ assert.equal(memoryLimitSummary(s),'当前应用上限 12.0 GiB（自动管理）');
+ const widths=[...html.matchAll(/style="width:([0-9.]+)%"/g)].map(m=>Number(m[1]));assert.equal(widths.length,4);assert.ok(Math.abs(widths.reduce((a,b)=>a+b,0)-100)<0.1);
+ await c.close();
 });
 test('unverified input failures show preflight advice and an obvious retry instead of implying model execution failed',()=>{
  const html=resourceFailure({reason:'RESOURCE_PROFILE_UNVERIFIED',message:'此模型配置的资源需求尚未验证'},false);
@@ -38,4 +45,9 @@ test('music recovery states the saved boundary instead of promising chunk-level 
  }
  assert.match(resourceFailure({reason:'RESOURCE_TELEMETRY_UNAVAILABLE'},true),/尚无可用恢复点/);
  assert.match(resourceFailure({reason:'RESOURCE_TELEMETRY_UNAVAILABLE'},true),/更换随机种子从头生成/);
+});
+test('resource overview tolerates partial status from older services without throwing',()=>{
+ for(const status of [{queued:[],paused:false},{active:{id:'a',engine:'tts',stage:'running'},queued:[],paused:true},{queued:[],paused:false,hardware:{pressure:'normal',sampledAt:0,pools:[{id:'memory',capacity:1,available:1,owned:0}]}}] as any[]){
+  const html=resourceOverview(status);assert.match(html,/本机资源/);assert.match(html,/模型驻留<\/span><span>无/);assert.equal(memoryLimitSummary(status),'正在读取当前上限…');
+ }
 });

@@ -59,9 +59,9 @@ test('empty workspace chooses a sound first, names once and never generates with
   assert.equal(await page.inputValue('#creation-text'),'保留原稿\n\n导入的新段落');
   await page.click('[data-action="close"]');
   assert.equal(await page.locator('[data-action="quick-start"]').count(),0);
-  await page.click('[data-action="settings"]');await page.click('[data-action="backup-guide"]');
+  await page.click('[data-action="settings"]');await page.click('[data-settings-section="backup"]');
   await page.locator('#backup-commands').waitFor();
-  const guide=await page.locator('#dialog').innerText(),commands=await page.inputValue('#backup-commands');
+  const guide=await page.locator('#settings-backup').innerText(),commands=await page.inputValue('#backup-commands');
   assert.match(guide,/停止服务/);assert.match(guide,/草稿/);assert.match(commands,/backup/);assert.match(commands,/verify-backup/);
   assert.equal(commands.includes(http.runtime.token),false);
   assert.deepEqual(errors,[]);

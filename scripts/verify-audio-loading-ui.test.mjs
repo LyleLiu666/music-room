@@ -30,8 +30,8 @@ test('purging an unrelated version preserves an in-flight selected audio request
  await page.route('**/api/**',async r=>{const name=r.request().url().split('/').at(-1);if(name==='resource_status')return r.fulfill({json:{queued:[],paused:false,policy:{}}});if(name==='studio_purge'){versions.splice(1,1);return r.fulfill({json:{}});}return r.fulfill({json:{projects:[{id:'p',title:'项目'}],sounds:[{id:'s',projectId:'p',title:'音乐',kind:'music'}],versions,voices:[],conversionVoices:[],engines:{speech:{logs:[]},music:{logs:[],canGenerate:true},conversion:{}}}});});
  try{
   await page.goto(server.resolvedUrls.local[0]);await requested;
-  await page.click('[data-action="settings"]');await page.click('[data-action="trash"]');await page.click('[data-action="purge-entity"][data-id="deleted"]');await page.click('[data-action="confirm-purge"]');
-  await page.locator('#toast').getByText('已彻底删除。',{exact:true}).waitFor();finish();await page.click('#dialog [data-action="close"]');
+  await page.click('[data-action="settings"]');await page.click('[data-settings-section="trash"]');await page.click('[data-action="purge-entity"][data-id="deleted"]');await page.click('[data-action="confirm-purge"]');
+  await page.locator('#toast').getByText('已彻底删除。',{exact:true}).waitFor();finish();await page.click('[data-action="project"][data-id="p"]');
   await page.waitForFunction(()=>document.querySelector('#version-audio')?.readyState>=2);
   assert.equal(aborts,0);assert.equal(reads,1);await page.locator('#version-audio').evaluate(a=>a.play());
  }finally{finish();await browser.close();await server.close();}

@@ -42,7 +42,10 @@
 | UI-02 / P1 | 用键盘打开对话框、Tab / Shift+Tab、轮询更新后 Escape；展开高级输入 | 背景控件不可聚焦；Escape 返回打开控件；可见输入有名称 | `scripts/verify-browser-compat.test.mjs` |
 | UI-03 / P2 | Chrome / WebKit，390px 窄屏，播放与原文件下载，刷新草稿 | 无横向溢出，真实点击后能播放，下载字节一致；独立记录浏览器结果 | 同上、`verify-drafts-ui.test.mjs` |
 | UI-04 / P1 | 草稿保存失败，刷新触发离开提醒，选择留在当前页面 | 输入仍可编辑；已有音频 URL 仍能重新读取；实际离开页面后才释放媒体资源 | `scripts/verify-browser-compat.test.mjs` |
-| UI-05 / P2 | Chrome / WebKit，1280×720 与 900×600 小窗口，19 个项目、长名称，展开资源详情再恢复大窗口 | 搜索与新建同排；项目按可用高度分页，每页完整显示且无内部纵向滚动；所有项目可翻页找到；搜索、新建和设置可用；大窗口恢复每页 6 项 | `scripts/verify-task-history-ui.test.mjs` |
+| UI-05 / P2 | Chrome / WebKit，1280×720 与 900×600 小窗口，19 个项目、长名称 | 搜索与新建同排；19 个项目全部列出、列表内滚动可达最后一项且无横向溢出；侧栏不再分页；设置入口保持在屏内；搜索与空结果提示可用 | `scripts/verify-task-history-ui.test.mjs` |
+| UI-06 / P1 | 运行 / 排队 / 暂停 / 断线 / 空闲，切换项目、音色库与弹窗，390px | 侧栏「任务与资源」右侧一行实时状态与后台一致、空闲为空；完整队列、进度、启动预约与逐项取消只在任务与资源页；队列标题跳转原版本且不打断播放；弹窗与底部播放条不再含任务摘要 | `scripts/verify-task-queue-ui.test.mjs`、`verify-music-progress-ui.test.mjs`、`verify-resources-ui.test.mjs`、`src/workbench/studio/task-queue.test.ts` |
+| UI-07 / P1 | 侧栏内存一行：正常 / 偏高 / 过高 / 读取失败 / 隐藏页签；点击进入任务与资源 | 侧栏只有一行与 5 格条、无 CPU 表；详细数据（CPU、内存四项、预算）在任务页折叠内且刷新后保持展开；隐藏页签停止采样 | `scripts/verify-monitor-ui.test.mjs`、`src/workbench/studio/monitor.test.ts`、`resources.test.ts` |
+| UI-08 / P1 | 设置页各小节：模型启用、内存上限保存 / 恢复自动、回收站恢复 / 彻底删除 / 清空失败重试、备份命令、外观三选一 | 设置与回收站是页面而非弹窗；确认仍用居中确认框；恢复后可回到原项目与声音；主题在日间 / 夜间 / 跟随系统间切换并持久化 | `scripts/verify-studio-ui.test.mjs`、`verify-first-use-ui.test.mjs`、`verify-audio-loading-ui.test.mjs` |
 | LIBRARY-01 / P1 | 10,000 条声音、长创作要求，跨页搜索 / 分类 / 排序与播放顺序查询 | 接口仅返回当前页 20 / 50 条；工作台不传整库声音及历史版本正文；播放 ID 顺序覆盖全部页 | `src/service/studio/sound-catalog.test.ts` |
 | LIBRARY-02 / P2 | Chrome / WebKit，1280×800、900×700、720×456 和 390×844；深浅主题及实际 200% 缩放 | 宽窗口顶部至首条声音不超过 140px、完整显示至少 8 条；声音行高不超过 64px；窄窗口控件可见且无横向溢出；手机滚到声音库后检查列表密度 | `scripts/verify-listening-queue-ui.test.mjs`、`verify-zoom-ui.mjs` |
 | PLAYLIST-01 / P1 | 保存具体版本、重复添加、并发旧修订覆盖、取消收录、来源删除、服务重启及删除列表 | 顺序持久化；重复 ID 去重；旧修改拒绝覆盖；相同成功请求可恢复；失效条目保留；原音频不受删表影响 | 同上、`scripts/verify-binary.mjs` |

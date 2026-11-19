@@ -35,3 +35,15 @@ test('task titles navigate to the owned version, including queued music, lyrics 
  for(const id of ['v1','v2','v3'])assert.match(html,new RegExp(`data-action="task-version" data-id="${id}" data-sound="s"`));
  assert.match(html,/音乐 &lt;demo&gt;/);assert.equal((html.match(/data-action="task-version"/g)??[]).length,3);assert.match(html,/<strong>安装准备<\/strong>/);
 });
+test('sidebar live status is empty when idle and names running, waiting, paused and offline states',async()=>{
+ const {liveSummary}=await import('./task-queue.ts');
+ assert.deepEqual(liveSummary(undefined,false),{text:'',state:''});assert.deepEqual(liveSummary({queued:[],paused:false},false),{text:'',state:''});
+ assert.deepEqual(liveSummary({active:{},queued:[{},{}],paused:false},false),{text:'1 进行中 · 2 排队',state:'working'});
+ assert.deepEqual(liveSummary({queued:[{}],paused:false},false),{text:'1 排队',state:'working'});
+ assert.deepEqual(liveSummary({active:{},queued:[{}],paused:true},false),{text:'已暂停 · 1 排队',state:'paused'});
+ assert.deepEqual(liveSummary(undefined,true),{text:'连接中断',state:'offline'});
+});
+test('queue rows offer cancellation and show the startup reservation, except while cancelling',()=>{
+ const html=taskQueueRows({active:{id:'a<1',engine:'tts',stage:'running',demand:{verified:true,startup:{memory:5*2**30},peak:{memory:8*2**30}}},queued:[{id:'b',engine:'yue2',stage:'cancelling'}],paused:false} as any,{sounds:[],projects:[]} as any);
+ assert.match(html,/data-action="resource-cancel" data-id="a&lt;1"/);assert.match(html,/启动预约 5.0 GiB/);assert.equal((html.match(/resource-cancel/g)??[]).length,1);
+});

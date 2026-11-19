@@ -1,0 +1,113 @@
+/* Music Room · 公共排版与小组件（安静信笺）。规范见 docs/design/studio-redesign.md 第 6 节。 */
+
+h1,
+h2,
+.brand,
+.version-label,
+.dialog-heading h2 {
+  font-family: var(--serif);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+.num,
+time,
+[data-bar-time],
+output {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 线性图标：icons.ts 输出的 SVG 跟随文字颜色 */
+.icon {
+  display: inline-block;
+  flex: none;
+  width: 16px;
+  height: 16px;
+  vertical-align: -3px;
+}
+
+.icon.sm {
+  width: 12px;
+  height: 12px;
+  vertical-align: -1px;
+}
+
+/* 成品印章与灵感印记：全站只有这里使用朱红 */
+.tag.final,
+.seal {
+  display: inline-grid;
+  place-items: center;
+  height: 20px;
+  padding: 0 6px 0 calc(6px + 0.18em);
+  border: 0;
+  border-radius: 2px;
+  background: var(--seal);
+  color: var(--paper-raised);
+  font: 500 11px/1 var(--serif);
+  letter-spacing: 0.18em;
+}
+
+.tag.kept,
+.mark {
+  display: inline-grid;
+  place-items: center;
+  height: 20px;
+  padding: 0 6px 0 calc(6px + 0.18em);
+  border: 1px solid var(--seal-line);
+  border-radius: 2px;
+  background: transparent;
+  color: var(--seal);
+  font: 500 11px/1 var(--serif);
+  letter-spacing: 0.18em;
+}
+
+/* 主题切换：侧栏底部两枚图标按钮，设置里为三选一 */
+.theme-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--hair);
+  border-radius: var(--r-2);
+  background: var(--paper-sunk);
+}
+
+.theme-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: var(--r-1);
+  color: var(--ink-3);
+  font-size: var(--t-12);
+}
+
+.theme-switch button:hover {
+  color: var(--ink);
+}
+
+.theme-switch button[aria-pressed='true'] {
+  background: var(--paper-raised);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(36, 34, 30, 0.12);
+}
+
+.theme-switch.compact button {
+  width: 28px;
+  padding: 0;
+  justify-content: center;
+}
+
+
+/* 图标与文字同在按钮里时留出间距 */
+button:not([aria-label]) > .icon:first-child,
+summary:not([aria-label]) > .icon:first-child {
+  margin-right: 6px;
+}
+
+/* 「已选为成品」：朱红文字与淡朱红边框 */
+[data-action='final'].chosen {
+  color: var(--seal);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--seal-line);
+}

@@ -73,7 +73,7 @@ test('native playback menus and playback survive library refreshes; browsing kee
   await page.locator('[data-select-version]').first().check();
   assert.equal(await page.evaluate(()=>playerRemovals),0,'selection refresh also retains the player');
   await service.call('studio_update_version',{versionId:versions[1].id,kept:true});await tick();
-  await page.waitForFunction(()=>document.querySelector('[data-action="keep"]')?.textContent.includes('已保留'));
+  await page.waitForFunction(()=>document.querySelector('[data-action="keep"]')?.textContent.includes('已留作灵感'));
   assert.equal(await page.evaluate(()=>playerRemovals),0,'version metadata updates around the connected player');
   await page.locator(`[data-action="version"][data-id="${versions[0].id}"]`).click();
   await page.waitForFunction(id=>document.querySelector('#version-audio')?.dataset.version===id&&document.querySelector('#version-audio')?.readyState>=1,versions[0].id);
@@ -87,7 +87,7 @@ test('native playback menus and playback survive library refreshes; browsing kee
   assert.equal(await page.evaluate(()=>!player.paused&&player.isConnected),true,'sound tabs keep music playing even without another audio');
   await service.call('create_project',{projectId:'other',title:'另一个项目'});await tick();await page.locator('[data-action="project"][data-id="other"]').waitFor();await page.click('[data-action="project"][data-id="other"]');
   assert.equal(await page.evaluate(()=>!player.paused&&player.isConnected),true,'project browsing keeps playback');
-  await page.setViewportSize({width:390,height:844});const dock=await page.locator('#global-status-bar').boundingBox();assert.ok(dock.x>=0&&dock.x+dock.width<=390&&dock.y+dock.height<=844);assert.ok(dock.height<=42);const queue=await page.locator('#global-task-queue').boundingBox();assert.ok(Math.abs(queue.width/dock.width-1/3)<.02);await page.setViewportSize({width:1440,height:1000});
+  await page.setViewportSize({width:390,height:844});const dock=await page.locator('#global-status-bar').boundingBox();assert.ok(dock.x>=0&&dock.x+dock.width<=390&&dock.y+dock.height<=844);assert.ok(dock.height<=42);assert.equal(await page.locator('#global-status-bar [data-task-queue]').count(),0);const transport=await page.locator('#global-status-bar .bar-playback').boundingBox();assert.ok(Math.abs(transport.width-dock.width)<4);await page.setViewportSize({width:1440,height:1000});
   await page.click('[data-action="voice-library"]');assert.equal(await page.evaluate(()=>!player.paused&&player.isConnected),true,'voice library browsing keeps playback');
   await page.getByRole('button',{name:'暂停',exact:true}).click();assert.equal(await page.evaluate(()=>player.paused),true,'dock provides a working pause');
   await page.getByRole('button',{name:'播放',exact:true}).click();await page.click('#global-status-bar [data-action="return-playback"]');await page.waitForFunction(()=>player===document.querySelector('#version-audio'));
