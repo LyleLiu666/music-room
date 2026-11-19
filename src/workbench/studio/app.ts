@@ -367,7 +367,7 @@ async function start(){
  function openSettings(section=''){close();workspaceView='settings';settingsSection=section;render();void refresh(true);void refreshResources(true);}
  function renderTasksPage(){
   const ws=$('#workspace');
-  if(!ws.querySelector('#task-resources'))ws.innerHTML=`<section id="task-resources" class="page-view"><header class="page-head"><div><h1>任务与资源</h1><p class="page-meta">生成在本机后台逐项进行，关闭网页不会中断</p></div><div class="page-actions"><button class="secondary" data-action="resource-pause" id="resource-pause-button">暂停后续任务</button></div></header><section id="resource-status" class="page-block" aria-label="本机资源"></section><section class="page-block" aria-labelledby="task-queue-title"><div class="block-head"><h2 id="task-queue-title">进行中与排队</h2></div><div id="task-queue" data-task-queue></div></section><div id="task-history-host"></div></section>`;
+  if(!ws.querySelector('#task-resources'))ws.innerHTML=`<section id="task-resources" class="page-view"><header class="page-head"><div><h1>任务与资源</h1><p class="page-meta">生成在本机后台逐项进行，关闭网页不会中断</p></div><div class="page-actions"><button class="secondary" data-action="resource-pause" id="resource-pause-button">暂停后续任务</button></div></header><section class="page-block task-now" aria-labelledby="task-queue-title"><div class="block-head"><h2 id="task-queue-title">进行中与排队</h2></div><div id="task-queue" data-task-queue></div></section><section id="resource-status" class="page-block" aria-label="本机资源"></section><div id="task-history-host"></div></section>`;
   taskHistory.render(data,$('#task-history-host'));renderTaskQueue(resourceSnapshot,resourceOffline,data);updateResourceOverview();
  }
  function updateResourceOverview(){

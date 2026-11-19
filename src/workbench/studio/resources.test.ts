@@ -23,8 +23,8 @@ test('resource overview distinguishes capacity, estimates, residents and absent 
  assert.match(resourceOverview(undefined),/正在读取电脑资源/);assert.match(resourceOverview(undefined,'',true),/暂时无法读取电脑资源/);
  const c=testResources();let s=c.snapshot();assert.match(resourceOverview(s),/暂时无法读取/);assert.equal(memoryLimitSummary(s),'正在读取当前上限…');
  s=await c.status();const html=resourceOverview(s,'<table id="cpu"></table>');
- assert.match(html,/16.0 GiB/);assert.match(html,/应用上限 <b>12.0 GiB<\/b>（自动）/);assert.match(html,/系统可用估计/);assert.match(html,/模型驻留<\/span><span>无/);
- assert.match(html,/data-action="resource-release" >/);assert.match(html,/<table id="cpu"><\/table>/);assert.match(html,/role="img" aria-label="[^"]*内存分布：系统保留/);
+ assert.match(html,/16.0 GiB/);assert.match(html,/应用上限 <b>12.0 GiB<\/b>（自动）/);assert.match(html,/系统可用估计/);assert.match(html,/已加载模型<\/span><span>无/);
+ assert.match(html,/data-action="resource-release"  title="重型任务结束后会自动释放">释放空闲模型/);assert.match(html,/<table id="cpu"><\/table>/);assert.match(html,/role="img" aria-label="[^"]*内存分布：系统保留/);
  assert.equal(memoryLimitSummary(s),'当前应用上限 12.0 GiB（自动管理）');
  const widths=[...html.matchAll(/style="width:([0-9.]+)%"/g)].map(m=>Number(m[1]));assert.equal(widths.length,4);assert.ok(Math.abs(widths.reduce((a,b)=>a+b,0)-100)<0.1);
  await c.close();
@@ -48,6 +48,6 @@ test('music recovery states the saved boundary instead of promising chunk-level 
 });
 test('resource overview tolerates partial status from older services without throwing',()=>{
  for(const status of [{queued:[],paused:false},{active:{id:'a',engine:'tts',stage:'running'},queued:[],paused:true},{queued:[],paused:false,hardware:{pressure:'normal',sampledAt:0,pools:[{id:'memory',capacity:1,available:1,owned:0}]}}] as any[]){
-  const html=resourceOverview(status);assert.match(html,/本机资源/);assert.match(html,/模型驻留<\/span><span>无/);assert.equal(memoryLimitSummary(status),'正在读取当前上限…');
+  const html=resourceOverview(status);assert.match(html,/本机资源/);assert.match(html,/已加载模型<\/span><span>无/);assert.equal(memoryLimitSummary(status),'正在读取当前上限…');
  }
 });

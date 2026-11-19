@@ -51,7 +51,7 @@ export function renderTaskQueue(status:ResourceStatus|undefined,offline:boolean,
  const hosts=document.querySelectorAll<HTMLElement>('[data-task-queue]');
  if(!hosts.length)return;
  const rows=taskQueueRows(status,library);
- const html=`<p class="queue-summary"><span class="queue-dot ${offline?'offline':tasks.length?'working':''}" aria-hidden="true"></span><span role="status">${esc(summary)}</span></p>${offline?'<p class="queue-note">连接恢复后自动更新，请勿将此状态视为空闲。</p>':tasks.length?`<ul class="queue-rows">${rows}</ul>`:'<p class="queue-note">当前没有排队或正在执行的任务。</p>'}${status?.paused?'<p class="queue-note">后续任务已暂停，当前任务继续；点击右上角「恢复后续任务」继续排队。</p>':''}`;
+ const html=`<p class="queue-summary"><span class="queue-dot ${offline?'offline':tasks.length?'working':''}" aria-hidden="true"></span><span role="status">${esc(summary)}</span></p>${offline?'<p class="queue-note">连接恢复后自动更新，请勿将此状态视为空闲。</p>':tasks.length?`<ul class="queue-rows">${rows}</ul>`:''}${status?.paused?'<p class="queue-note">后续任务已暂停，当前任务继续；点击右上角「恢复后续任务」继续排队。</p>':''}`;
  for(const host of hosts){
   if(host.dataset.queueContent===html)continue;
   const focused=host.contains(document.activeElement)?(document.activeElement as HTMLElement):undefined;

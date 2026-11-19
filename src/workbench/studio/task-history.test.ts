@@ -2,7 +2,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {taskHistoryRows,projectMatches,taskHistorySlice} from './task-history.ts';
 test('completed history remains available while idle and links to the exact version',()=>{
  const library={sounds:[{id:'s',projectId:'p',title:'钢琴'}],projects:[{id:'p',title:'音乐'}],taskHistory:[{id:'v1',soundId:'s',number:1,state:'succeeded',stage:'完成',createdAt:'2026-10-20',hasAudio:true},{id:'v2',soundId:'s',number:2,state:'failed',stage:'导出失败',createdAt:'2026-10-21',hasAudio:false}]} as any;
- const html=taskHistoryRows(library);assert.match(html,/查看生成结果/);assert.match(html,/data-id="v1"/);assert.match(html,/data-action="task-version"/);assert.match(html,/失败/);assert.ok(html.indexOf('v2')<html.indexOf('v1'));
+ const html=taskHistoryRows(library);assert.doesNotMatch(html,/查看生成结果|查看版本/,'the title already opens the version');assert.match(html,/data-action="task-listen" data-id="v1"/);assert.equal((html.match(/<li class="task-history-row"/g)??[]).length,2);assert.match(html,/data-id="v1"/);assert.match(html,/data-action="task-version"/);assert.match(html,/失败/);assert.ok(html.indexOf('v2')<html.indexOf('v1'));
  assert.match(html,/<button[^>]*class="task-title-link"[^>]*data-id="v1"[^>]*>钢琴 · V1<\/button>/);
 });
 test('project navigation lists every project and searches names case-insensitively',()=>{
