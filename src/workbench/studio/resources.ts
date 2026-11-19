@@ -1,8 +1,9 @@
 import {icon} from './icons.ts';
-import {poolBudget} from '../../service/resources/policy.ts';
+import {admit,hardwareSnapshotIssue,poolBudget,validPolicy} from '../../service/resources/policy.ts';
 import type {MusicRecovery} from '../../service/yue2/contracts.ts';
+import {modelMemory} from '../../service/resources/model-memory.ts';
 import type {ResourceStatus} from '../../service/operations.ts';
-import type {ResourceTaskState} from '../../service/resources/contracts.ts';
+import type {Admission,ResourceTaskState} from '../../service/resources/contracts.ts';
 export const resourceEngineNames:Record<string,string>={'sound-effects':'音效生成',tts:'语音',reference:'参考清理',conversion:'音色转换',yue2:'音乐',render:'乐谱合成',speed:'调速',lyrics:'同步歌词',installation:'安装准备',import:'音频导入'};
 const escape=(v:unknown)=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 export function musicRecoveryNote(recovery?:MusicRecovery){
@@ -18,21 +19,68 @@ export function resourceFailure(resource:Pick<ResourceTaskState,'reason'|'messag
 const gib=(bytes:number)=>`${(bytes/2**30).toFixed(1)} GiB`;
 const stages:Record<string,string>={queued:'排队中',waiting_resources:'等待资源',loading:'加载中',running:'处理中',cancelling:'正在取消',succeeded:'完成',blocked:'已阻止',failed:'失败',cancelled:'已取消'};
 const pressureText={normal:'正常',warning:'偏高，后续任务等待',critical:'过高，已停止重型任务',unknown:'暂时无法读取'};
-/** 任务与资源页的「本机资源」区块。数据只来自 resource_status / monitor_status，不另做估算。 */
+const capabilityNames:Record<keyof typeof modelMemory,string>={
+ lyrics:'同步歌词',soundEffects:'音效生成',breeze:'语音 · Breeze',indexTts:'语音 · IndexTTS',
+ yue:'音乐 · YuE2',reference:'参考清理 · UVR',conversion:'音色转换 · Seed-VC'
+};
+function ownedPurpose(active:ResourceStatus['active'],hasResidents:boolean,sampled:number|undefined){
+ if(active){
+  const name=escape(resourceEngineNames[active.engine]??active.engine);
+  const stage=active.stage==='running'?'正在运行':stages[active.stage];
+  return `（${stage}：${name}${sampled!==undefined&&Number.isFinite(sampled)?` ${gib(sampled)}`:''}）`;
+ }
+ return hasResidents?'（含已加载模型）':'（后台服务）';
+}
+function capabilityStatus(decision:Admission|undefined,readyText:string){
+ if(decision?.allowed)return {tone:'ready',text:readyText};
+ if(decision?.code==='UNSUPPORTED_BACKEND')return {tone:'blocked',text:'设备不支持'};
+ if(decision?.code==='INSUFFICIENT_CAPACITY')return {tone:'blocked',text:'超出上限'};
+ if(decision?.code==='WAITING_FOR_MEMORY'){
+  const detail=decision.details?.[0];
+  if(detail?.limiting==='pressure')return {tone:'wait',text:'等待压力恢复'};
+  if(detail?.shortfall)return {tone:'wait',text:detail.shortfall<0.05*2**30?'还差不到 0.1 GiB':`还差 ${gib(detail.shortfall)}`};
+ }
+ return {tone:'unknown',text:'状态未知'};
+}
+function renderCapabilityGuide(hardware:ResourceStatus['hardware'],policy:ResourceStatus['policy'],now:number){
+ const items=(Object.keys(capabilityNames) as (keyof typeof modelMemory)[]).map(key=>{
+  const name=capabilityNames[key],demand=modelMemory[key];
+  const startup=demand.startup.memory,peak=demand.peak.memory;
+  const varying=key==='yue';
+  const demandText=varying?`${gib(startup)} 起 · 随输入变化`:startup!==peak?`启动 ${gib(startup)} · 上限 ${gib(peak)}`:gib(startup);
+  const decision=hardware?admit(hardware,demand,policy,now):undefined;
+  const state=capabilityStatus(decision,varying?'达到起步要求':'内存充足');
+  return `<li class="memory-capability-item"><span class="memory-capability-name">${name}</span><span class="memory-capability-demand">${demandText}</span><span class="memory-capability-state is-${state.tone}">${state.text}</span></li>`;
+ }).join('');
+ return `<div class="memory-capabilities"><p class="memory-capabilities-head"><span>各功能内存需求</span><span class="field-note">任务排队串行执行，仅在生成时加载当前模型，完成后立即从内存卸载</span></p><ul class="memory-capability-list" aria-label="各功能内存需求">${items}</ul></div>`;
+}
+/** 任务与资源页按照后台准入规则展示各功能的内存情况。 */
 export function resourceOverview(status:ResourceStatus|undefined,details='',offline=false){
  if(!status)return `<div class="block-head"><h2>本机资源</h2><span class="block-meta">${offline?'暂时无法读取电脑资源':'正在读取电脑资源…'}</span></div>${details?`<details class="resource-details"><summary>详细数据</summary>${details}</details>`:''}`;
- const hardware=status.hardware,policy=status.policy,tasks=[...(status.active?[status.active]:[]),...(status.queued??[])],residentList=status.residents??[],history=status.history??[];
- const pools=hardware&&policy?hardware.pools.map(p=>{
-  const {reserve,limit,startupBudget}=poolBudget(p,policy),capacity=Math.max(p.capacity,1),owned=Math.max(0,p.owned);
-  const parts:[string,number,string][]=[['系统保留',reserve,'reserve'],['本程序',owned,'owned'],['现在可用',startupBudget,'free']];
-  const other=Math.max(0,capacity-reserve-owned-startupBudget);parts.splice(1,0,['其他占用与余量',other,'other']);
+ const now=Date.now(),policy=status.policy,active=offline?undefined:status.active;
+ const sample=status.hardware;
+ const hardware=!offline&&!status.hardwareError&&sample&&policy&&validPolicy(policy)&&!hardwareSnapshotIssue(sample,policy,now)?sample:undefined;
+ const residentList=offline?[]:status.residents??[],history=status.history??[];
+ const reservations=Object.values(status.reservations??{});
+ const observation=active&&['loading','running','cancelling'].includes(active.stage)&&reservations.length?status.observation:undefined;
+ const busy=!!active||!!status.queued?.length;
+ const pools=hardware?hardware.pools.map(p=>{
+  const {reserve,limit,startupBudget}=poolBudget(p,policy);
+  const available=Math.min(p.available,p.capacity-p.owned);
+  const parts:[string,number,string,string?][]=[
+   ['本程序',p.owned,'owned',ownedPurpose(active,residentList.length>0,observation?.usage?.[p.id])],
+   ['其余内存',p.capacity-p.owned-available,'other'],
+   ['系统可用估计',available,'free']
+  ];
   const name=hardware.topology==='unified'?'共享内存':p.id==='memory'?'系统内存':escape(p.id);
-  return {summary:`<div class="memory-pool"><p class="memory-summary">新任务可用 <b>${gib(startupBudget)}</b> · 应用上限 <b>${gib(limit)}</b>（${policy.limits?.memory===undefined?'自动':'手动'}）· ${name} ${gib(p.capacity)}</p><div class="memory-bar" role="img" aria-label="${name}分布：${parts.map(([n,v])=>`${n} ${gib(v)}`).join('，')}">${parts.map(([n,v,k])=>`<span class="memory-${k}" style="width:${(v/capacity*100).toFixed(2)}%" title="${n} ${gib(v)}"></span>`).join('')}</div></div>`,
-   detail:`<div class="memory-legend">${parts.map(([n,v,k])=>`<span><i class="memory-${k}"></i>${n} <b>${gib(v)}</b></span>`).join('')}</div><p class="field-note">系统可用估计 ${gib(p.available)} · 为系统保留 ${gib(reserve)} · 额外余量 ${gib(policy.headroom)}</p>`};
+  const state=!hardware.supported?'设备不支持':hardware.pressure!=='normal'?'等待压力恢复':`新任务可用 <b>${gib(startupBudget)}</b>`;
+  const legend=`<div class="memory-legend">${parts.map(([n,v,k,note])=>`<span><i class="memory-${k}"></i>${n} <b>${gib(v)}</b>${note??''}</span>`).join('')}</div>`;
+  return {summary:`<div class="memory-pool"><p class="memory-summary">${state} · 应用上限 <b>${gib(limit)}</b>（${policy.limits?.[p.id]===undefined?'自动':'手动'}）· ${name} ${gib(p.capacity)}</p><div class="memory-bar" role="img" aria-label="${name}分布：${parts.map(([n,v])=>`${n} ${gib(v)}`).join('，')}">${parts.map(([n,v,k])=>`<span class="memory-${k}" style="width:${(v/Math.max(p.capacity,1)*100).toFixed(2)}%" title="${n} ${gib(v)}"></span>`).join('')}</div>${legend}<p class="field-note">系统保留额度 <b>${gib(reserve)}</b></p></div>`,
+   detail:`<p class="field-note">系统可用估计 ${gib(p.available)} · 启动额外余量 ${gib(policy.headroom)}</p>`};
  }):[];
- const usage=status.active&&status.observation&&status.reservations?`<p class="field-note">当前任务采样 ${Object.values(status.observation.usage).map(gib).join(' / ')} · 运行保护上限 ${Object.values(status.reservations).map(gib).join(' / ')}（采样保护并非瞬时硬上限）</p>`:'';
- const residents=residentList.length?residentList.map(r=>`<b>${escape(resourceEngineNames[r.engine]??r.engine)}</b>`).join('、'):'无';
- return `<div class="block-head"><h2>本机资源</h2><span class="block-meta">内存压力 ${hardware?pressureText[hardware.pressure]:'暂时无法读取'}${hardware?` · 采样 ${escape(new Date(hardware.sampledAt).toLocaleTimeString())}`:''}</span><button class="text-link" data-action="settings" data-section="memory">调整内存上限</button></div>${status.fault||status.configurationError?`<p role="alert" class="resource-alert">${escape(status.fault?.message??status.configurationError)}</p>`:''}${pools.length?pools.map(x=>x.summary).join(''):'<p>电脑资源暂时无法读取</p>'}${usage}<div class="resident-row"><span>已加载模型</span><span>${residents}</span><button class="quiet" data-action="resource-release" ${tasks.length?'disabled':''} title="${tasks.length?'有任务时不能释放':'重型任务结束后会自动释放'}">释放空闲模型</button></div><details class="resource-details"><summary>详细数据</summary>${pools.map(x=>x.detail).join('')}${details}${history.slice(-3).reverse().map(t=>`<p class="field-note">最近：${escape(resourceEngineNames[t.engine]??t.engine)} · ${escape(t.message??stages[t.stage])}</p>`).join('')}<p class="field-note">已验证输入范围：语音正文最多 8000 字，每段最多 140 字，参考音频 15 秒；音乐按实际分词检查上下文容量，并预留规划与生成空间。能否运行还取决于本机容量和当前压力。</p></details>`;
+ const usage=observation?`<p class="field-note">当前任务采样 ${Object.values(observation.usage).map(gib).join(' / ')} · 运行保护上限 ${reservations.map(gib).join(' / ')}（采样保护并非瞬时硬上限）</p>`:'';
+ const residents=offline?'状态未知':residentList.map(r=>`<b>${escape(resourceEngineNames[r.engine]??r.engine)}</b>`).join('、')||'无';
+ return `<div class="block-head"><h2>本机资源</h2><span class="block-meta">${hardware?`内存压力 ${pressureText[hardware.pressure]} · 采样 ${escape(new Date(hardware.sampledAt).toLocaleTimeString())}`:'暂时无法读取电脑资源'}</span><button class="text-link" data-action="settings" data-section="memory">调整内存上限</button></div>${status.fault||status.configurationError?`<p role="alert" class="resource-alert">${escape(status.fault?.message??status.configurationError)}</p>`:''}${pools.map(x=>x.summary).join('')}${renderCapabilityGuide(hardware,policy,now)}${usage}<div class="resident-row"><span>已加载模型</span><span>${residents}</span><button class="quiet" data-action="resource-release" ${offline||busy?'disabled':''} title="${offline?'暂时无法连接后台':busy?'有任务时不能释放':'重型任务结束后会自动释放'}">释放空闲模型</button></div><details class="resource-details"><summary>详细数据</summary>${pools.map(x=>x.detail).join('')}${details}${history.slice(-3).reverse().map(t=>`<p class="field-note">最近：${escape(resourceEngineNames[t.engine]??t.engine)} · ${escape(t.message??stages[t.stage])}</p>`).join('')}<p class="field-note">已验证输入范围：语音正文最多 8000 字，每段最多 140 字，参考音频 15 秒；音乐按实际分词检查上下文容量，并预留规划与生成空间。能否运行还取决于本机容量和当前压力。</p></details>`;
 }
 /** 设置 · 内存与资源：当前实际生效的应用上限。 */
 export function memoryLimitSummary(status:ResourceStatus|undefined){

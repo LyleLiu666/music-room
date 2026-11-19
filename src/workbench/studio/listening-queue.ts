@@ -11,6 +11,7 @@ export class ListeningQueue{
  readonly audio:HTMLAudioElement;private state:State={ids:[],index:0,mode:'order',time:0,title:'声音库'};
  private api:WorkbenchService;private root:HTMLElement;private notify:(s:string)=>void;private key:string;
  private catalogRevision='';private controller?:AbortController;private epoch=0;private url='';private listeners=new Set<()=>void>();private active=false;private storageFailed=false;private savedAt=0;private panelPage=0;private panelEpoch=0;private names=new Map<string,CatalogEntry>();
+ private pendingSeek?:number;
  constructor(root:HTMLElement,api:WorkbenchService,notify:(s:string)=>void){
   this.root=root;this.api=api;this.notify=notify;this.key=`music-room-listening:${api.bootstrap.workspace}`;
   this.audio=document.createElement('audio');this.audio.id='sound-library-audio';this.audio.hidden=true;this.audio.preload='metadata';root.append(this.audio);
@@ -19,7 +20,8 @@ export class ListeningQueue{
   window.addEventListener('beforeunload',()=>this.save());window.addEventListener('pagehide',()=>this.save());
   this.audio.addEventListener('ended',()=>{if(this.active)void this.next(true);});
   this.audio.addEventListener('timeupdate',()=>{if(Date.now()-this.savedAt>2000)this.save();});
-  this.audio.addEventListener('pause',()=>this.save());this.audio.addEventListener('seeked',()=>this.save());
+  this.audio.addEventListener('pause',()=>this.save());
+  this.audio.addEventListener('seeked',()=>{if(!this.audio.seeking){this.pendingSeek=undefined;this.save();}});
   this.audio.addEventListener('error',()=>{if(this.audio.getAttribute('src')&&!this.controller?.signal.aborted){this.audio.pause();notify('这首声音无法播放，可以重试或切换下一首');}});
   root.addEventListener('play',e=>{if(!(e.target instanceof HTMLAudioElement))return;this.active=e.target===this.audio;if(!this.active){++this.epoch;this.controller?.abort();}if(this.active)document.querySelectorAll<HTMLAudioElement>('audio').forEach(a=>{if(a!==this.audio)a.pause();});this.update();},true);
   this.audio.addEventListener('playbacktoggle',e=>{e.preventDefault();if(this.audio.paused)void this.resume();else{++this.epoch;this.controller?.abort();this.audio.pause();}});
@@ -44,8 +46,18 @@ export class ListeningQueue{
  sync(){this.update();}
  get ids(){return [...this.state.ids];}get currentId(){return this.state.ids[this.state.index]??'';}get current(){return this.names.get(this.currentId);}
  subscribe(fn:()=>void){this.listeners.add(fn);return ()=>this.listeners.delete(fn);}
+ seek(position:number){
+  if(!Number.isFinite(position)||!Number.isFinite(this.audio.duration))return;
+  const time=Math.max(0,Math.min(position,this.audio.duration));
+  const alreadyThere=!this.audio.seeking&&this.audio.currentTime===time;
+  this.pendingSeek=alreadyThere?undefined:time;
+  if(!alreadyThere)this.audio.currentTime=time;
+  this.save();
+ }
  private save(){
-  if(this.audio.getAttribute('src')&&this.audio.readyState>=1&&this.audio.dataset.playingId===this.currentId)this.state.time=this.audio.currentTime||0;this.savedAt=Date.now();
+  if(this.pendingSeek!==undefined&&this.audio.dataset.playingId===this.currentId)this.state.time=this.pendingSeek;
+  else if(this.audio.getAttribute('src')&&this.audio.readyState>=1&&this.audio.dataset.playingId===this.currentId)this.state.time=this.audio.currentTime||0;
+  this.savedAt=Date.now();
   try{localStorage.setItem(this.key,JSON.stringify(this.state));}catch{if(!this.storageFailed)this.notify('播放记录未能保存，刷新后可能无法恢复');this.storageFailed=true;}
  }
  private setMode(mode:PlaybackMode){this.state={...this.state,...changePlaybackMode(this.state,mode)};this.audio.loop=mode==='one';this.panelPage=Math.floor(this.state.index/20);this.save();this.update();}
@@ -64,16 +76,16 @@ export class ListeningQueue{
   this.state.ids.splice(next?this.state.index+1:this.state.ids.length,0,...additions);this.save();this.update();
   if(!current&&this.currentId)void this.start(0,false);this.notify(`已加入播放队列 · ${additions.length} 首`);
  }
- async previous(){if(this.audio.currentTime>3){this.audio.currentTime=0;return;}await this.start(Math.max(0,this.state.index-1),true);}
+ async previous(){if(this.audio.currentTime>3){this.seek(0);return;}await this.start(Math.max(0,this.state.index-1),true);}
  async next(ended=false){
   if(!this.state.ids.length)return;
-  if(ended&&this.state.mode==='one'){this.audio.currentTime=0;await this.audio.play().catch(()=>this.notify('请点击播放继续'));return;}
+  if(ended&&this.state.mode==='one'){this.seek(0);await this.audio.play().catch(()=>this.notify('请点击播放继续'));return;}
   let next=this.state.index+1;if(next>=this.state.ids.length){if(this.state.mode==='list')next=0;else{this.save();this.update();return;}}
   await this.start(next,true);
  }
  private async start(index:number,play:boolean,resume=0,missingFiles=0){
   const epoch=++this.epoch;this.controller?.abort();this.controller=new AbortController();const signal=this.controller.signal;
-  this.audio.pause();this.audio.removeAttribute('src');this.audio.load();if(this.url){URL.revokeObjectURL(this.url);this.url='';}
+  this.pendingSeek=undefined;this.audio.pause();this.audio.removeAttribute('src');this.audio.load();if(this.url){URL.revokeObjectURL(this.url);this.url='';}
   if(!this.state.ids.length){this.update();return;}
   this.active=true;if(play)document.querySelectorAll<HTMLAudioElement>('audio').forEach(a=>a.pause());
   this.state.index=index;this.state.time=resume;this.audio.loop=this.state.mode==='one';
@@ -82,7 +94,7 @@ export class ListeningQueue{
    for(let skipped=0;skipped<3&&this.state.index<this.state.ids.length;skipped++){
     const result=await this.api.call('sound_library_items',{ids:[this.currentId]});if(epoch!==this.epoch)return;
     entry=result.items[0];if(entry)this.names.set(entry.id,entry);if(entry?.item)break;
-    this.notify(`${entry?.title??'声音'}已不可用，已跳过`);this.state.index++;
+    this.notify(`${entry?.title??'声音'}已不可用，已跳过`);this.state.index++;resume=0;this.state.time=0;
    }
    if(!entry?.item||this.state.index>=this.state.ids.length){this.state.index=Math.min(index,this.state.ids.length-1);this.notify('接下来的声音不可用，已暂停播放');this.save();this.update();return;}
    const item=entry.item;this.audio.dataset.version=item.origin==='generated'?item.versionId:'';this.audio.setAttribute('aria-label',item.title+(item.origin==='generated'?` · V${item.number}`:''));
@@ -90,8 +102,12 @@ export class ListeningQueue{
    const response=await this.api.request(item.audioPath,{signal});if(epoch!==this.epoch){await response.body?.cancel();return;}
    if(!response.ok){const failure=await response.json().catch(()=>({code:''}));if(response.status===404||response.status===410||['NOT_FOUND','ENOENT','SOURCE_CHANGED','INVALID_AUDIO'].includes(failure.code)){this.notify(`${entry.title}的文件已不可用`);if(missingFiles<2&&this.state.index+1<this.state.ids.length){await this.start(this.state.index+1,play,0,missingFiles+1);return;}this.save();this.update();return;}throw Error('服务暂时无法读取音频，请点击播放重试');}
    const blob=await readAudioBlob(response,120_000_000);if(epoch!==this.epoch)return;
-   this.url=URL.createObjectURL(blob);this.audio.dataset.playingId=this.currentId;this.audio.src=this.url;
-   if(resume)this.audio.addEventListener('loadedmetadata',()=>{if(epoch===this.epoch)this.audio.currentTime=Math.min(resume,Number.isFinite(this.audio.duration)?this.audio.duration:resume);},{once:true});
+   this.url=URL.createObjectURL(blob);this.audio.dataset.playingId=this.currentId;
+   if(resume){
+    this.pendingSeek=resume;
+    this.audio.addEventListener('loadedmetadata',()=>{if(epoch===this.epoch)this.seek(resume);},{once:true,signal});
+   }
+   this.audio.src=this.url;
    this.audio.dispatchEvent(new Event('queueactivate',{bubbles:true}));this.save();if(play)await this.audio.play();this.update();
   }catch(error){if(epoch!==this.epoch||signal.aborted)return;this.notify((error as Error).message||'播放中断，请点击播放重试');this.save();this.update();}
  }

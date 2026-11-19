@@ -2,6 +2,8 @@ import type {ResourceDemand} from './contracts.ts';
 import {referenceModels} from '../tts/reference-models.ts';
 import {cleanReferenceScript} from '../tts/reference-python.ts';
 import {referenceRequirements} from '../tts/reference-requirements.ts';
+import {modelMemory} from './model-memory.ts';
+import {yueMemoryBudget} from '../yue2/resource-budget.ts';
 import {createHash} from 'node:crypto';
 export const profileVersion=2;
 export const referenceProfile={id:'reference-uvr-cpu-v2',requirements:'b040bc4b52b83688072ecba398702e4d4cbe945e6abd53a07607807f96e8f8ae',models:'2dc3699abc54e84c488d4175a7fc5e9fc73ade2d3f480dadf914565e6030e974',program:'5736ca461f9d82d7ffa9f3f2c95203e13fb8f7536485cd758cfc3cb25313f835'};
@@ -19,19 +21,17 @@ export function estimateResources(engine:string,input:any):ResourceDemand{
  if(engine==='installation'){peak=2**30;verified=true;}
  if(engine==='render'){const seconds=input?.composition?.score?.duration;if(Number.isFinite(seconds)&&seconds>0&&seconds<=600){peak=Math.ceil(512*2**20+seconds*44100*64);verified=true;}}
  if(engine==='speed'){const seconds=input?.duration,rate=input?.rate;if(Number.isFinite(seconds)&&seconds>0&&seconds<=600&&Number.isFinite(rate)&&rate>=.5&&rate<=2){peak=Math.ceil(512*2**20+seconds*96000*2*(12+10/rate));verified=true;}}
- if(engine==='tts'&&match(input?.resourceProfile,ttsProfile)&&typeof input?.text==='string'&&input.text.trim().length>0&&input.text.length<=8000){peak=6*2**30;verified=true;}
- if(engine==='tts'&&match(input?.resourceProfile,breezeProfile)&&typeof input?.text==='string'&&input.text.trim().length>0&&input.text.length<=8000&&typeof input?.referenceText==='string'&&input.referenceText.trim().length>0&&input.referenceText.length<=2000&&Number.isFinite(input.referenceDuration)&&input.referenceDuration>=.3&&input.referenceDuration<=15.1){peak=5_000_000_000;verified=true;}
- if(engine==='sound-effects'&&match(input?.resourceProfile,effectProfile)&&Number.isInteger(input?.seconds)&&input.seconds>=1&&input.seconds<=5&&typeof input?.prompt==='string'&&input.prompt.trim().length>0&&input.prompt.length<=1000){peak=5_000_000_000;verified=true;}
+ if(engine==='tts'&&match(input?.resourceProfile,ttsProfile)&&typeof input?.text==='string'&&input.text.trim().length>0&&input.text.length<=8000)return structuredClone(modelMemory.indexTts);
+ if(engine==='tts'&&match(input?.resourceProfile,breezeProfile)&&typeof input?.text==='string'&&input.text.trim().length>0&&input.text.length<=8000&&typeof input?.referenceText==='string'&&input.referenceText.trim().length>0&&input.referenceText.length<=2000&&Number.isFinite(input.referenceDuration)&&input.referenceDuration>=.3&&input.referenceDuration<=15.1)return structuredClone(modelMemory.breeze);
+ if(engine==='sound-effects'&&match(input?.resourceProfile,effectProfile)&&Number.isInteger(input?.seconds)&&input.seconds>=1&&input.seconds<=5&&typeof input?.prompt==='string'&&input.prompt.trim().length>0&&input.prompt.length<=1000)return structuredClone(modelMemory.soundEffects);
  // Fixed runtime measurements and bounded input contracts: see docs/design/model-resource-evidence.json.
  if(engine==='yue2'&&match(input?.resourceProfile,yueProfile)&&['fast','quality'].includes(input?.preset)&&typeof input?.instrumental==='boolean'){
   const c=input?.context;
   if(c&&c.contextTokens===24576&&Number.isSafeInteger(c.prefixTokens)&&c.prefixTokens>=0&&Number.isSafeInteger(c.planningTokens)&&c.planningTokens>=0&&c.semanticTokens===9000&&c.prefixTokens+c.planningTokens+c.semanticTokens<=c.contextTokens){
-   // Fixed-runtime baseline plus worst-case BF16 K/V cache for both CFG branches:
-   // 28 layers × 8 KV heads × 128 dimensions × K/V × 2 bytes × 2 branches.
-   peak=14*2**30+c.prefixTokens*229376;verified=true;
+   peak=yueMemoryBudget(input.preset,input.instrumental,c);verified=true;
   }
  }
- if(engine==='reference'&&match(input?.resourceProfile,referenceProfile)&&Number.isFinite(input?.duration)&&input.duration>=.3&&input.duration<=15.1){peak=8*2**30;verified=true;}
- if(engine==='conversion'&&match(input?.resourceProfile,conversionProfile)){peak=10*2**30;verified=true;}
+ if(engine==='reference'&&match(input?.resourceProfile,referenceProfile)&&Number.isFinite(input?.duration)&&input.duration>=.3&&input.duration<=15.1)return structuredClone(modelMemory.reference);
+ if(engine==='conversion'&&match(input?.resourceProfile,conversionProfile))return structuredClone(modelMemory.conversion);
  return {verified,startup:{memory:peak},peak:{memory:peak}};
 }

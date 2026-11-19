@@ -173,7 +173,7 @@ export class ResourceCoordinator {
         entry.controller.signal.throwIfAborted();
         this.emit(entry, 'loading');
         entry.controller.signal.throwIfAborted();
-        executed = true;this.observation=undefined;stopMonitor=this.monitor(entry,pids,admittedHardware);
+        executed = true;stopMonitor=this.monitor(entry,pids,admittedHardware);
         const value = await entry.request.execute({signal: entry.controller.signal, budgets: {...this.reservations},
           running: () => {entry.controller.signal.throwIfAborted(); this.emit(entry, 'running');},
           trackProcess: pid => {this.options.lease?.track(pid);if(!pids.includes(pid))pids.push(pid);},
@@ -199,7 +199,7 @@ export class ResourceCoordinator {
         try {this.emit(entry, stage, cause);} catch {/* Persistence failure must not prevent cleanup. */}
         entry.reject(error);
       } finally {
-        this.reservations = {}; entry.detach(); this.remember(entry); this.active = undefined;
+        this.reservations = {}; this.observation = undefined; entry.detach(); this.remember(entry); this.active = undefined;
       }
     }
   }

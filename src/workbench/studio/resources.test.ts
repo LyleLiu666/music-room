@@ -24,9 +24,11 @@ test('resource overview distinguishes capacity, estimates, residents and absent 
  const c=testResources();let s=c.snapshot();assert.match(resourceOverview(s),/暂时无法读取/);assert.equal(memoryLimitSummary(s),'正在读取当前上限…');
  s=await c.status();const html=resourceOverview(s,'<table id="cpu"></table>');
  assert.match(html,/16.0 GiB/);assert.match(html,/应用上限 <b>12.0 GiB<\/b>（自动）/);assert.match(html,/系统可用估计/);assert.match(html,/已加载模型<\/span><span>无/);
- assert.match(html,/data-action="resource-release"  title="重型任务结束后会自动释放">释放空闲模型/);assert.match(html,/<table id="cpu"><\/table>/);assert.match(html,/role="img" aria-label="[^"]*内存分布：系统保留/);
+ assert.match(html,/data-action="resource-release"  title="重型任务结束后会自动释放">释放空闲模型/);assert.match(html,/<table id="cpu"><\/table>/);assert.match(html,/role="img" aria-label="[^"]*内存分布：本程序/);
+ const summaryOnly=html.split('<details class="resource-details">')[0];
+ assert.match(summaryOnly,/class="memory-legend"/);assert.match(summaryOnly,/系统保留额度 <b>4\.0 GiB<\/b>/);assert.match(summaryOnly,/本程序 <b>1\.0 GiB<\/b>（后台服务）/);assert.match(summaryOnly,/各功能内存需求/);assert.match(summaryOnly,/音乐 · YuE2/);assert.match(summaryOnly,/8\.0 GiB/);
  assert.equal(memoryLimitSummary(s),'当前应用上限 12.0 GiB（自动管理）');
- const widths=[...html.matchAll(/style="width:([0-9.]+)%"/g)].map(m=>Number(m[1]));assert.equal(widths.length,4);assert.ok(Math.abs(widths.reduce((a,b)=>a+b,0)-100)<0.1);
+ const widths=[...html.matchAll(/style="width:([0-9.]+)%"/g)].map(m=>Number(m[1]));assert.equal(widths.length,3);assert.ok(Math.abs(widths.reduce((a,b)=>a+b,0)-100)<0.1);
  await c.close();
 });
 test('unverified input failures show preflight advice and an obvious retry instead of implying model execution failed',()=>{
@@ -50,4 +52,60 @@ test('resource overview tolerates partial status from older services without thr
  for(const status of [{queued:[],paused:false},{active:{id:'a',engine:'tts',stage:'running'},queued:[],paused:true},{queued:[],paused:false,hardware:{pressure:'normal',sampledAt:0,pools:[{id:'memory',capacity:1,available:1,owned:0}]}}] as any[]){
   const html=resourceOverview(status);assert.match(html,/本机资源/);assert.match(html,/已加载模型<\/span><span>无/);assert.equal(memoryLimitSummary(status),'正在读取当前上限…');
  }
+});
+test('resource overview attributes active task usage and marks capability readiness against current budget',()=>{
+ const status={
+  paused:false,queued:[],history:[],residents:[{engine:'yue2',loaded:true,estimatedBytes:undefined}],
+  configurationError:undefined,hardwareError:undefined,fault:undefined,
+  policy:{reserveFraction:.3,reserveMinimum:2*2**30,headroom:2**30,maxSnapshotAgeMs:3000,maxWaitMs:60000,retryMs:1000,maxQueue:64},
+  hardware:{supported:true,topology:'unified' as const,sampledAt:Date.now(),pressure:'normal' as const,serviceOwned:256*2**20,pools:[{id:'memory',capacity:32*2**30,available:8*2**30,owned:6*2**30}]},
+  active:{id:'m1',engine:'yue2',stage:'running' as const,submittedAt:0,demand:{verified:true,startup:{memory:8*2**30},peak:{memory:8*2**30}}},
+  observation:{usage:{memory:5.5*2**30},pressure:'normal' as const},
+  reservations:{memory:8*2**30}
+ };
+ const summaryOnly=resourceOverview(status).split('<details class="resource-details">')[0];
+ assert.match(summaryOnly,/正在运行：音乐 5\.5 GiB/);
+ assert.match(summaryOnly,/还差 1\.0 GiB/);
+ const waiting=resourceOverview({...status,active:{...status.active,stage:'waiting_resources'},reservations:{}});
+ assert.match(waiting,/等待资源：音乐/);
+ assert.doesNotMatch(waiting,/正在运行：音乐|5\.5 GiB|当前任务采样/);
+ assert.match(summaryOnly,/内存充足/);
+ for(const [stage,label] of [['loading','加载中'],['cancelling','正在取消']] as const){
+  assert.match(resourceOverview({...status,active:{...status.active,stage}}),new RegExp(`${label}：音乐 5\\.5 GiB`));
+ }
+});
+
+test('capability guide distinguishes lost, stale and unsupported hardware from sufficient memory',async()=>{
+ const coordinator=testResources();
+ try{
+  const status=await coordinator.status(),hardware=status.hardware!;
+  const offline=resourceOverview(status,'',true);
+  assert.doesNotMatch(offline,/新任务可用|可运行|内存充足|达到起步要求/);
+  assert.match(offline,/暂时无法读取电脑资源/);
+  assert.match(offline,/音乐 · YuE2<\/span>.*状态未知/);
+  const unsupported=resourceOverview({...status,hardware:{...hardware,supported:false}});
+  assert.match(unsupported,/设备不支持/);
+  assert.doesNotMatch(unsupported,/可运行|内存充足|达到起步要求/);
+  for(const sample of [{...hardware,pressure:'unknown' as const},{...hardware,sampledAt:0}]){
+   const html=resourceOverview({...status,hardware:sample});
+   assert.match(html,/状态未知/);
+   assert.doesNotMatch(html,/新任务可用|内存分布：|等待压力恢复|可运行|达到起步要求/);
+  }
+  const critical=resourceOverview({...status,hardware:{...hardware,pressure:'critical'}});
+  assert.match(critical,/等待压力恢复/);
+  assert.doesNotMatch(critical,/新任务可用/);
+  assert.match(resourceOverview(status),/音乐 · YuE2<\/span>.*8\.0 GiB 起.*达到起步要求/);
+ }finally{await coordinator.close();}
+});
+
+test('physical memory distribution stays within capacity when the application occupies the system reserve',async()=>{
+ const coordinator=testResources();
+ try{
+  const status=await coordinator.status(),hardware=status.hardware!,pool=hardware.pools[0];
+  const html=resourceOverview({...status,hardware:{...hardware,pools:[{...pool,owned:15*2**30}]}});
+  const widths=[...html.matchAll(/style="width:([0-9.]+)%"/g)].map(m=>Number(m[1]));
+  assert.ok(Math.abs(widths.reduce((a,b)=>a+b,0)-100)<0.1);
+  assert.match(html,/内存分布：本程序 15\.0 GiB，[^"]*系统可用估计 1\.0 GiB/);
+  assert.doesNotMatch(html,/内存分布：[^"]*系统保留/);
+ }finally{await coordinator.close();}
 });

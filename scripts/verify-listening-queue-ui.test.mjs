@@ -16,6 +16,20 @@ test(`${standalone?'standalone ':''}${engine}: paged sound browsing, cross-page 
  const browser=engine==='webkit'?await webkit.launch({headless:true}):await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage({viewport:{width:1280,height:800}});page.setDefaultTimeout(10000);const errors=[],audioRequests=[];page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(r.url().includes('/sound-library/audio/'))audioRequests.push(r.url());});
  try{
   const savedQueue=()=>page.evaluate(()=>JSON.parse(localStorage.getItem(Object.keys(localStorage).find(k=>k.startsWith('music-room-listening:')))));
+  const seekAndReload=async({deferNativeSeek=false}={})=>{
+   const range=page.locator('#global-status-bar [data-bar-progress]');
+   await page.waitForFunction(()=>!document.querySelector('#global-status-bar [data-bar-progress]').disabled);
+   await range.evaluate((input,defer)=>{
+    const audio=document.querySelector('#sound-library-audio');
+    // Model a media engine that reports the previous position until its seek completes.
+    if(defer)Object.defineProperty(audio,'currentTime',{get:()=>0,set:()=>{}});
+    input.value='1.3';input.dispatchEvent(new Event('input',{bubbles:true}));
+   },deferNativeSeek);
+   assert.equal((await savedQueue()).time,1.3,'an explicit seek is saved before the media engine confirms it');
+   await page.reload();
+   await page.waitForFunction(()=>Math.abs((document.querySelector('#sound-library-audio')?.currentTime??0)-1.3)<.05);
+   assert.equal(await page.locator('#sound-library-audio').evaluate(a=>a.paused),true);
+  };
   const playing=id=>page.waitForFunction(id=>{const audio=document.querySelector('#sound-library-audio');return audio?.dataset.playingId===id&&!audio.paused;},id);
   await page.goto(http.runtime.url);await page.click('[data-action="sound-library"]');await page.getByRole('button',{name:'下一页声音',exact:true}).waitFor();assert.equal(await page.locator('.sound-library-card').count(),20);
   // The browser should make room for sounds, rather than filling the first screen with controls.
@@ -57,8 +71,7 @@ test(`${standalone?'standalone ':''}${engine}: paged sound browsing, cross-page 
   const missingResponse=page.waitForResponse(r=>r.url().endsWith('/sound-library/audio/'+imports[44].id)&&r.status()===404);await page.locator('[data-library-sound="'+imports[44].id+'"]').click();await missingResponse;await page.waitForFunction(()=>document.querySelector('#sound-library-audio')?.getAttribute('aria-label')==='声音 043'&&!document.querySelector('#sound-library-audio').paused);await page.unroute('**/sound-library/audio/'+imports[44].id);
   await page.route('**/sound-library/audio/'+imports[44].id,r=>r.fulfill({status:503,json:{message:'offline'}}));await page.locator('[data-library-sound="'+imports[44].id+'"]').click();await page.locator('#toast').filter({hasText:'服务暂时无法读取音频'}).waitFor();assert.equal(await page.locator('#sound-library-audio').evaluate(a=>a.paused),true);assert.equal(await page.locator('[data-queue-action="open"]').first().textContent(),'队列 45');await page.unroute('**/sound-library/audio/'+imports[44].id);
   await page.getByRole('button',{name:'播放',exact:true}).first().click();await page.waitForFunction(()=>!document.querySelector('#sound-library-audio').paused);await page.getByRole('button',{name:'暂停',exact:true}).first().click();
-  await page.locator('#sound-library-audio').evaluate(a=>a.currentTime=1.25);await page.waitForFunction(()=>document.querySelector('#sound-library-audio').currentTime>1.2);
-  await page.reload();await page.waitForFunction(()=>document.querySelector('#sound-library-audio')?.currentTime>1.2);assert.equal(await page.locator('#sound-library-audio').evaluate(a=>a.paused),true);
+  await seekAndReload({deferNativeSeek:true});
   await page.getByRole('button',{name:'播放列表',exact:true}).click();await page.getByRole('button',{name:'写代码',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.sound-library-card').length===2);
   await page.getByRole('button',{name:'播放队列',exact:true}).first().click();await page.locator('#listening-queue li').first().waitFor();assert.equal(await page.locator('#listening-queue li').count(),20);
   await page.locator('#listening-queue [data-queue-action="down"][data-index="1"]').click();await page.waitForFunction(()=>document.querySelector('#listening-queue li:nth-child(2)')?.textContent.includes('声音 042'));assert.equal(await page.locator('#sound-library-audio').getAttribute('aria-label'),'声音 044');
@@ -69,7 +82,7 @@ test(`${standalone?'standalone ':''}${engine}: paged sound browsing, cross-page 
   await page.getByRole('button',{name:'全部声音',exact:true}).click();await page.waitForFunction(()=>document.querySelectorAll('.sound-library-card').length===20);
   await page.evaluate(()=>{window.originalRandom=Math.random;Math.random=()=>0;});await page.getByLabel('列表播放选项',{exact:true}).click();await page.getByRole('button',{name:'随机播放',exact:true}).click();await page.waitForFunction(()=>document.querySelector('[data-queue-action="mode"]').textContent==='随机');await page.evaluate(()=>Math.random=window.originalRandom);
   const round=await savedQueue(),source=[...imports].reverse().map(i=>i.id);assert.equal(round.mode,'shuffle');assert.equal(round.ids.length,45);assert.equal(new Set(round.ids).size,45);assert.deepEqual(new Set(round.ids),new Set(source));assert.notDeepEqual(round.ids,source);await playing(round.ids[0]);assert.equal(await page.locator('.library-play-group details').evaluate(e=>e.open),false);
-  await page.getByRole('button',{name:'暂停',exact:true}).first().click();await page.locator('#sound-library-audio').evaluate(a=>a.currentTime=1.25);await page.reload();await page.waitForFunction(()=>document.querySelector('#sound-library-audio')?.currentTime>1.2);assert.equal(await page.locator('#sound-library-audio').evaluate(a=>a.paused),true);assert.deepEqual((await savedQueue()).ids,round.ids);assert.equal((await savedQueue()).mode,'shuffle');
+  await page.getByRole('button',{name:'暂停',exact:true}).first().click();await seekAndReload();assert.deepEqual((await savedQueue()).ids,round.ids);assert.equal((await savedQueue()).mode,'shuffle');
   await page.getByRole('button',{name:'播放',exact:true}).first().click();await page.locator('#sound-library-audio').evaluate(a=>a.currentTime=4.95);await playing(round.ids[1]);await page.getByRole('button',{name:'上一首',exact:true}).first().click();await playing(round.ids[0]);await page.getByRole('button',{name:'下一首',exact:true}).first().click();await playing(round.ids[1]);await page.getByRole('button',{name:'暂停',exact:true}).first().click();
   await page.getByRole('button',{name:'播放队列',exact:true}).first().click();await page.locator('#listening-queue li').first().waitFor();const removed=round.ids[3];await page.locator('#listening-queue [data-queue-action="remove"][data-index="3"]').click();await page.waitForFunction(()=>document.querySelector('[data-queue-action="open"]').textContent==='队列 44');assert.equal((await savedQueue()).ids.includes(removed),false);
   await page.locator('#listening-queue [data-queue-action="page"]').last().click();await page.locator('#listening-queue [data-queue-action="play"][data-index="20"]').waitFor();await page.locator('#listening-queue [data-queue-action="page"]').last().click();await page.locator('#listening-queue [data-queue-action="play"][data-index="43"]').click();const last=(await savedQueue()).ids.at(-1);await playing(last);await page.getByRole('button',{name:'关闭播放队列',exact:true}).click();await page.locator('#sound-library-audio').evaluate(a=>a.currentTime=4.95);await page.waitForFunction(()=>document.querySelector('#sound-library-audio').ended);assert.equal((await savedQueue()).ids[(await savedQueue()).index],last);assert.equal(await page.getByRole('button',{name:'下一首',exact:true}).first().isDisabled(),true,'a shuffled round finishes without repeating a recording');

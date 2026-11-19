@@ -86,3 +86,42 @@
 首次运行：受影响的 7 个浏览器文件 22 / 23。`verify-resources-ui` 失败：队列在暂停状态下清空后显示「队列已暂停 · 等待 0 项」，用例按「后台空闲」等待，属断言错误，改为断言暂停文案与无队列行；随后连续 3 次通过。
 
 复验（同一构建）：`npm test` 123 / 123，`verify:studio` 79 / 79，`verify:lyrics` 1 / 1，`verify:score` 1 / 1，`verify:resources` 3 次 1 / 1，`verify:webkit` 17 / 17。另在真实数据副本（189 条历史）上检查日 / 夜 1440 与 390 截图。
+
+## 音乐生成 8 GiB 预算收紧与各功能内存用途展示
+
+改动：
+1. `src/service/resources/profiles.ts`：YuE2 低内存 MLX 模式的启动预约与运行保护上限由 `14 GiB + prefixTokens × 224 KiB` 收紧为 `8 GiB`（覆盖实测 4.1–6.1 GiB 峰值，同时将传给 YuE2 的 `memory_budget_gib` 锁在 8.0 GiB）。
+2. `src/workbench/studio/resources.ts`、`pages.css`：「任务与资源 → 本机资源」进度条下方直接展示 4 段内存分布图例（并标明「本程序」当前是后台基础服务、含驻留模型还是正在运行某生成任务及其实时采样占用），以及「各功能内存需求」清单（同步歌词、音效、Breeze 语音、IndexTTS 语音、YuE2 音乐、UVR 参考清理、Seed-VC 音色转换的所需内存与当前可运行/差额状态），说明所有任务排队串行、按需加载、用完即卸。
+
+执行记录：
+- 红灯阶段：`node --test src/service/resources/profiles.test.ts src/workbench/studio/resources.test.ts` 12 / 15 通过，3 项新增/更新断言按预期失败。
+- 修复与构建后复验：
+  - `npm test`：124 / 124 通过。
+  - `npm run build`：通过。
+  - `node --test --test-timeout=60000 --test-concurrency=1 src/service/resources/*.test.ts src/service/yue2/*.test.ts`：122 / 122 通过（首次在受限沙箱内因 `EPERM` 无法调用本机 `/bin/ps` 与 Python，切换正常本机环境后 122 / 122 全过）。
+  - Chrome 浏览器回归（`verify-resources-ui.test.mjs`、`verify-monitor-ui.test.mjs`、`verify-task-history-ui.test.mjs`、`verify-task-queue-ui.test.mjs`、`verify-browser-compat.test.mjs`）：7 / 7 通过（首次在无回环网络沙箱内报 `ERR_ACCESS_DENIED`，切换正常本机环境后 7 / 7 全过；桌面 1280×900 与手机 390×844 截图见 `test-results/resources-ui/`）。
+  - WebKit 兼容回归（`verify-browser-compat.test.mjs`、`verify-task-history-ui.test.mjs`）：2 / 2 通过。
+- 真实模型推理本轮未重跑（仅收紧准入与预算上限，未改变模型权重与推理代码）。
+
+## 资源审查修复复验
+
+YuE2 从 8 GiB 起，按档位和上下文计入两阶段缓存。资源页沿用后台准入规则，断线时显示未知，等待资源时只显示任务阶段。协调器结束任务时清除该任务的实时采样。
+
+- 红灯定向回归共 30 项，26 通过、4 失败，复现长输入预约不足、断线后继续显示可运行、等待状态误报及采样串到下一任务。修复后同组 30 项通过。首次构建暴露测试夹具类型缺失，补齐字段后通过。
+- `npm run verify:all` 通过。单元 125 项、服务 430 项，Chrome 工作台 79 项，乐谱、歌词和资源页各 1 项。资源页覆盖接口断线与恢复、音乐起步额度、手动上限和 390px 布局。
+- WebKit 资源页专项 1 / 1 通过。全量 WebKit 两次均为 16 / 17，播放队列刷新后恢复进度分别在顺序和随机场景超时。该用例单跑 1 / 1、与兼容和草稿合跑 8 / 8。提交版 `ed32bb8` 全量 17 / 17，当前整套 WebKit 仍有间歇超时。
+- 在本机 M4 / 32 GiB 的隔离安装中，使用正式资源调度串行完成两次真实 MLX 推理。快档短谱下发 8.0 GiB，采样峰值 4.75 GiB，输出 59.60 秒 FLAC。质量档纯音乐使用 24,572 / 24,576 个上下文 token，下发约 11.50 GiB，采样峰值 9.61 GiB，输出 10.88 秒 FLAC，保存的乐谱与输入一致。
+- 两次推理均报告完成。验收脚本先后因配置文件路径和音频字节断言写法失败，保留原始日志。对已生成文件重新读取，确认上游实际预算、FLAC 文件头、解码、非静音和哈希。此次覆盖两个样本，人工听评、独立包和 60 分钟长稳仍待验收。
+
+日志及真实模型结果保存在 [本轮执行目录](../../test-results/resource-fixes-2026-11-19.ilY7y3/)。
+
+## 预算定义、采样一致性与播放位置
+
+资源清单复用任务启动和运行预算。摘要与清单使用同一采样有效性规则。三段内存分布按总容量绘制，系统保留额度独立标注。播放队列在用户拖动底栏进度时保存目标位置，刷新可在浏览器确认跳转前恢复同一首的进度。
+
+- 定向红灯记录保留了 3 项资源页失败。WebKit 模拟媒体尚未确认跳转，发现旧版本在刷新前保存了 0 秒，目标是 1.3 秒。修复后，同一用例覆盖了顺序和随机队列的实际底栏操作与刷新恢复。
+- `npm run verify:all` 通过。单元 126 项、服务 430 项，Chrome 工作台 79 项，乐谱、歌词和资源页各 1 项。
+- 全量 WebKit 17 / 17。资源页 WebKit 专项 1 / 1。Chrome 实际 200% 缩放下，720px 的 CSS 视口中资源块和预算清单均在视口内。
+- 本次复验沿用上一节的两组真实 YuE2 结果。此次整理保持原有模型预算参数，实测范围仍为两个样本。
+
+保留 [红灯及复验日志](../../test-results/resource-push-2026-11-19.u7mUW0/)。

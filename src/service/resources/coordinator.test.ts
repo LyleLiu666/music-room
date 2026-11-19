@@ -132,3 +132,30 @@ test('startup reservation admits a task whose runtime ceiling is higher; only cr
  const stopped=assert.rejects(task,{code:'PEAK_EXCEEDED'});
  try{await started;await new Promise(r=>setTimeout(r,5));assert.equal(resources.snapshot().observation?.usage.memory,150);assert.equal(resources.snapshot().active?.stage,'loading');usage=201;await stopped;}finally{await resources.close();}
 });
+
+test('the next task waiting for memory never sees the previous task observation',async()=>{
+ const observed=gate(), waiting=gate(), finish=gate();
+ let available=12*GiB;
+ const coordinator=new ResourceCoordinator({policy,probe:async()=>({supported:true,topology:'unified',
+  sampledAt:Date.now(),pressure:'normal',pools:[{id:'memory',capacity:16*GiB,available,owned:GiB}]}),
+  observe:async()=>{observed.release();return {usage:{memory:GiB/2},pressure:'normal'};}});
+ coordinator.register('tts',{resident:()=>undefined,unload:async()=>{}});
+ try{
+  const first=coordinator.run({id:'first',engine:'tts',demand,execute:async ctx=>{ctx.running();await finish.promise;}});
+  await observed.promise;
+  await new Promise<void>(resolve=>setImmediate(resolve));
+  assert.equal(coordinator.snapshot().observation?.usage.memory,GiB/2);
+  available=0;
+  const second=coordinator.run({id:'second',engine:'tts',demand,
+   onState:state=>{if(state.stage==='waiting_resources')waiting.release();},
+   execute:async()=>assert.fail('a waiting task cannot execute')});
+  const stopped=assert.rejects(second,{code:'CANCELLED'});
+  finish.release();
+  await first;
+  await waiting.promise;
+  try{
+   assert.equal(coordinator.snapshot().active?.id,'second');
+   assert.equal(coordinator.snapshot().observation,undefined);
+  }finally{await coordinator.cancel('second');await stopped;}
+ }finally{finish.release();await coordinator.close();}
+});

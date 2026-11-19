@@ -37,6 +37,7 @@
 | MEDIA-03 / P0 | FLAC 缺帧、哈希不符、扩展名欺骗、超上传大小、路径越界 / 链接 | 不提交记录、不读写外部文件、不出现可下载的伪成功音频 | `sound-library.test.ts`、`audio-files.test.ts`、`src/server/resource-io.test.ts`、`http.test.ts` |
 | RESOURCE-01 / P0 | 低内存、系统压力、磁盘不足、资源设置损坏、并发重型引擎 | 排队或受控失败；禁止越过保护；同一时刻不重复加载冲突引擎 | `src/service/resources/*.test.ts`、`src/service/conversion/engine-exclusion.test.ts` |
 | RESOURCE-02 / P0 | 登记进程组及普通工作进程；采样前退出成僵尸；存活进程采样拒绝或进程表异常 | 覆盖所有登记进程、排除无关组；仅确认退出后归零；存活或状态未知时继续受控失败 | `src/service/resources/telemetry.test.ts`、`native-telemetry.test.ts` |
+| RESOURCE-03 / P1 | 短输入和接近上下文上限的 YuE2 自定义乐谱，覆盖两档与纯音乐模式 | 短输入可使用 8 GiB，长输入预约包含权重和缓存，应用额度不够时在启动前拒绝 | `src/service/resources/profiles.test.ts` |
 | SERVICE-01 / P0 | 关闭启动终端 / MCP 连接、并发启动、端口复用、关闭所属进程 | 后台工作不中断；只有一个所有者；不杀无关进程；重启中断状态可追踪 | `src/server/background.test.ts`、`mcp.test.ts`、`src/service/yue2/worker.test.ts` |
 | UI-01 / P1 | 播放时导航、重试别的版本、删除失败、断网重连、旧播放请求晚返回 | 原音频连续；只在删除所属音频时停止；过期响应不抢占播放器 | `scripts/verify-*-playback-ui.test.mjs`、`verify-audio-loading-ui.test.mjs` |
 | UI-02 / P1 | 用键盘打开对话框、Tab / Shift+Tab、轮询更新后 Escape；展开高级输入 | 背景控件不可聚焦；Escape 返回打开控件；可见输入有名称 | `scripts/verify-browser-compat.test.mjs` |
@@ -44,10 +45,11 @@
 | UI-04 / P1 | 草稿保存失败，刷新触发离开提醒，选择留在当前页面 | 输入仍可编辑；已有音频 URL 仍能重新读取；实际离开页面后才释放媒体资源 | `scripts/verify-browser-compat.test.mjs` |
 | UI-05 / P2 | Chrome / WebKit，1280×720 与 900×600 小窗口，19 个项目、长名称 | 搜索与新建同排；19 个项目全部列出、列表内滚动可达最后一项且无横向溢出；侧栏不再分页；设置入口保持在屏内；搜索与空结果提示可用 | `scripts/verify-task-history-ui.test.mjs` |
 | UI-06 / P1 | 运行 / 排队 / 暂停 / 断线 / 空闲，切换项目、音色库与弹窗，390px | 侧栏「任务与资源」右侧一行实时状态与后台一致、空闲为空；完整队列、进度、启动预约与逐项取消只在任务与资源页；队列标题跳转原版本且不打断播放；弹窗与底部播放条不再含任务摘要 | `scripts/verify-task-queue-ui.test.mjs`、`verify-music-progress-ui.test.mjs`、`verify-resources-ui.test.mjs`、`src/workbench/studio/task-queue.test.ts` |
-| UI-07 / P1 | 侧栏内存一行：正常 / 偏高 / 过高 / 读取失败 / 隐藏页签；点击进入任务与资源 | 侧栏只有一行与 5 格条、无 CPU 表；详细数据（CPU、内存四项、预算）在任务页折叠内且刷新后保持展开；隐藏页签停止采样 | `scripts/verify-monitor-ui.test.mjs`、`src/workbench/studio/monitor.test.ts`、`resources.test.ts` |
+| UI-07 / P1 | 侧栏内存一行：正常 / 偏高 / 过高 / 读取失败 / 隐藏页签；任务页连接中断与恢复、不支持设备、新任务等待资源 | 侧栏显示一行及 5 格条；任务页按总容量显示三段分布，系统保留额度独立标注。断线或采样不可靠时，摘要与清单同时标记未知。等待时不显示上一任务采样。详细数据保持折叠状态，隐藏页签停止采样 | `scripts/verify-monitor-ui.test.mjs`、`verify-resources-ui.test.mjs`、`src/workbench/studio/resources.test.ts`、`src/service/resources/coordinator.test.ts` |
 | UI-08 / P1 | 设置页各小节：模型启用、内存上限保存 / 恢复自动、回收站恢复 / 彻底删除 / 清空失败重试、备份命令、外观三选一 | 设置与回收站是页面而非弹窗；确认仍用居中确认框；恢复后可回到原项目与声音；主题在日间 / 夜间 / 跟随系统间切换并持久化 | `scripts/verify-studio-ui.test.mjs`、`verify-first-use-ui.test.mjs`、`verify-audio-loading-ui.test.mjs` |
 | LIBRARY-01 / P1 | 10,000 条声音、长创作要求，跨页搜索 / 分类 / 排序与播放顺序查询 | 接口仅返回当前页 20 / 50 条；工作台不传整库声音及历史版本正文；播放 ID 顺序覆盖全部页 | `src/service/studio/sound-catalog.test.ts` |
 | LIBRARY-02 / P2 | Chrome / WebKit，1280×800、900×700、720×456 和 390×844；深浅主题及实际 200% 缩放 | 宽窗口顶部至首条声音不超过 140px、完整显示至少 8 条；声音行高不超过 64px；窄窗口控件可见且无横向溢出；手机滚到声音库后检查列表密度 | `scripts/verify-listening-queue-ui.test.mjs`、`verify-zoom-ui.mjs` |
+| LIBRARY-03 / P1 | 顺序与随机队列通过底栏拖动进度后立即刷新，覆盖浏览器尚未确认跳转 | 先记录用户选择的位置，刷新后在同一首暂停并恢复到该位置，队列顺序保留 | `scripts/verify-listening-queue-ui.test.mjs` |
 | PLAYLIST-01 / P1 | 保存具体版本、重复添加、并发旧修订覆盖、取消收录、来源删除、服务重启及删除列表 | 顺序持久化；重复 ID 去重；旧修改拒绝覆盖；相同成功请求可恢复；失效条目保留；原音频不受删表影响 | 同上、`scripts/verify-binary.mjs` |
 | PLAYBACK-QUEUE-01 / P1 | Chrome / WebKit，45 首跨页连续播放、搜索 / 导航、快速切歌、404 / 503、拖动后立刻刷新、390px | 仅按需读取当前音频；过期读取不抢播；明确缺失跳过、服务故障暂停；队列与进度可恢复但不自动播放；无横向溢出 | `scripts/verify-listening-queue-ui.test.mjs`、`verify-sound-library-ui.test.mjs` |
 | PLAYBACK-SHUFFLE-01 / P1 | 45 首跨页随机播放、播放列表及筛选、自动顺延、前后切歌、删除 / 追加 / 指定下一首、刷新、切回顺序；空 / 单首 / 20,000 首 | 一轮不重复不遗漏，末尾停止；前后切歌沿随机顺序；刷新保持原随机顺序与暂停进度；切方式不重载当前音频；保存列表不变；随机及顺序入口保持紧凑布局 | `src/workbench/studio/listening-order.test.ts`、`scripts/verify-listening-queue-ui.test.mjs` |
