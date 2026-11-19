@@ -12,6 +12,8 @@ import assert from 'node:assert/strict';
 import {presetVoices} from '../src/service/tts/preset-manifest.ts';
 import {nativeProgramManifest} from '../src/service/tts/native-program-manifest.ts';
 import {audioShape} from '../src/service/studio/audio-budget.ts';
+import {decodeAudio} from '../src/service/studio/decode-audio.ts';
+import {encodeWav} from '../src/wav.ts';
 const root=await mkdtemp(join(tmpdir(),'music-binary-')),binary=join(root,'music-room'),workspace=join(root,'workspace');
 const out=resolve('test-results/binary');await mkdir(out,{recursive:true});await copyFile('release/music-room',binary);await chmod(binary,0o755);await copyFile('release/start.sh',join(root,'start.sh'));await chmod(join(root,'start.sh'),0o755);
 const example=JSON.parse(await readFile('src/music/authoring/example.json','utf8'));
@@ -33,7 +35,7 @@ try {
   client=await connect();
   const tool=async(name,args={})=>{const r=await client.callTool({name,arguments:args});assert.ok(!r.isError,JSON.stringify(r));return JSON.parse(r.content[0].text);};
   const status=await tool('status');assert.equal(status.workspace,await realpath(workspace));assert.equal(status.engines.find(e=>e.id==='yue2').available,false);
-  const effectStatus=await tool('sound_effect_status');assert.equal(typeof effectStatus.installed,'boolean');for(const name of ['sound_effect_prepare','sound_effect_generate','sound_effect_job','sound_effect_cancel'])assert.ok((await client.listTools()).tools.some(t=>t.name===name));
+  const effectStatus=await tool('sound_effect_status');assert.equal(typeof effectStatus.installed,'boolean');for(const name of ['sound_effect_prepare','sound_effect_generate','sound_effect_job','sound_effect_cancel','studio_attach_sound','studio_trim_audio','sound_library_trim'])assert.ok((await client.listTools()).tools.some(t=>t.name===name));
   if(!effectStatus.installed){const notReady=await client.callTool({name:'sound_effect_generate',arguments:{requestId:'binary-sfx',title:'音效',prompt:'A paper shredder',seconds:3}});assert.equal(notReady.isError,true);}results.push('sound effect MCP tools are discoverable and report the actual model readiness');
   assert.equal((await tool('yue2_status')).phase,'uninstalled');assert.ok((await client.listTools()).tools.some(t=>t.name==='yue2_generate'));
   const runtime=JSON.parse(await readFile(join(workspace,'.music-room.runtime.json'),'utf8'));assert.equal(runtime.command,await realpath(binary));
@@ -122,7 +124,9 @@ try {
   await page.locator('#sound-library-audio').evaluate(a=>a.currentTime=a.duration-.05);
   await page.waitForFunction(id=>{const a=document.querySelector('#sound-library-audio');return a?.dataset.version===id&&!a.paused;},source.id);
   await page.screenshot({path:join(out,'library-playback.png'),fullPage:true});assert.deepEqual(errors,[]);results.push('packaged browser plays the saved 50 second audio and automatically advances to the original 40 second version');
+  await page.locator(`[data-action="project"][data-id="${example.work.id}"]`).click();await page.click('[data-action="new-sound"]');await page.locator('[name="kind"][value="effect"]').check();await page.fill('#sound-title','独立包音效');await page.locator('#sound-form button[type="submit"]').click();await page.locator('#project-effect-form').waitFor();assert.equal(await page.locator('[name="effect-seconds"]:checked').inputValue(),'3');await page.click('[data-action="close"]');assert.deepEqual(errors,[]);results.push('packaged browser opens project sound-effect creation with a three-second default');
   await browser.close();browser=undefined;await httpClient.close();httpClient=undefined;
+  const independent=new Uint8Array(encodeWav([new Float32Array(24000).fill(.2)],8000)),upload=await fetch(runtime.url+'/sound-library/import?name=binary-effect.wav&requestId=binary-effect-import',{method:'POST',headers:{authorization:`Bearer ${runtime.token}`,'content-type':'application/octet-stream'},body:independent});assert.equal(upload.status,200);const imported=await upload.json();const attached=await tool('studio_attach_sound',{itemId:imported.id,projectId:example.work.id,title:'独立录音',requestId:'binary-attach'}),trimmed=await tool('studio_trim_audio',{versionId:attached.id,startSeconds:1,endSeconds:3,requestId:'binary-trim'});assert.equal(trimmed.parentId,attached.id);assert.equal(trimmed.duration,2);const clipped=await fetch(runtime.url+trimmed.audioPath,{headers:{authorization:`Bearer ${runtime.token}`}});assert.equal(clipped.status,200);const clippedBytes=new Uint8Array(await clipped.arrayBuffer()),samples=(await decodeAudio(clippedBytes)).channelData[0];assert.equal(audioShape(clippedBytes).frames,16000);assert.equal(samples[0],0);assert.equal(samples.at(-1),0);assert.deepEqual(new Uint8Array(await (await fetch(runtime.url+imported.audioPath,{headers:{authorization:`Bearer ${runtime.token}`}})).arrayBuffer()),independent);results.push('packaged MCP attaches and smoothly trims an independent recording without changing its source');
   await client.close();client=undefined;
   assert.equal(JSON.parse(execFileSync(binary,['status','--workspace',workspace],{cwd:root,env,encoding:'utf8'})).workspace,runtime.workspace);
   assert.equal(JSON.parse(await readFile(join(workspace,'.music-room.runtime.json'),'utf8')).pid,runtime.pid);

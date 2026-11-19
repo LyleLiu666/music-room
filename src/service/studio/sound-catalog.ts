@@ -27,10 +27,10 @@ export class SoundCatalog{
  private write(records:Playlist[]){mkdirSync(this.store.path('sound-library'),{recursive:true,mode:0o700});this.store.atomicJSON(this.store.path('sound-library','playlists.json'),{format:'music-room-playlists',version:1,playlists:records});this.records=records;}
  private async entries(options:CatalogQuery){
   const all=await this.available(),byId=new Map(all.map(i=>[i.id,i]));
-  const collected=all.filter(i=>i.origin!=='generated'||i.final||i.kept);
+  const collected=all.filter(i=>!i.hiddenFromLibrary&&(i.origin!=='generated'||i.soundKind==='effect'||i.final||i.kept));
   let entries:CatalogEntry[]=options.playlistId?this.get(options.playlistId).entries.map(e=>({id:e.id,title:byId.get(e.id)?.title??e.title,item:byId.get(e.id)??null})):collected.map(item=>({id:item.id,title:item.title,item}));
   const query=(options.query??'').trim().toLocaleLowerCase();
-  entries=entries.filter(({title,item})=>(!options.filter||options.filter==='all'||(options.filter==='imported'?item?.origin==='imported':options.filter==='effects'?item?.origin==='sound-effect':item?.origin==='generated'&&(options.filter==='final'?item.final:item.kept)))&&`${title} ${item?.origin==='generated'?item.projectTitle:item?item.filename:''}`.toLocaleLowerCase().includes(query));
+  entries=entries.filter(({title,item})=>(!options.filter||options.filter==='all'||(options.filter==='imported'?item?.origin==='imported':options.filter==='effects'?item?.origin==='sound-effect'||item?.origin==='generated'&&item.soundKind==='effect':item?.origin==='generated'&&(options.filter==='final'?item.final:item.kept)))&&`${title} ${item?.origin==='generated'?item.projectTitle:item?item.filename:''}`.toLocaleLowerCase().includes(query));
   if(!options.playlistId)entries.sort((a,b)=>options.sort==='title'?a.title.localeCompare(b.title)||a.id.localeCompare(b.id):options.sort==='oldest'?(a.item!.createdAt.localeCompare(b.item!.createdAt)||a.id.localeCompare(b.id)):(b.item!.createdAt.localeCompare(a.item!.createdAt)||b.id.localeCompare(a.id)));
   return {entries,libraryTotal:collected.length,revision:soundCatalogRevision(all,this.playlists())};
  }

@@ -1,5 +1,6 @@
 import type {MusicCreationGuide} from './yue2/authoring-guide.ts';
 import {effectRequest,type SoundEffects} from './studio/sound-effects.ts';
+import {trimOptions} from './studio/trim-audio.ts';
 import {catalogQuery,playlistSave,type SoundCatalog} from './studio/sound-catalog.ts';
 import type {MonitorSnapshot} from './resources/monitor.ts';
 import {musicEditKinds,type MusicEditDraft} from './studio/music-edits.ts';
@@ -26,7 +27,7 @@ export const operations = {
   sound_effect_status:{description:'查看本机音效模型准备状态及最近音效任务，不启动模型。',schema:z.object({}).strict()},
   sound_effect_prepare:{description:'在本机共享模型目录准备固定版 Stable Audio 3 Small-SFX；后台下载和安装，通过 sound_effect_status 查看。',schema:z.object({}).strict()},
   sound_effect_cancel_preparation:{description:'取消音效模型准备并等待所属进程退出，保留下载文件。',schema:z.object({}).strict()},
-  sound_effect_generate:{description:'生成独立 1–5 秒音效并保存到声音库；建议英文描述具体声音，无需参考音频。立即返回任务，用 sound_effect_job 查询；requestId 去重，seed 可选。',schema:effectRequest},
+  sound_effect_generate:{description:'生成 1–5 秒音效；可指定 soundId 保存为项目内的新版本，省略则独立保存到声音库。建议英文描述；立即返回任务，sound_effect_job 查询；requestId 去重，seed 和 parentId 可选。',schema:effectRequest},
   sound_effect_job:{description:'查看音效任务状态；succeeded 时 item.audioPath 是受保护的 WAV，item.source 保留输入与种子。',schema:z.object({jobId:z.string().regex(/^sfx-[a-f0-9-]{36}$/)}).strict()},
   sound_effect_cancel:{description:'取消排队或运行中的音效任务并等待释放；已保存音频不会删除。',schema:z.object({jobId:z.string().regex(/^sfx-[a-f0-9-]{36}$/)}).strict()},
   get_music_creation_guide:{description:'音乐创作与改编前先读取：可用 YuE2 自主作曲或 Agent 写谱 / 改谱，不保证减少重复或更好听。含乐器主次与轮换、riff 变奏、段落发展、谱例、时长检查和交付流程；只读，不启动模型，不强制短样。',schema:z.object({}).strict()},
@@ -46,10 +47,12 @@ export const operations = {
   sound_library_page:{description:'按页查找声音或播放列表，不读取音频。',schema:z.object({...catalogQuery,page:z.number().int().positive().optional(),pageSize:z.union([z.literal(20),z.literal(50)]).optional()}).strict()},
   sound_library_queue:{description:'确定跨页播放顺序，只返回稳定声音 ID，不预加载音频。',schema:z.object(catalogQuery).strict()},
   sound_library_items:{description:'读取少量声音资料；不可用声音保留名称。',schema:z.object({ids:z.array(z.string().min(1).max(80)).max(50)}).strict()},
+  sound_library_trim:{description:'截取声音库中的独立录音（最长 30 秒），按毫秒淡入淡出并另存 WAV；保留原音，requestId 去重。项目音效请用 studio_trim_audio。',schema:z.object({itemId:id,...trimOptions}).strict()},
   sound_playlist_save:{description:'保存具体音频版本的播放列表，revision 防止覆盖其他窗口的修改。',schema:playlistSave},
   sound_playlist_remove:{description:'删除播放列表，不删除原音频。',schema:z.object({id,revision:z.number().int().positive()}).strict()},
   studio_library:{description:'统一读取项目、声音和版本。',schema:z.object({includeSoundLibrary:z.boolean().optional(),compactLibrary:z.boolean().optional(),paginateConversions:z.boolean().optional(),includeDeletedConversions:z.boolean().optional(),conversionSoundId:id.optional(),conversionPage:z.number().int().positive().optional(),conversionPageSize:z.number().int().positive().max(50).optional(),selectedVersionId:id.optional()}).strict()},
-  studio_create_sound:{description:'在项目内创建音乐片段、完整音乐或语音。可指定 soundId；相同编号和内容的重试返回原声音，不同内容拒绝。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120),kind:z.enum(['clip','music','speech','conversion']),soundId:id.optional()}).strict()},
+  studio_create_sound:{description:'在项目内创建音乐、语音、音效或音色转换。可指定 soundId；相同编号和内容的重试返回原声音，不同内容拒绝。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120),kind:z.enum(['clip','music','speech','conversion','effect']),soundId:id.optional()}).strict()},
+  studio_attach_sound:{description:'把声音库中的独立录音加入项目，创建音效声音和首个版本；保留独立原音与已有播放列表，requestId 去重。',schema:z.object({itemId:id,projectId:id,title:z.string().trim().min(1).max(120),requestId:id}).strict()},
   studio_update_project:{description:'项目重命名或移入/恢复回收站；整个层级保持原状态，生成中拒绝删除。',schema:z.object({projectId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
   studio_update_sound:{description:'片段重命名或移入/恢复回收站，保留其版本和成品选择。',schema:z.object({soundId:id,title:z.string().trim().min(1).max(120).optional(),deleted:z.boolean().optional()}).strict()},
   studio_purge:{description:'彻底删除回收站中的项目、片段、版本或音色及其保存文件；不可恢复。',schema:z.object({kind:z.enum(['project','sound','version','voice']),id}).strict()},
@@ -68,6 +71,7 @@ export const operations = {
   studio_cancel:{description:'取消指定声音版本的生成任务。',schema:z.object({versionId:id}).strict()},
   studio_import_score:{description:'将 Agent 交付的 JSON 乐谱导入指定声音，新版保留来源，不覆盖旧版。',schema:z.object({soundId:id,compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
   studio_save_speed:{description:'将已完成音频按指定速度保存为独立新版本，保持音调并保留原版。requestId 用于安全重试。',schema:z.object({versionId:id,rate:z.number().min(.5).max(2).refine(n=>n!==1),requestId:z.string().min(1).max(120)}).strict()},
+  studio_trim_audio:{description:'截取项目中的音效版本并另存为子版本；按毫秒淡入淡出，保留原版，requestId 去重。',schema:z.object({versionId:id,...trimOptions}).strict()},
   studio_save_mix:{description:'将当前乐谱混音保存为同一声音的新版本并后台合成，保留原版与成品选择；requestId 保证重试不重复创建。',schema:z.object({versionId:id,requestId:id,mix:mixSchema}).strict()},
   studio_render:{description:'把已有乐谱合成为试听文件。',schema:z.object({versionId:id}).strict()},
   tts_status:{description:'查看Breeze / IndexTTS 兼容环境、模型准备状态和日志。',schema:z.object({}).strict()},
@@ -124,8 +128,8 @@ export type OperationResults = {
   svc_library:ReturnType<ConversionService['snapshot']>&{voices:SpeechVoice[]};svc_create_version:ConversionJob;svc_cancel:ConversionJob;svc_retry:ConversionJob;
   studio_update_project:Project;studio_update_sound:StudioSound;studio_purge:{purged:true};
   studio_conversion_sources:Awaited<ReturnType<StudioService['conversionSources']>>;studio_convert_saved:Awaited<ReturnType<StudioService['convertSaved']>>;
-  sound_library_page:Awaited<ReturnType<SoundCatalog['page']>>;sound_library_queue:Awaited<ReturnType<SoundCatalog['queue']>>;sound_library_items:Awaited<ReturnType<SoundCatalog['items']>>;sound_playlist_save:Awaited<ReturnType<SoundCatalog['save']>>;sound_playlist_remove:Awaited<ReturnType<SoundCatalog['remove']>>;
-  studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_generate:StudioVersion;studio_retry_music:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_save_mix:StudioVersion;studio_save_speed:StudioVersion;studio_import_score:StudioVersion;
+  sound_library_page:Awaited<ReturnType<SoundCatalog['page']>>;sound_library_queue:Awaited<ReturnType<SoundCatalog['queue']>>;sound_library_items:Awaited<ReturnType<SoundCatalog['items']>>;sound_library_trim:Awaited<ReturnType<StudioService['trimLibrary']>>;sound_playlist_save:Awaited<ReturnType<SoundCatalog['save']>>;sound_playlist_remove:Awaited<ReturnType<SoundCatalog['remove']>>;
+  studio_library:Awaited<ReturnType<StudioService['snapshot']>>;studio_create_sound:StudioSound;studio_attach_sound:StudioVersion;studio_generate:StudioVersion;studio_retry_music:StudioVersion;studio_update_version:StudioVersion;studio_cancel:StudioVersion;studio_render:StudioVersion;studio_save_mix:StudioVersion;studio_save_speed:StudioVersion;studio_trim_audio:StudioVersion;studio_import_score:StudioVersion;
   tts_status:SpeechStatus;tts_prepare:SpeechStatus;tts_cancel_preparation:SpeechStatus;
   tts_library:ReturnType<SpeechService['snapshot']>;tts_add_voice:SpeechVoice;tts_clean_voice:SpeechVoice;tts_update_voice:SpeechVoice;tts_create_sound:SpeechSound;
   tts_generate:SpeechVersion;tts_get_version:SpeechVersion;tts_cancel:SpeechVersion;tts_update_version:SpeechVersion;

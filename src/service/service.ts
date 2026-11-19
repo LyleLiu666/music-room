@@ -57,7 +57,7 @@ export class MusicService {
     return this.resources.status();
   }
   private handlers:OperationHandlers = {
-    sound_effect_status:async()=>this.effects.status(),sound_effect_prepare:async()=>this.effects.prepare(),sound_effect_cancel_preparation:async()=>this.effects.cancelPreparation(),sound_effect_generate:async args=>this.effects.start(args),sound_effect_job:async args=>this.effects.get(args.jobId),sound_effect_cancel:async args=>this.effects.cancel(args.jobId),
+    sound_effect_status:async()=>this.effects.status(),sound_effect_prepare:async()=>this.effects.prepare(),sound_effect_cancel_preparation:async()=>this.effects.cancelPreparation(),sound_effect_generate:async args=>args.soundId?this.studio.generateEffect(args):this.effects.start(args),sound_effect_job:async args=>this.effects.get(args.jobId),sound_effect_cancel:async args=>this.effects.cancel(args.jobId),
     get_music_creation_guide:async()=>musicCreationGuide(),
     monitor_status:async()=>this.monitor.status(),
     resource_status:async()=>this.resources.status(),resource_pause:async()=>this.resources.pause(),resource_resume:async()=>this.resources.resume(),resource_cancel:async args=>this.cancelResource(args.taskId),resource_release:async()=>{await this.resources.releaseIdle();return this.resources.status();},resource_set_limit:async args=>{this.resources.setLimits(args.memoryBytes===null?undefined:{memory:args.memoryBytes},()=>{mkdirSync(this.store.path('engines'),{recursive:true});this.store.atomicJSON(this.store.path('engines','resources.json'),{version:1,memoryBytes:args.memoryBytes});});return this.resources.status();},
@@ -66,10 +66,11 @@ export class MusicService {
     studio_update_project:async args=>this.studio.updateProject(args),studio_update_sound:async args=>this.studio.updateSound(args),studio_purge:async args=>this.studio.purge(args),
     studio_music_edit_open:async args=>this.studio.openMusicEdit(args),studio_music_edit_prepare:async args=>this.studio.prepareMusicEdit(args),studio_music_edit_brief:async args=>this.studio.musicEditBrief(args),studio_music_edit_generate:async args=>this.studio.generateMusicEdit(args),
     studio_save_speed:async args=>this.studio.saveSpeed(args),
+    studio_trim_audio:async args=>this.studio.trim(args),
     studio_save_mix:async args=>this.studio.saveMix(args),
     studio_import_score:async args=>this.studio.importScore(args),
-    sound_library_page:async args=>this.soundCatalog.page(args),sound_library_queue:async args=>this.soundCatalog.queue(args),sound_library_items:async args=>this.soundCatalog.items(args.ids),sound_playlist_save:async args=>this.soundCatalog.save(args),sound_playlist_remove:async args=>this.soundCatalog.remove(args),
-    studio_library:async args=>this.studio.snapshot(args),studio_create_sound:async args=>this.studio.createSound(args),studio_retry_music:async args=>this.studio.retryMusic(args),studio_generate:async args=>this.studio.generate(args),studio_update_version:async args=>this.studio.update(args),studio_cancel:async args=>this.studio.cancel(args.versionId),studio_render:async args=>this.studio.render(args.versionId),
+    sound_library_page:async args=>this.soundCatalog.page(args),sound_library_queue:async args=>this.soundCatalog.queue(args),sound_library_items:async args=>this.soundCatalog.items(args.ids),sound_library_trim:async args=>this.studio.trimLibrary(args),sound_playlist_save:async args=>this.soundCatalog.save(args),sound_playlist_remove:async args=>this.soundCatalog.remove(args),
+    studio_library:async args=>this.studio.snapshot(args),studio_create_sound:async args=>this.studio.createSound(args),studio_attach_sound:async args=>this.studio.attachSound(args),studio_retry_music:async args=>this.studio.retryMusic(args),studio_generate:async args=>this.studio.generate(args),studio_update_version:async args=>this.studio.update(args),studio_cancel:async args=>this.studio.cancel(args.versionId),studio_render:async args=>this.studio.render(args.versionId),
     tts_status:async()=>this.speech.status(),tts_prepare:async args=>this.speech.prepare(args.directory),tts_cancel_preparation:async()=>this.speech.cancelPreparation(),
     tts_library:async()=>this.speech.snapshot(),tts_add_voice:async args=>this.speech.addVoice(args.name,Buffer.from(args.audioBase64,'base64'),args.cleanup),
     tts_clean_voice:async args=>this.speech.cleanVoice(args.voiceId),tts_update_voice:async args=>this.speech.updateVoice(args.voiceId,args),

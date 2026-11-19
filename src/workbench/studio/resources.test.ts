@@ -26,6 +26,10 @@ test('unverified input failures show preflight advice and an obvious retry inste
  const html=resourceFailure({reason:'RESOURCE_PROFILE_UNVERIFIED',message:'此模型配置的资源需求尚未验证'},false);
  assert.match(html,/生成前检查未通过/);assert.match(html,/8000 字/);assert.match(html,/长稿会自动分段/);assert.match(html,/<button class="primary" data-action="retry-generation">重试生成/);assert.doesNotMatch(html,/关闭暂时不用的应用/);
 });
+test('an unverified sound effect suggests checking its own duration rather than speech length',()=>{
+ const html=resourceFailure({reason:'RESOURCE_PROFILE_UNVERIFIED'},false,false,undefined,true);
+ assert.match(html,/音效|1–5 秒/);assert.doesNotMatch(html,/正文|长稿|8000/);
+});
 
 test('music recovery states the saved boundary instead of promising chunk-level continuation',()=>{
  for(const [stage,expected] of [['plan','音乐内容生成'],['semantic','声音合成'],['synthesis','音频导出']] as const){

@@ -39,7 +39,7 @@
     "test:trials": "python3 -B -m unittest discover -s src/trials/yue2 -p \"*_test.py\" && node --test src/trials/yue2/*.test.ts",
     "test:lyrics-worker": "python3 -B scripts/test-lyrics-worker.py",
     "test:experiments": "python3 -B -m unittest discover -s scripts/experiments -p \"test_*.py\" && node --test scripts/experiments/*.test.ts",
-    "verify:webkit": "MUSIC_ROOM_BROWSER=webkit node --test --test-timeout=90000 --test-concurrency=1 scripts/verify-browser-compat.test.mjs scripts/verify-drafts-ui.test.mjs scripts/verify-task-history-ui.test.mjs scripts/verify-listening-queue-ui.test.mjs",
+    "verify:webkit": "MUSIC_ROOM_BROWSER=webkit node --test --test-timeout=90000 --test-concurrency=1 scripts/verify-browser-compat.test.mjs scripts/verify-drafts-ui.test.mjs scripts/verify-task-history-ui.test.mjs scripts/verify-listening-queue-ui.test.mjs scripts/verify-sound-library-ui.test.mjs",
     "verify:soak": "node --expose-gc scripts/verify-soak.mjs",
     "verify:quality": "node scripts/verify-quality-evidence.mjs",
     "prepare:quality": "node scripts/prepare-quality-corpus.mjs",

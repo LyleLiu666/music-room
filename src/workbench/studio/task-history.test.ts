@@ -25,3 +25,8 @@ test('history offers playback only for audio and parameter reuse only for stored
  library.taskHistory[0].hasAudio=false;library.versions[0].input=undefined;
  assert.doesNotMatch(taskHistoryRows(library),/data-action="task-listen"|data-action="task-reuse"/);
 });
+test('effect history can reuse its saved prompt while imported recordings without a prompt cannot',()=>{
+ const base={id:'v',soundId:'s',number:1,state:'succeeded',stage:'done',createdAt:'2026-11-08',hasAudio:true};
+ const library={projects:[{id:'p',title:'项目'}],sounds:[{id:'s',projectId:'p',title:'音效',kind:'effect'}],taskHistory:[base],versions:[{...base,source:{kind:'sound-effect'},input:{text:'bubbling water',effectSeconds:3}}]} as any;
+ assert.match(taskHistoryRows(library),/data-action="task-reuse"/);library.versions[0].source.kind='library';library.versions[0].input=undefined;assert.doesNotMatch(taskHistoryRows(library),/data-action="task-reuse"/);
+});

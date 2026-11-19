@@ -6,7 +6,7 @@ import {join} from 'node:path';
 import {ProjectStore} from '../projects/store.ts';
 import {SoundCatalog} from './sound-catalog.ts';
 import type {LibrarySound} from './sound-library.ts';
-const items=(count:number):LibrarySound[]=>Array.from({length:count},(_,i)=>({id:`version-${i}`,title:`声音 ${i}`,createdAt:new Date(1700000000000+i*1000).toISOString(),origin:'generated',projectId:'film',projectTitle:i%2?'电影':'旁白',soundId:'sound',versionId:`version-${i}`,number:i+1,final:i%2===0,kept:true,extension:'wav',audioPath:`/studio-audio/version-${i}`,duration:2}));
+const items=(count:number):LibrarySound[]=>Array.from({length:count},(_,i)=>({id:`version-${i}`,title:`声音 ${i}`,createdAt:new Date(1700000000000+i*1000).toISOString(),origin:'generated',projectId:'film',projectTitle:i%2?'电影':'旁白',soundId:'sound',soundKind:'music',versionId:`version-${i}`,number:i+1,final:i%2===0,kept:true,extension:'wav',audioPath:`/studio-audio/version-${i}`,duration:2}));
 test('10000 sounds are filtered and stably paged on the server; playback order covers every page',async()=>{
  const root=await mkdtemp(join(tmpdir(),'catalog-')),store=await ProjectStore.open(root);let source=items(10000);
  try{

@@ -9,6 +9,8 @@
 | SFX-01 / P1 | 文字提交 1–5 秒音效，MCP 查询状态并从声音库读取 | 任务可追踪；音频时长与输入一致、来源和种子保留，重复请求不重复创建 | `src/service/studio/sound-effects.test.ts`、`src/server/mcp.test.ts`、`scripts/verify-sound-library-ui.test.mjs` |
 | SFX-02 / P0 | 队列暂停或生成中取消；超内存；重启时已提交 / 未提交产物 | 停止所属工作且不假报成功；已保存音频校验后恢复，不创建重复记录 | `src/service/studio/sound-effects.test.ts`、`src/service/studio/sound-effects-runtime.test.ts`、`src/service/resources/profiles.test.ts` |
 | SFX-03 / P1 | 在声音库准备模型并生成音效，与外部导入分别筛选 | 明确准备、取消及生成状态；声音可试听，来源分类正确 | `scripts/verify-sound-library-ui.test.mjs` |
+| SFX-04 / P0 | 项目内生成多个音效版本；请求丢失、重启、删除或彻底删除；将独立录音加入项目 | 版本归属、参数、音频和原有播放列表保留；重试不重复；删除后的内容不复活 | `src/service/studio/effect-workflow.test.ts`、`src/server/lost-response.test.ts`、`src/server/mcp.test.ts`、`scripts/verify-sound-library-ui.test.mjs` |
+| SFX-05 / P0 | 截取项目音效或独立 WAV / FLAC，选择起止与淡入淡出；提交前后强制退出 | 原音不变；新 WAV 的长度与边界正确，首尾平滑，双声道及未淡化片段保留；非法时间被拒绝；重试无重复且无孤立文件 | `src/service/studio/trim-audio.test.ts`、`src/service/studio/effect-workflow.test.ts`、`src/service/studio/publication-crash.test.ts`、`scripts/verify-sound-library-ui.test.mjs` |
 | DRAFT-01 / P0 | 同浏览器两窗口打开同一目录，分别编辑不同声音；旧窗口导航后刷新 | 两份草稿都保留；不能用整个旧快照覆盖新稿 | `src/workbench/studio/drafts.test.ts`、`scripts/verify-drafts-ui.test.mjs` |
 | DRAFT-02 / P0 | 两窗口编辑同一声音，分别选择保留当前 / 使用已保存内容 | 冲突可见；选择前当前输入不丢失；选择后刷新符合决定；转换的升降调也适用 | 同上 |
 | DRAFT-03 / P0 | 保存时模拟浏览器配额耗尽；继续编辑；恢复存储并重试 | 失败提示、输入保留、重试保存最新内容；不能假称成功 | 同上 |

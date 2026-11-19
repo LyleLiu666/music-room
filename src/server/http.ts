@@ -61,7 +61,7 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
       }
       if(path.startsWith('/sound-library/audio/')) {
         if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
-        const id=path.slice('/sound-library/audio/'.length);await audio(service.soundLibrary.contentType(id),()=>service.soundLibrary.audio(id));return;
+        const id=path.slice('/sound-library/audio/'.length);await audio(service.soundLibrary.contentType(id),()=>service.studio.libraryAudio(id));return;
       }
       if(path==='/conversion/upload') {
         if(req.method!=='POST'){json(res,405,{message:'请用 POST'});return;}
@@ -89,7 +89,7 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
       }
       if(path.startsWith('/studio-audio/')) {
         if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
-        await audio('audio/wav',()=>service.studio.audio(path.slice('/studio-audio/'.length)));return;
+        const id=path.slice('/studio-audio/'.length);await audio(service.studio.audioContentType(id),()=>service.studio.audio(id));return;
       }
       if(path.startsWith('/api/')) {
         if(req.method!=='POST'){json(res,405,{message:'请用 POST'});return;}
