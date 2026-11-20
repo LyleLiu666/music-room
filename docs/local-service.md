@@ -6,7 +6,7 @@
 
 这台 Mac 的 `~/Applications/Music Room Launcher.app` 注册了 `music-room-local://start`。启动器只接受这个固定动作，调用项目根目录「启动 Music Room.command」，不执行 URL 中传入的命令或参数。命令优先使用 `~/Applications/MusicRoom/music-room`，未安装时才使用项目内的 `release/music-room`。实际服务仍只监听本机；其他设备需有自己的安装才可使用。
 
-重装启动器：运行 `scripts/install-mac-launcher.sh`，需要 Xcode Command Line Tools。启动器依赖当前项目路径；移动项目后重新安装。脚本使用 `~/Music/MusicRoom`，请求端口 57923，重复启动复用现有服务并打开实际地址。导航里的“直接进入网页”用于已启动且位于默认端口的服务。
+重装启动器：运行 `scripts/build/install-mac-launcher.sh`，需要 Xcode Command Line Tools。启动器依赖当前项目路径；移动项目后重新安装。脚本使用 `~/Music/MusicRoom`，请求端口 57923，重复启动复用现有服务并打开实际地址。导航里的“直接进入网页”用于已启动且位于默认端口的服务。
 
 仍可双击项目根目录的「启动 Music Room.command」。关闭网页不停止服务；停止方式见下文。
 
@@ -109,7 +109,7 @@ Bun 1.4.2 是项目内锁定的开发依赖，不更新全局 Bun。产物为 `r
 
 二进制构建检查可执行有效性并运行 `--help`；独立验收复制二进制到临时目录、暂时移走松散的 `dist` 资源，并从不包含 Node/Bun 的 PATH 启动，实际调用两种 MCP、渲染 WAV、打开页面和重启恢复。测试最后恢复生成目录。
 
-SDK、解码器与运行时版本变更后必须重跑独立验收。Bun 打包对当前 MP3 库未使用 worker 导出的处理由 `scripts/compile-binary.mjs` 明确限定为同步解码器入口；不会改动 npm 包或解码/WASM 实现。
+SDK、解码器与运行时版本变更后必须重跑独立验收。Bun 打包对当前 MP3 库未使用 worker 导出的处理由 `scripts/build/compile-binary.mjs` 明确限定为同步解码器入口；不会改动 npm 包或解码/WASM 实现。
 
 源代码运行可用 `npm run build`、`npm run serve -- --workspace <目录>`，启动后可关闭终端，此模式使用现有开发 Node 和 `dist`。停止使用 `node src/server/dev.ts stop --workspace <目录>`；需要前台调试时使用 `node src/server/dev.ts serve --workspace <目录>`。服务测试为 `npm run test:service`，浏览器服务验证为 `npm run verify:service`，包含听评保存期间继续编辑/切换版本、保存失败和首次连接失败后的版本链接恢复；静态网页仍可用 `npm run dev`。
 

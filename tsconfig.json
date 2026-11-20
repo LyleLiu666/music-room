@@ -5,5 +5,5 @@
     "noEmit": true, "allowImportingTsExtensions": true, "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["src", "tests", "scripts/*.ts"]
+  "include": ["src", "tests", "scripts/build/*.ts", "scripts/verify/*.ts"]
 }

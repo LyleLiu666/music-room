@@ -44,7 +44,7 @@
 实测任务：`846a758f-f635-427e-bec1-7b588c32a522`，快速模式、种子 7、转换后的纯器乐 ABC。完整结果由下列只读检查脚本核验：
 
 ```sh
-node scripts/verify-yue2-trials-live.mjs
+node scripts/verify/verify-yue2-trials-live.mjs
 ```
 
 脚本要求存在真实完成任务，并核对：计划没有音频目录；输入 ABC、版本 hash 与返回 ABC 完全一致；纯音乐 LoRA、CFG、无歌词正文协议正确；FLAC 文件存在且格式头有效。本轮检查已通过：返回 ABC 与输入及版本的 SHA-256 均为 `50019cc43b20bfe0f2e1b69c30d04758f82807f000fe90e9eeeb0448ec10f3a0`；生成有效 FLAC，时长约 360 秒。`abc=false, semantic=true` 表明音频生成达到长度上限，页面明确提示可能未自然收尾。这个样例只证明完整执行链路及输入对应关系，**不代表短句时长或音乐效果合格**。任务结束后资源协调器无活动任务、无排队、无驻留模型。

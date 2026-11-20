@@ -33,7 +33,7 @@
 | 乐谱生成 | JobManager.pump → render process | 第四轮 |
 | 调速 | Studio.saveSpeed 持有 serial 锁、changeAudioSpeed 在主服务解码/计算 | 第四轮；转后台且不长期持锁 |
 | 语音/YuE2 安装下载 | SpeechService.prepare、YuE2Engine.prepare 与运行时安装 | 第五轮 |
-| 转换安装 | scripts/install-conversion-engine.mjs 导入本地二进制/权重 | 第五轮；不假定已有自动下载源 |
+| 转换安装 | `scripts/build/install-conversion-engine.mjs` 导入本地二进制/权重 | 第五轮；不假定已有自动下载源 |
 | 服务退出、worker stdin 关闭 | MusicService.close 与各 worker | 第二轮建立监管，后续逐路接入 |
 | 大文件上传、播放器 Blob 缓存 | HTTP 输入、Studio audioUrl | 第四轮限制占用与回收 |
 

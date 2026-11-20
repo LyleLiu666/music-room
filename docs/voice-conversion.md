@@ -21,7 +21,7 @@
 安装目录：`<workspace>/engines/voice-conversion/`。模型独立于网页和应用二进制，启动推理时验证固定哈希。安装命令：
 
 ```sh
-node scripts/install-conversion-engine.mjs \
+node scripts/build/install-conversion-engine.mjs \
   --workspace "$HOME/Music/MusicRoom" \
   --binary /absolute/path/to/audiocpp_cli \
   --seed-model /absolute/path/to/seed-vc-mlx-f16.gguf \
@@ -48,7 +48,7 @@ git -C /absolute/path/to/audio.cpp apply /absolute/path/to/music/native/seed-vc/
 npm run build
 npm run serve -- --workspace "$HOME/Music/MusicRoom"
 node --test src/service/conversion/*.test.ts src/server/conversion.test.ts
-node --test scripts/verify-studio-conversion-ui.test.mjs scripts/verify-conversion-ui.test.mjs
+node --test scripts/verify/verify-studio-conversion-ui.test.mjs scripts/verify/verify-conversion-ui.test.mjs
 ```
 
 页面请求与音频文件均需要本地访问令牌。重复上传使用同一请求标识时不会重复创建任务；失败、取消、中断均可另建重试任务。任务运行时保存分阶段进度、原生命令日志和混音指标；输出缺失或长度异常不会发布成功结果。

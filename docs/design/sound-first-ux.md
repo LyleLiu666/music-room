@@ -191,8 +191,8 @@ MIDI 本身不是语音，不包含完整音色或录制的人声。不能把“
 运行中的 Vite 服务用于浏览器验证：
 
 ```sh
-node --test scripts/verify-sound-first-model.test.mjs
-node scripts/verify-sound-first.mjs
+node --test scripts/legacy/verify-sound-first-model.test.mjs
+node scripts/legacy/verify-sound-first.mjs
 npm test
 npm run build
 ```

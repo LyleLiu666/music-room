@@ -78,12 +78,12 @@ MUSIC_ROOM_TTS_REAL=1 MUSIC_ROOM_WORKSPACE="$HOME/Music/MusicRoom" npm run verif
 人声清理的真实验收使用官方样音混合人工配乐、底噪和反射声，通过正式后台跑完整清理链，并验证原音保留、有效音频发布和对目标人声的信号改善。它不能代表所有歌曲和说话人的清理效果：
 
 ```sh
-MUSIC_ROOM_REFERENCE_REAL=1 node scripts/verify-reference-real.mjs
+MUSIC_ROOM_REFERENCE_REAL=1 node scripts/verify/verify-reference-real.mjs
 ```
 
 音频与指标保存在 `test-results/reference-real/`，使用临时工作目录，不写入用户的项目或音色库。
 
-预编码资产由 `scripts/encode-tts-presets.py` 在受管理的固定 IndexTTS 2.0 环境中生成。重新编码会覆盖 NPZ，打印新哈希；发布时同步更新 `preset-manifest.ts` 并重跑资产、真实推理与打包验证。原音、模型权重、源代码提交固定，不能复用另一版本的特征。内存结果与实际硬件验证边界见 [内存诊断](tts-memory.md)。
+预编码资产由 `scripts/build/encode-tts-presets.py` 在受管理的固定 IndexTTS 2.0 环境中生成。重新编码会覆盖 NPZ，打印新哈希；发布时同步更新 `preset-manifest.ts` 并重跑资产、真实推理与打包验证。原音、模型权重、源代码提交固定，不能复用另一版本的特征。内存结果与实际硬件验证边界见 [内存诊断](tts-memory.md)。
 
 Breeze 真实兼容验收（使用隔离项目，保留生成证据，遵守正式资源队列）：
 

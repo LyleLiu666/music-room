@@ -37,5 +37,5 @@ AI 改谱不要求安装特定应用，也没有内置 AI 对话或自动调用�
 
 - 业务与持久化：`src/service/studio/music-edits.ts`；生成复用 `StudioService` 与 YuE2 队列。
 - 界面：`src/workbench/studio/music-edits.ts`。
-- 回归：`src/service/studio/music-edits.test.ts`、`scripts/verify-music-edits-ui.test.mjs`、`scripts/verify-music-edits-binary.mjs`。
+- 回归：`src/service/studio/music-edits.test.ts`、`scripts/verify/verify-music-edits-ui.test.mjs`、`scripts/verify/verify-music-edits-binary.mjs`。
 - 原独立页面保留用于试用，见 [试用页说明](../src/trials/yue2/README.md)。

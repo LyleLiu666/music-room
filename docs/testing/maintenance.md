@@ -7,8 +7,10 @@
 | 位置 | 职责 |
 | --- | --- |
 | 业务代码旁的 `*.test.ts` | 最接近规则的单元或服务回归；相关实现与测试放近 |
-| `scripts/*.test.mjs` | 正式界面及浏览器流程；通过 npm 入口执行 |
-| `scripts/verify-*.mjs` / `*.ts` | 独立包、真实模型、规模和系统场景，明确环境及清理责任 |
+| `scripts/verify/*.test.mjs` | 正式界面及浏览器流程；通过 npm 入口执行 |
+| `scripts/verify/verify-*.mjs` / `*.ts` | 独立包、真实模型、规模和系统场景，明确环境及清理责任 |
+| `scripts/build/` | 构建、打包、原生辅助编译、语料与环境准备脚本 |
+| `scripts/legacy/` | 已退出正式入口的历史旧页面验证脚本，受门禁显式记录 |
 | `tests/quality/` | 固定语料、续跑、等待和证据校验；对应回归在 `tests/quality-*.test.ts` |
 | [cases.md](cases.md) | 用例 ID、风险、前置条件、操作、预期与自动化位置；不写当次通过数 |
 | [quality.md](quality.md) | 真实效果和人工验收标准；不能由脚本生成虚假评分 |
@@ -22,7 +24,7 @@
 1. 从用户行为或具体缺陷写出可观察结果，先让回归在问题版本上失败。断言数据、音频、状态或交互结果，避免只检查内部调用次数或复制实现逻辑。
 2. 将测试放到对应业务附近；在[用例索引](cases.md)补充或关联稳定 ID。格式 / 边界 / 状态变化采用参数化覆盖，不复制多套相同夹具。
 3. 使用隔离目录、固定种子和受控依赖。纯逻辑测试显式注入 `testResources()`；正式入口和独立包继续使用真实探测器，不新增跳过资源保护的后门。
-4. 接入正确的 npm 命令，再运行 `npm test`。入口检查覆盖所有 `scripts/*.test.mjs`，以及 `src/`、`tests/`、`scripts/` 下的 TypeScript 测试；新目录和不同命名不能悄悄漏跑。
+4. 接入正确的 npm 命令，再运行 `npm test`。入口检查覆盖所有 `scripts/**/*.test.mjs`，以及 `src/`、`tests/`、`scripts/` 下的 TypeScript 测试；新目录和不同命名不能悄悄漏跑。
 5. 按[改动矩阵](../testing.md#按改动选择补充验收)补充必要回归。修改前端先构建；修改二进制后用同一份包完成验收并记录哈希。
 
 界面控件变更时，同时核对真实模型浏览器脚本的定位方式与断言；低频验收也可能因旧选择器失效。通过具体版本 ID 定位，确认比较面板确实有两份音频，不能让空列表的条件判断误判成功。
@@ -37,10 +39,10 @@
 
 | 文件 | 原因 / 当前覆盖 |
 | --- | --- |
-| `verify-speech-ui.test.mjs` | 工作台验证的兼容别名，避免重复执行 |
-| `verify-yue2-ui.test.mjs` | 已退出正式入口的独立音乐页面；当前流程由工作台套件覆盖 |
-| `verify-service-boundaries.test.mjs` | 旧独立作品库页面；当前乐谱编辑器见 `verify-score-context-ui.test.mjs` |
-| `verify-sound-first-model.test.mjs` | 历史界面原型；正式行为由服务与工作台测试覆盖 |
+| `scripts/verify/verify-speech-ui.test.mjs` | 工作台验证的兼容别名，避免重复执行 |
+| `scripts/legacy/verify-yue2-ui.test.mjs` | 已退出正式入口的独立音乐页面；当前流程由工作台套件覆盖 |
+| `scripts/legacy/verify-service-boundaries.test.mjs` | 旧独立作品库页面；当前乐谱编辑器见 `scripts/verify/verify-score-context-ui.test.mjs` |
+| `scripts/legacy/verify-sound-first-model.test.mjs` | 历史界面原型；正式行为由服务与工作台测试覆盖 |
 
 独立 YuE2 试验台通过 `test:trials` 明确维护，不混入正式工作台通过数。
 
