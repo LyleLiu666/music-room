@@ -10,7 +10,7 @@ export function monitorMarkup(s?:MonitorSnapshot,error?:string,inline=false){
  const memory=(n?:number)=>n===undefined?(s||error?'暂不可用':'采样中'):bytes(n);
  const memoryDetails=hardware?.memory;
  const taskNote=task?.demand?`<p class="monitor-budget">${task.stage==='waiting_resources'?'等待资源 · ':task.stage==='queued'?'排队中 · ':''}任务预约 ${bytes((task.demand.startup??task.demand.peak).memory??0)} · 保护上限 ${bytes(task.admission?.allowed?task.admission.budgets.memory:task.demand.peak.memory)}</p>`:'';
- const budgetNote=`<p class="monitor-budget">${budget?`本程序可再用约 <strong>${bytes(budget.startupBudget)}</strong>${hardware?.pressure!=='normal'?' · 暂停新任务':''}`:s||error?'启动预算暂不可用':'启动预算采样中'}</p>`;
+ const budgetNote=`<p class="monitor-budget">${budget?`本程序可再用约 <strong>${bytes(budget.startupBudget)}</strong>${hardware?.pressure!=='normal'?`（含缓存粗估；因系统内存压力${hardware?.pressure==='critical'?'过高':'偏高'}已暂停新任务）`:''}`:s||error?'启动预算暂不可用':'启动预算采样中'}</p>`;
  const details=s?`<${inline?'div':'details'} class="monitor-details">${inline?'':'<summary>内存详情</summary>'}<dl><dt>总内存</dt><dd>${memory(system?.memoryTotal)}</dd>${budget?`<dt>程序上限</dt><dd>${bytes(budget.limit)}</dd>`:''}${memoryDetails?`<dt>压缩</dt><dd>${bytes(memoryDetails.compressed)}</dd><dt>交换</dt><dd>${bytes(memoryDetails.swapUsed)}</dd>`:''}</dl>${s.resourceError?`<p title="${esc(s.resourceError)}">内存数据暂不可用</p>`:''}</${inline?'div':'details'}>`:'';
  const cpu=(n:number|undefined,failed?:string)=>n===undefined?(failed?'暂不可用':'采样中'):`${n.toFixed(1)}%`;
  const systemNote=error??system?.error??`整机总算力为 100%；共 ${system?.memoryTotal?bytes(system.memoryTotal):'未知'} 内存，非空闲内存含系统缓存`;

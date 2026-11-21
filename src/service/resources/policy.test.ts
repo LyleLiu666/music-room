@@ -79,4 +79,9 @@ test('runtime ceiling respects the application limit and inconsistent envelopes 
  }
  const pressure=admit({...h,pressure:'warning'},d,policy,1000);
  assert.equal(pressure.allowed,false);assert.equal(pressure.details?.[0].limiting,'pressure');
+ assert.doesNotMatch(!pressure.allowed?pressure.message:'',/尚差约 0\.0 GiB/);
+ assert.match(!pressure.allowed?pressure.message:'',/含系统缓存的启动预算约 19\.0 GiB.*系统内存压力偏高.*等待压力恢复正常/);
+ const pressureShortfall=admit({...hardware(32,6),pressure:'warning'},d,policy,1000);
+ assert.equal(pressureShortfall.allowed,false);
+ assert.match(!pressureShortfall.allowed?pressureShortfall.message:'',/尚差约 3\.0 GiB.*系统内存压力偏高/);
 });

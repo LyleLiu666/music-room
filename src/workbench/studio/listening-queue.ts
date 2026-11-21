@@ -22,7 +22,7 @@ export class ListeningQueue{
   this.audio.addEventListener('timeupdate',()=>{if(Date.now()-this.savedAt>2000)this.save();});
   this.audio.addEventListener('pause',()=>this.save());
   this.audio.addEventListener('seeked',()=>{if(!this.audio.seeking){this.pendingSeek=undefined;this.save();}});
-  this.audio.addEventListener('error',()=>{if(this.audio.getAttribute('src')&&!this.controller?.signal.aborted){this.audio.pause();notify('这首声音无法播放，可以重试或切换下一首');}});
+  this.audio.addEventListener('error',()=>{if(this.url&&this.audio.src===this.url&&!this.controller?.signal.aborted){this.audio.pause();notify('这首声音无法播放，可以重试或切换下一首');}});
   root.addEventListener('play',e=>{if(!(e.target instanceof HTMLAudioElement))return;this.active=e.target===this.audio;if(!this.active){++this.epoch;this.controller?.abort();}if(this.active)document.querySelectorAll<HTMLAudioElement>('audio').forEach(a=>{if(a!==this.audio)a.pause();});this.update();},true);
   this.audio.addEventListener('playbacktoggle',e=>{e.preventDefault();if(this.audio.paused)void this.resume();else{++this.epoch;this.controller?.abort();this.audio.pause();}});
   root.addEventListener('click',e=>{
@@ -83,9 +83,9 @@ export class ListeningQueue{
   let next=this.state.index+1;if(next>=this.state.ids.length){if(this.state.mode==='list')next=0;else{this.save();this.update();return;}}
   await this.start(next,true);
  }
- private async start(index:number,play:boolean,resume=0,missingFiles=0){
+ private async start(index:number,play:boolean,resume=0,missingFiles=0,localOnly=false){
   const epoch=++this.epoch;this.controller?.abort();this.controller=new AbortController();const signal=this.controller.signal;
-  this.pendingSeek=undefined;this.audio.pause();this.audio.removeAttribute('src');this.audio.load();if(this.url){URL.revokeObjectURL(this.url);this.url='';}
+  this.pendingSeek=undefined;this.audio.onerror=null;this.audio.pause();this.audio.removeAttribute('src');this.audio.load();if(this.url){URL.revokeObjectURL(this.url);this.url='';}
   if(!this.state.ids.length){this.update();return;}
   this.active=true;if(play)document.querySelectorAll<HTMLAudioElement>('audio').forEach(a=>a.pause());
   this.state.index=index;this.state.time=resume;this.audio.loop=this.state.mode==='one';
@@ -99,19 +99,30 @@ export class ListeningQueue{
    if(!entry?.item||this.state.index>=this.state.ids.length){this.state.index=Math.min(index,this.state.ids.length-1);this.notify('接下来的声音不可用，已暂停播放');this.save();this.update();return;}
    const item=entry.item;this.audio.dataset.version=item.origin==='generated'?item.versionId:'';this.audio.setAttribute('aria-label',item.title+(item.origin==='generated'?` · V${item.number}`:''));
    this.audio.dispatchEvent(new Event('queueactivate',{bubbles:true}));this.update();
-   const response=await this.api.request(item.audioPath,{signal});if(epoch!==this.epoch){await response.body?.cancel();return;}
-   if(!response.ok){const failure=await response.json().catch(()=>({code:''}));if(response.status===404||response.status===410||['NOT_FOUND','ENOENT','SOURCE_CHANGED','INVALID_AUDIO'].includes(failure.code)){this.notify(`${entry.title}的文件已不可用`);if(missingFiles<2&&this.state.index+1<this.state.ids.length){await this.start(this.state.index+1,play,0,missingFiles+1);return;}this.save();this.update();return;}throw Error('服务暂时无法读取音频，请点击播放重试');}
-   const blob=await readAudioBlob(response,120_000_000);if(epoch!==this.epoch)return;
-   this.url=URL.createObjectURL(blob);this.audio.dataset.playingId=this.currentId;
+   const objectUrl=localOnly?null:await this.api.musicPlayback(item.audioPath,signal);
+   if(epoch!==this.epoch)return;
+   if(!objectUrl){
+    const response=await this.api.request(item.audioPath,{signal});if(epoch!==this.epoch){await response.body?.cancel();return;}
+    if(!response.ok){const failure=await response.json().catch(()=>({code:''}));if(response.status===404||response.status===410||['NOT_FOUND','ENOENT','SOURCE_CHANGED','INVALID_AUDIO'].includes(failure.code)){this.notify(`${entry.title}的文件已不可用`);if(missingFiles<2&&this.state.index+1<this.state.ids.length){await this.start(this.state.index+1,play,0,missingFiles+1);return;}this.save();this.update();return;}throw Error('服务暂时无法读取音频，请点击播放重试');}
+    const blob=await readAudioBlob(response,120_000_000);if(epoch!==this.epoch)return;
+    this.url=URL.createObjectURL(blob);
+   }
+   this.audio.dataset.playingId=this.currentId;
    if(resume){
     this.pendingSeek=resume;
     this.audio.addEventListener('loadedmetadata',()=>{if(epoch===this.epoch)this.seek(resume);},{once:true,signal});
    }
-   this.audio.src=this.url;
-   this.audio.dispatchEvent(new Event('queueactivate',{bubbles:true}));this.save();if(play)await this.audio.play();this.update();
+   if(objectUrl)this.audio.onerror=()=>{
+    if(epoch!==this.epoch||signal.aborted||this.audio.src!==objectUrl)return;
+    void this.start(this.state.index,play||!this.audio.paused,this.pendingSeek??(this.audio.currentTime||this.state.time),missingFiles,true);
+   };
+   this.audio.src=objectUrl??this.url;
+   this.audio.dispatchEvent(new Event('queueactivate',{bubbles:true}));this.save();
+   if(play)try{await this.audio.play();}catch(error){if(!objectUrl||!this.audio.error)throw error;}
+   this.update();
   }catch(error){if(epoch!==this.epoch||signal.aborted)return;this.notify((error as Error).message||'播放中断，请点击播放重试');this.save();this.update();}
  }
- async resume(){if(!this.audio.getAttribute('src'))await this.start(this.state.index,true);else{this.active=true;this.audio.dispatchEvent(new Event('queueactivate',{bubbles:true}));await this.audio.play().catch(()=>this.notify('请点击播放继续'));}}
+ async resume(){if(!this.audio.getAttribute('src')||this.audio.error)await this.start(this.state.index,true,this.state.time);else{this.active=true;this.audio.dispatchEvent(new Event('queueactivate',{bubbles:true}));await this.audio.play().catch(()=>this.notify('请点击播放继续'));}}
  private remove(index:number){
   const playing=!this.audio.paused,current=this.currentId,removed=this.state.ids[index];this.state.ids.splice(index,1);if(this.state.orderedIds)this.state.orderedIds=this.state.orderedIds.filter(id=>id!==removed);this.state.index=this.state.ids.includes(current)?this.state.ids.indexOf(current):Math.min(index,Math.max(0,this.state.ids.length-1));this.state.time=0;
   this.save();this.update();if(current!==this.currentId)void this.start(this.state.index,playing);

@@ -54,9 +54,12 @@
     "observe:system:sleep": "node scripts/verify/observe-system-sleep.mjs",
     "verify:breeze:real": "node scripts/verify/verify-breeze-real.ts",
     "verify:breeze:binary": "node scripts/verify/verify-breeze-binary.mjs",
-    "verify:sound-effects:real": "node scripts/verify/verify-sound-effects-real.ts"
+    "verify:sound-effects:real": "node scripts/verify/verify-sound-effects-real.ts",
+    "verify:music-minio": "node scripts/verify/verify-music-minio.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1173.0",
+    "@aws-sdk/s3-request-presigner": "3.1173.0",
     "@breezystack/lamejs": "1.2.7",
     "@modelcontextprotocol/sdk": "1.32.1",
     "@soundtouchjs/core": "2.1.1",

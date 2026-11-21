@@ -40,8 +40,11 @@ function options(argv:string[]) {
   if(!['backup','verify-backup','restore-backup','start','stop','serve','service-worker','mcp','status','call','--help','help','render-worker','command-worker','speed-worker','yue2-worker','tts-worker','tts-native-worker','conversion-native-worker'].includes(mode))throw new Error('未知命令，请运行 --help');
   if(mode==='call'){out.operation=args.shift()??'';}
   for(let i=0;i<args.length;i+=2){if(!['--workspace','--port','--input','--backup','--destination'].includes(args[i]) || !args[i+1] || args[i+1].startsWith('--'))throw new Error('参数无效：'+args[i]);out[args[i].slice(2)]=args[i+1];}
-  const port=out.port===undefined?0:Number(out.port);if(!Number.isInteger(port)||port<0||port>65535)throw new Error('端口必须在 0–65535');
-  return {mode,workspace:resolve(out.workspace??join(homedir(),'Music','MusicRoom')),port,input:out.input,operation:out.operation,backup:out.backup,destination:out.destination};
+  const defaultWorkspace=join(homedir(),'Music','MusicRoom');
+  const workspace=resolve(out.workspace??defaultWorkspace);
+  const port=out.port===undefined?(workspace===defaultWorkspace?57923:0):Number(out.port);
+  if(!Number.isInteger(port)||port<0||port>65535)throw new Error('端口必须在 0–65535');
+  return {mode,workspace,port,input:out.input,operation:out.operation,backup:out.backup,destination:out.destination};
 }
 async function startBackground(workspace:string,port:number,selfArgs:string[]):Promise<Runtime> {
   const log=join(workspace,'music-room.log'),fd=openSync(log,'a',0o600);
@@ -65,7 +68,7 @@ async function startBackground(workspace:string,port:number,selfArgs:string[]):P
 export async function main(argv:string[],assets:WebAssets,selfArgs:string[],resourceFactory=createResources) {
   const opt=options(argv);configureCommandWorker(process.execPath,[...selfArgs,'command-worker']);
   if(opt.mode==='command-worker'){await runCommandWorker();return;}
-  if(opt.mode==='help'||opt.mode==='--help'){console.log('Music Room\n  backup --workspace DIRECTORY --destination NEW_DIRECTORY\n  verify-backup --backup DIRECTORY\n  restore-backup --backup DIRECTORY --destination NEW_DIRECTORY\n  start [--workspace DIRECTORY] [--port PORT]  # independent background service (default)\n  stop [--workspace DIRECTORY]  # stop service and interrupt unfinished tasks\n  serve [--workspace DIRECTORY] [--port PORT]  # foreground, for development/supervision\n  mcp [--workspace DIRECTORY]  # stdio MCP; connects to or starts independent background service\n  status [--workspace DIRECTORY]\n  call OPERATION --input request.json [--workspace DIRECTORY]\nDefault workspace: ~/Music/MusicRoom. No Electron or browser runtime. Optional YuE2 is installed into your chosen directory from the web page.');return;}
+  if(opt.mode==='help'||opt.mode==='--help'){console.log('Music Room\n  backup --workspace DIRECTORY --destination NEW_DIRECTORY\n  verify-backup --backup DIRECTORY\n  restore-backup --backup DIRECTORY --destination NEW_DIRECTORY\n  start [--workspace DIRECTORY] [--port PORT]  # independent background service (default)\n  stop [--workspace DIRECTORY]  # stop service and interrupt unfinished tasks\n  serve [--workspace DIRECTORY] [--port PORT]  # foreground, for development/supervision\n  mcp [--workspace DIRECTORY]  # stdio MCP; connects to or starts independent background service\n  status [--workspace DIRECTORY]\n  call OPERATION --input request.json [--workspace DIRECTORY]\nDefault workspace: ~/Music/MusicRoom (port 57923). Other workspaces use an available port unless specified.\nNo Electron or browser runtime. Optional YuE2 is installed into your chosen directory from the web page.');return;}
   if(opt.mode==='speed-worker'){await runSpeedWorker(assets.read);return;}
   if(opt.mode==='render-worker'){await runRenderWorker(assets.read);return;}
   if(opt.mode==='conversion-native-worker'){await runConversionWorker();return;}

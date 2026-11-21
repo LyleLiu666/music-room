@@ -24,6 +24,8 @@ import type {Renderer} from './render/process.ts';
 import {YuE2Engine,type YuE2Driver} from './yue2/engine.ts';
 import {createYuE2Driver} from './yue2/runtime.ts';
 import {YuE2Client} from './yue2/client.ts';
+import {openMusicObjectAudio} from './yue2/object-audio.ts';
+import {readMusicObjectAudioConfig} from './yue2/object-audio-config.ts';
 import {parseOperation,type Operation,type OperationInput,type OperationArgs,type OperationResults,type OperationHandlers,type ServiceCaller} from './operations.ts';
 import {createResources} from './resources/runtime.ts';
 import type {ResourceCoordinator} from './resources/coordinator.ts';
@@ -31,10 +33,11 @@ export type {ServiceCaller} from './operations.ts';
 export class MusicService {
   lyricsGeneration:LyricsGeneration;
   resources!:ResourceCoordinator;speedProcessor:SpeedProcessor=processSpeed();soundLibrary:SoundLibrary;soundCatalog:SoundCatalog;effects:SoundEffects;
+  readonly allowMusicRelease: boolean;
   private monitor:ReturnType<typeof createMachineMonitor>;
   private closing?:Promise<void>;
   store:ProjectStore; jobs:JobManager; read:AssetReader;yue2:YuE2Engine;yue2Client:YuE2Client;speech:SpeechService;studio:StudioService;conversion:ConversionService;
-  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator,effectDriver?:EffectDriver) {this.monitor=createMachineMonitor(read,resources);this.resources=resources;resources.register('import',{resident:()=>undefined,unload:async()=>{}});this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources);this.soundLibrary=new SoundLibrary(store);this.effects=new SoundEffects(store,resources,this.soundLibrary,effectDriver??createEffectDriver(join(homedir(),'Music','MusicRoom-SoundEffects')));this.studio=new StudioService(this);this.soundCatalog=new SoundCatalog(store,()=>this.studio.soundItems());this.lyricsGeneration=new LyricsGeneration(store.path('lyrics'),resources,id=>this.studio.lyricSource(id),localLyricsProcessor(store.path('engines','lyrics'),read));}
+  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator,effectDriver?:EffectDriver) {const config=readMusicObjectAudioConfig(store.root);this.allowMusicRelease=config?.allowRelease===true;const objectAudio=openMusicObjectAudio(config);this.monitor=createMachineMonitor(read,resources);this.resources=resources;resources.register('import',{resident:()=>undefined,unload:async()=>{}});this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources,objectAudio);this.soundLibrary=new SoundLibrary(store);this.effects=new SoundEffects(store,resources,this.soundLibrary,effectDriver??createEffectDriver(join(homedir(),'Music','MusicRoom-SoundEffects')));this.studio=new StudioService(this);this.soundCatalog=new SoundCatalog(store,()=>this.studio.soundItems());this.lyricsGeneration=new LyricsGeneration(store.path('lyrics'),resources,id=>this.studio.lyricSource(id),localLyricsProcessor(store.path('engines','lyrics'),read));}
   static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver,resources:ResourceCoordinator=createResources(),speedProcessor:SpeedProcessor=processSpeed(),effectDriver?:EffectDriver) {
     const store=await ProjectStore.open(root);
     let jobs:JobManager|undefined,yue2:YuE2Engine|undefined,speech:SpeechService|undefined,conversion:ConversionService|undefined;

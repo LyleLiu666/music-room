@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,mkdir,writeFile} from 'node:fs/promises';
+import {mkdtemp,rm,mkdir,writeFile,readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -8,9 +8,10 @@ import {createServer} from 'node:http';
 import {ProjectStore} from '../projects/store.ts';
 import {YuE2Engine} from './engine.ts';
 import {YuE2Client} from './client.ts';
+import type {MusicObjectAudio} from './object-audio.ts';
 import {testResources} from '../resources/testing.ts';
 const delay=()=>new Promise(r=>setTimeout(r,5));
-async function fixture(t:any){
+async function fixture(t:any,objects?:MusicObjectAudio){
  const root=await mkdtemp(join(tmpdir(),'managed-yue-')),directory=join(root,'engine');
  let launches=0,stops=0,submits=0,done=false,progress:Record<string,unknown>|undefined,apiTruncation:unknown;const bodies:any[]=[];
  const upstream='a'.repeat(32),resources=testResources(),store=await ProjectStore.open(join(root,'workspace'));
@@ -18,7 +19,7 @@ async function fixture(t:any){
  await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
  const driver={unsupported:()=>undefined,installed:()=>true,modelsReady:()=>true,chooseDirectory:async()=>directory,prepare:async()=>{},launch:async()=>{launches++;let end!:(n:number)=>void;return {url:`http://127.0.0.1:${(server.address() as any).port}`,exited:new Promise<number>(r=>end=r),status:async()=>({modelsPresent:true,fake:false}),stop:async()=>{stops++;end(0);}};}};
  const engine=await YuE2Engine.open(store,driver,resources);await engine.prepare(directory,true);for(let i=0;i<100&&(await engine.status()).phase==='preparing';i++)await delay();
- const client=new YuE2Client(engine,store,resources);
+ const client=new YuE2Client(engine,store,resources,objects);
  t.after(async()=>{await client.close();await resources.close();await engine.close();await store.close();await new Promise<void>(r=>server.close(()=>r()));await rm(root,{recursive:true,force:true});});
  return {root,directory,engine,client,resources,store,bodies,setTruncation:(value:unknown)=>{apiTruncation=value;},setProgress:(value:Record<string,unknown>)=>{progress=value;},counts:()=>({launches,stops,submits}),complete:async(truncated?:{abc:boolean;semantic:boolean})=>{await mkdir(join(directory,'data/songs',upstream,'song'),{recursive:true});await writeFile(join(directory,'data/songs',upstream,'song/audio.flac'),'fLaC test');if(truncated)await writeFile(join(directory,'data/songs',upstream,'summary.json'),JSON.stringify({truncated}));done=true;}};
 }
@@ -28,6 +29,36 @@ test('managed music is lazy, serialized, and reads completed audio after unloadi
  for(let i=0;i<100&&f.counts().submits<1;i++)await delay();assert.equal(f.counts().submits,1);assert.equal((await f.client.job(b.job.id)).job.status,'queued');
  await f.client.cancel(b.job.id);await f.complete();for(let i=0;i<200&&(await f.client.job(a.job.id)).job.status!=='done';i++)await delay();
  assert.equal((await f.client.job(a.job.id)).job.status,'done');assert.equal(f.counts().submits,1);await f.engine.stop();assert.equal((await f.client.audio(a.job.id)).length,9);assert.equal(f.counts().launches,1);
+});
+test('completed music stays available during a MinIO outage and retries the pending upload after restart',async t=>{
+ const uploaded=new Map<string,Uint8Array>();let uploads=0,online=false;
+ const storage:MusicObjectAudio={
+  namespace:'isolated/music',playbackOrigin:'https://music.example',
+  async upload(key,path){uploads++;if(!online)throw Error('offline');uploaded.set(key,await readFile(path));},
+  async read(key){return uploaded.get(key)!;},
+  async verify(key){assert.ok(uploaded.has(key));},
+  async playback(key){return this.playbackOrigin+'/'+key;},
+  async remove(key){uploaded.delete(key);},
+ };
+ const f=await fixture(t,storage);
+ const {job:{id}}=await f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true});
+ await f.complete();
+ for(let i=0;i<200&&uploads===0;i++)await delay();
+ assert.equal(uploads,1);
+ assert.equal((await f.client.job(id)).archiveState,'pending');
+ assert.equal(Buffer.from(await f.client.audio(id)).toString(),'fLaC test');
+
+ await f.client.close();online=true;
+ const restored=new YuE2Client(f.engine,f.store,f.resources,storage);
+ try{
+  for(let i=0;i<200&&(await restored.job(id)).archiveState!=='ready';i++)await delay();
+  const job=await restored.job(id);
+  assert.equal(job.job.status,'done');
+  assert.equal(job.archiveState,'ready');
+  assert.ok(job.audioPath,'automatic retry keeps the local original');
+  assert.equal(uploads,2);
+  assert.equal(uploaded.size,1);
+ }finally{await restored.close();}
 });
 test('queued music cancellation never launches a model',async t=>{
  const f=await fixture(t);const block=new AbortController();f.resources.register('block',{resident:()=>undefined,unload:async()=>{}});const held=f.resources.run({id:'block',engine:'block',demand:{verified:true,peak:{memory:1}},signal:block.signal,execute:async ctx=>new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}))}).catch(()=>{});

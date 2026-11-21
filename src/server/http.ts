@@ -17,6 +17,7 @@ const mime=(p:string)=>p.endsWith('.html')?'text/html; charset=utf-8':p.endsWith
 async function jsonBody(req:IncomingMessage) {const chunks:Buffer[]=[];let size=0;for await(const c of req){size+=c.length;if(size>5*1024*1024)throw new ServiceError('TOO_LARGE','请求超过 5 MiB');chunks.push(c);}return JSON.parse(Buffer.concat(chunks).toString('utf8')||'{}');}
 const json=(res:ServerResponse,status:number,value:unknown)=> {res.writeHead(status,{'content-type':'application/json; charset=utf-8','cache-control':'no-store'});res.end(JSON.stringify(value));};
 export async function serveHttp(service:MusicService,assets:WebAssets,port=0,command=process.execPath,args:string[]=[]) {
+  const musicPlaybackOrigin=service.yue2Client.playbackOrigin;
   const audioBuffers=new BufferGate(1),jsonBuffers=new BufferGate(4);
   const token=randomBytes(32).toString('hex');let runtime:Runtime;
   const server=createServer(async(req,res)=> {
@@ -34,7 +35,7 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
       }
       if(path==='/local-session') {
         if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
-        json(res,200,{token,url:runtime.url,workspace:runtime.workspace,mcp:{mcpServers:{'music-room':{command:runtime.command,args:[...runtime.args,'mcp','--workspace',runtime.workspace]}}}});return;
+        json(res,200,{token,url:runtime.url,workspace:runtime.workspace,musicPlaybackOrigin,mcp:{mcpServers:{'music-room':{command:runtime.command,args:[...runtime.args,'mcp','--workspace',runtime.workspace]}}}});return;
       }
       if(path==='/api/studio-lyrics') {
         if(req.method==='POST'){const body=await readJSON();if(typeof body.versionId!=='string'||typeof body.requestId!=='string')throw new ServiceError('INVALID_REQUEST','歌词请求无效');json(res,202,service.lyricsGeneration.start(body.versionId,body.requestId));return;}
@@ -91,6 +92,15 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
         if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
         const id=path.slice('/studio-audio/'.length);await audio(service.studio.audioContentType(id),()=>service.studio.audio(id));return;
       }
+      if(path==='/api/music-archive'){
+        if(req.method!=='POST'){json(res,405,{message:'请用 POST'});return;}
+        const body=await readJSON();
+        if(!body||typeof body.jobId!=='string'||body.release!==undefined&&typeof body.release!=='boolean')throw new ServiceError('INVALID_REQUEST','归档请求无效');
+        if(body.release&&!service.allowMusicRelease){
+          json(res,403,{code:'RELEASE_DISABLED',message:'本地原件释放未启用'});return;
+        }
+        json(res,200,await service.yue2Client.archiveAudio(body.jobId,body.release===true));return;
+      }
       if(path.startsWith('/api/')) {
         if(req.method!=='POST'){json(res,405,{message:'请用 POST'});return;}
         const name=operationName(path.slice(5)),args=parseOperation(name,await readJSON());json(res,200,await service.call(name,args));return;
@@ -103,7 +113,12 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
       }
       if(path.startsWith('/yue2-audio/')) {
         if(req.method!=='GET'){json(res,405,{message:'请用 GET'});return;}
-        const id=path.slice(12);await audio('audio/flac',()=>service.yue2Client.audio(id));return;
+        const id=path.slice(12);
+        if(url.searchParams.get('playback')==='1'){
+          service.studio.assertMusicPlayback(id);
+          json(res,200,{url:await service.yue2Client.playback(id)??null});return;
+        }
+        await audio('audio/flac',()=>service.yue2Client.audio(id,controller.signal),id+'.flac');return;
       }
       if(req.method!=='GET' && req.method!=='HEAD'){json(res,405,{message:'方法不支持'});return;}
       const asset=path==='/'?'index.html':path.slice(1);
@@ -111,12 +126,12 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
       if(req.method==='GET'&&(asset.endsWith('.wav')||asset.endsWith('.mp3'))){await audio(mime(asset),()=>assets.read(asset));return;}
       let bytes=await assets.read(asset);
       if(asset==='index.html'||asset==='speech.html'||asset==='score.html'||asset==='conversion.html') {
-        const bootstrap={token,url:runtime.url,workspace:runtime.workspace,mcp:{mcpServers:{'music-room':{command:runtime.command,args:[...runtime.args,'mcp','--workspace',runtime.workspace]}}}};
+        const bootstrap={token,url:runtime.url,workspace:runtime.workspace,musicPlaybackOrigin,mcp:{mcpServers:{'music-room':{command:runtime.command,args:[...runtime.args,'mcp','--workspace',runtime.workspace]}}}};
         const html=new TextDecoder().decode(bytes).replace('</head>',`<script type="application/json" id="music-room-service">${JSON.stringify(bootstrap).replace(/</g,'\\u003c')}</script></head>`);bytes=new TextEncoder().encode(html);
       }
       res.writeHead(200,{'content-type':mime(asset),'content-length':bytes.length,'cache-control':'no-store','x-content-type-options':'nosniff',
-        'content-security-policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'"});res.end(req.method==='HEAD'?undefined:bytes);
-    } catch(error:any) {if(!req.complete){if(!res.headersSent)res.setHeader('connection','close');req.resume();}if(!res.headersSent)json(res,error.code==='NOT_FOUND'?404:error.code==='CONFLICT'?409:400,{code:error.code??'INVALID_REQUEST',message:error.message});else res.end();}
+        'content-security-policy':`default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; media-src 'self' blob:${musicPlaybackOrigin?' '+musicPlaybackOrigin:''}; connect-src 'self'; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'`});res.end(req.method==='HEAD'?undefined:bytes);
+    } catch(error:any) {if(!req.complete){if(!res.headersSent)res.setHeader('connection','close');req.resume();}if(!res.headersSent)json(res,error.code==='NOT_FOUND'?404:error.code==='CONFLICT'?409:error.code==='MUSIC_STORAGE_UNAVAILABLE'?503:400,{code:error.code??'INVALID_REQUEST',message:error.message});else res.end();}
   });
   await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(port,'127.0.0.1',resolve);});
   const address=server.address();if(!address||typeof address==='string')throw new Error('服务地址不可用');

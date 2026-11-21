@@ -93,7 +93,15 @@ test('capability guide distinguishes lost, stale and unsupported hardware from s
   }
   const critical=resourceOverview({...status,hardware:{...hardware,pressure:'critical'}});
   assert.match(critical,/等待压力恢复/);
+  assert.match(critical,/为何显示还有 12\.0 GiB 却仍在等待.*并非真正空余内存/);
   assert.doesNotMatch(critical,/新任务可用/);
+  const warningWithMemory=resourceOverview({...status,hardware:{...hardware,pressure:'warning',memory:{capacity:16*2**30,free:80*2**20,purgeable:0,inactive:4*2**30,fileBacked:3*2**30,compressed:6*2**30,wired:3*2**30,swapUsed:2*2**30,swapInBytes:0,swapOutBytes:0,pressureAvailablePercent:75,estimatedReclaimable:11*2**30}}});
+  assert.match(warningWithMemory,/含可回收缓存，非纯空闲/);
+  assert.match(warningWithMemory,/当前实际空闲仅 0\.1 GiB，已压缩 6\.0 GiB、使用交换空间 2\.0 GiB/);
+  const waitingTimeout=resourceFailure({reason:'WAITING_FOR_MEMORY',message:'任务启动预约 8.0 GiB；虽然含系统缓存的启动预算约 15.0 GiB，但当前系统内存压力偏高'},true);
+  assert.match(waitingTimeout,/等待可用内存超时，生成尚未开始/);
+  assert.match(waitingTimeout,/包含系统缓存，不代表立即可用的空闲内存/);
+  assert.match(waitingTimeout,/查看内存状态/);
   assert.match(resourceOverview(status),/音乐 · YuE2<\/span>.*8\.0 GiB 起.*达到起步要求/);
  }finally{await coordinator.close();}
 });

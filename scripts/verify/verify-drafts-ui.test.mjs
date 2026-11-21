@@ -22,7 +22,7 @@ async function fixture(t,kind='speech'){
  for(const page of [a,b]){page.setDefaultTimeout(10000);await page.goto(http.runtime.url);await page.locator('[data-action="compose"]').first().waitFor();}
  const compose=async(page,index)=>{await page.locator(`[data-action="sound"][data-id="${sounds[index].id}"]`).click();await page.locator('[data-action="compose"]').first().click();};
  const saved=page=>page.locator('#draft-save-status').filter({hasText:'草稿已保存'}).waitFor();
- return {a,b,compose,saved};
+ return {a,b,compose,saved,service,sounds};
 }
 test('two tabs edit different sounds without losing drafts on stale navigation or reload',async t=>{
  const {a,b,compose,saved}=await fixture(t);
@@ -60,4 +60,48 @@ test('conversion draft conflict preserves pitch selection until explicit saved-c
  await b.selectOption('#conversion-pitch','3');await b.getByRole('button',{name:'使用已保存内容',exact:true}).waitFor();
  assert.equal(await b.inputValue('#conversion-pitch'),'3');await b.getByRole('button',{name:'使用已保存内容',exact:true}).click();await saved(b);
  assert.equal(await b.inputValue('#conversion-pitch'),'2');
+});
+
+for(const timing of ['before reopening the draft','while the form is open'])test(`creation keeps the draft when its source is permanently deleted ${timing}`,async t=>{
+ const {a,compose,saved,service,sounds}=await fixture(t,'music');
+ const compositionJson=await readFile('src/music/authoring/example.json','utf8');
+ const source=await service.call('studio_import_score',{soundId:sounds[0].id,compositionJson});
+ await a.route('**/api/studio_library',async route=>{
+  const response=await route.fetch(),library=await response.json();
+  library.engines.music.canGenerate=true;
+  await route.fulfill({response,json:library});
+ });
+ await a.route('**/api/yue2_inspect_input',route=>route.fulfill({json:{context:{prefixTokens:100,requiredTokens:200,contextTokens:24576}}}));
+ await a.reload();
+ await a.locator('[data-action="iterate"]').first().click();
+ const musicStyle='竹笛与钢琴，轻柔舒缓';
+ await a.fill('#creation-text',musicStyle);
+ await saved(a);
+ assert.match(await a.locator('#compose-form .form-intro').innerText(),/从 V1/);
+ const reopen=timing==='before reopening the draft';
+ if(reopen)await a.click('[data-action="close"]');
+ await service.call('studio_update_version',{versionId:source.id,deleted:true});
+ await service.call('studio_purge',{kind:'version',id:source.id});
+ const refreshed=a.waitForResponse(response=>response.url().endsWith('/api/studio_library'));
+ await a.evaluate(()=>window.dispatchEvent(new Event('focus')));
+ await refreshed;
+ await a.locator('[data-action="iterate"]').waitFor({state:'detached'});
+ if(reopen)await compose(a,0);
+ assert.equal(await a.inputValue('#creation-text'),musicStyle);
+ await a.route('**/api/studio_generate',route=>{
+  const input=route.request().postDataJSON();
+  if(input.parentId)return route.continue();
+  return route.fulfill({json:{id:'new-version',state:'queued'}});
+ });
+ const generated=a.waitForResponse(response=>response.url().endsWith('/api/studio_generate'));
+ await a.click('#generate');
+ const result=await generated,input=result.request().postDataJSON();
+ assert.equal(input.parentId,undefined);
+ assert.equal(input.soundId,sounds[0].id);
+ assert.equal(input.text,musicStyle);
+ assert.ok(result.ok());
+ await a.locator('dialog').waitFor({state:'hidden'});
+ await a.reload();await compose(a,0);
+ assert.equal(await a.inputValue('#creation-text'),musicStyle);
+ assert.doesNotMatch(await a.locator('#compose-form .form-intro').innerText(),/从 V/);
 });

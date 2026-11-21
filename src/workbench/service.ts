@@ -3,7 +3,7 @@ import type {Composition} from '../music/authoring/validate.mjs';
 import type {Mix} from '../audio.ts';
 import type {Job} from '../service/jobs/jobs.ts';
 import type {Operation,OperationInput,OperationResults} from '../service/operations.ts';
-type Bootstrap = {token:string;url:string;workspace:string;mcp:unknown};
+type Bootstrap = {token:string;url:string;workspace:string;musicPlaybackOrigin?:string;mcp:unknown};
 export class WorkbenchService {
   bootstrap:Bootstrap;
   private reconnecting?:Promise<void>;
@@ -43,6 +43,17 @@ export class WorkbenchService {
       }
     }
     return response;
+  }
+  async musicPlayback(path:string,signal?:AbortSignal):Promise<string|null> {
+    const origin=this.bootstrap.musicPlaybackOrigin;
+    if(!origin||!/^\/yue2-audio\/[a-f0-9]{32}$/.test(path))return null;
+    const response=await this.request(path+'?playback=1',{signal:signal?AbortSignal.any([signal,AbortSignal.timeout(10_000)]):AbortSignal.timeout(10_000)});
+    const value=await response.json();
+    if(!response.ok)throw new Error(value.message??'音频地址暂时不可用');
+    if(value.url===null)return null;
+    const url=new URL(value.url);
+    if(url.origin!==origin)throw new Error('音频地址不属于此工作区的 MinIO');
+    return url.href;
   }
   async call<K extends Operation>(name:K,args:OperationInput<K>):Promise<OperationResults[K]> {
     // Bound background reads, including response-body consumption. Mutations may

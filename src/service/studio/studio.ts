@@ -133,6 +133,13 @@ export class StudioService{
    }}catch{/* Keep saved results visible while the engine reconnects. */}
   }}
  }
+ assertMusicPlayback(jobId:string){
+  const v=this.data.versions.find(v=>v.source.kind==='music'&&
+    (v.source.id===jobId||v.musicAttempts?.some(a=>a.jobId===jobId)));
+  if(!v)return; // Standalone YuE2 jobs are protected by the local service token.
+  if(v.source.id!==jobId||v.deleted||v.purged||v.purgePending)throw new ServiceError('NOT_FOUND','音乐版本不可播放');
+  this.activeSound(v.soundId);
+ }
  private activeSound(id:string){const s=this.sound(id);this.service.store.assertActive(s.projectId);if(s.deleted||s.purged)fail('片段在回收站中，请先恢复片段');return s;}
  private assertIdle(sounds:StudioSound[]){const ids=new Set(sounds.map(s=>s.id)),speech=this.service.speech.snapshot();if([...this.speedTasks.values()].some(t=>ids.has(t.soundId))||this.data.versions.some(v=>ids.has(v.soundId)&&(['queued','running'].includes(v.state)||!!v.renderJobId))||speech.versions.some(v=>ids.has(v.soundId)&&['queued','running'].includes(v.state))||this.service.jobs.list().some(j=>this.data.versions.some(v=>ids.has(v.soundId)&&v.source.kind==='score'&&v.source.id===j.request.revisionId&&v.source.projectId===j.request.projectId)&&['queued','running'].includes(j.state)))fail('请先取消或等待生成完成，再删除');}
  async updateProject(args:{projectId:string;title?:string;deleted?:boolean}):Promise<Project>{return this.serial(async()=>{await this.sync();const scope=this.data.sounds.filter(s=>s.projectId===args.projectId&&!s.purged);return this.service.store.updateProject(args.projectId,args,()=>{if(args.deleted)this.assertIdle(scope);});});}

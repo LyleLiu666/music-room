@@ -12,7 +12,7 @@ if [ ! -x "$music_binary" ]; then
 fi
 music_result=$(mktemp)
 trap 'rm -f "$music_result"' EXIT
-"$music_binary" start --workspace "$HOME/Music/MusicRoom" --port 57923 > "$music_result"
+"$music_binary" start --workspace "$HOME/Music/MusicRoom" > "$music_result"
 cat "$music_result"
 music_url=$(/usr/bin/plutil -extract url raw -o - "$music_result")
 case "$music_url" in

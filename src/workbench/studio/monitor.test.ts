@@ -7,6 +7,8 @@ test('pressure and usable memory stay visible while details show only four key f
  assert.match(html,/压力正常/);assert.match(html,/本程序可再用约 <strong>17.0 GiB<\/strong>/);assert.match(html,/<details/);assert.match(html,/总内存/);assert.match(html,/程序上限/);assert.match(html,/压缩/);assert.match(html,/交换/);assert.equal((html.match(/<dt>/g)??[]).length,4);assert.doesNotMatch(html.slice(html.indexOf('<details')),/非空闲|非活动|文件后备|累计换入|可回收程度|不保证模型/);
  assert.doesNotMatch(html,/<td>31.0 GiB<\/td>/);
  const failed=monitorMarkup(undefined,'failed');assert.match(failed,/暂不可用/);assert.doesNotMatch(failed,/压力正常|0.0 GiB/);
+ const warning=monitorMarkup({sampledAt:Date.now(),system:{memoryUsed:31*2**30,memoryTotal:32*2**30},application:{memoryBytes:2**30,memoryKind:'footprint'},resources:{policy:{reserveFraction:.25,reserveMinimum:0,headroom:2**30,maxSnapshotAgeMs:3000,maxWaitMs:100,retryMs:1,maxQueue:8},hardware:{supported:true,topology:'unified',sampledAt:Date.now(),pressure:'warning',pools:[{id:'memory',capacity:32*2**30,available:16*2**30,owned:2**30}]}}});
+ assert.match(warning,/本程序可再用约 <strong>15\.0 GiB<\/strong>（含缓存粗估；因系统内存压力偏高已暂停新任务）/);
 });
 
 test('sidebar line answers whether new heavy work can start, without CPU tables',async()=>{

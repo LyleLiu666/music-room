@@ -4,6 +4,7 @@ import {spawn,execFile} from 'node:child_process';
 import {promisify} from 'node:util';
 import {mkdtemp,readFile,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
+import {createServer} from 'node:net';
 import {join} from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {remoteCall,readRuntime} from './main.ts';
@@ -45,8 +46,32 @@ test('reusing an explicit foreground service reports its lifetime without interr
 });
 test('failed background startup reports its log and does not claim success',async t=>{
  const root=await mkdtemp(join(tmpdir(),'music-background-failure-'));t.after(()=>rm(root,{recursive:true,force:true}));
- const listener=await import('node:net').then(({createServer})=>createServer());await new Promise<void>(resolve=>listener.listen(0,'127.0.0.1',resolve));t.after(()=>listener.close());
+ const listener=createServer();await new Promise<void>(resolve=>listener.listen(0,'127.0.0.1',resolve));t.after(()=>listener.close());
  const port=(listener.address() as {port:number}).port;
  await assert.rejects(run(command,[...selfArgs,'start','--workspace',root,'--port',String(port)]),error=>error instanceof Error&&/EADDRINUSE|Address already in use|port .* in use/.test(error.message)&&/music-room.log/.test(error.message));
  assert.equal(readRuntime(root),undefined);
+});
+test('the default workspace uses port 57923 and an explicit port can override it',async t=>{
+ const home=await mkdtemp(join(tmpdir(),'music-default-home-'));
+ const workspace=join(home,'Music','MusicRoom'),env={...process.env,HOME:home};
+ const listener=createServer();
+ t.after(async()=>{
+  listener.close();
+  await run(command,[...selfArgs,'stop','--workspace',workspace],{env});
+  await rm(home,{recursive:true,force:true});
+ });
+ await new Promise<void>((resolve,reject)=>{
+  listener.once('error',(error:NodeJS.ErrnoException)=>error.code==='EADDRINUSE'?resolve():reject(error));
+  listener.listen(57923,'127.0.0.1',resolve);
+ });
+ for(const args of [[],['--workspace',workspace]]){
+  await assert.rejects(run(command,[...selfArgs,'start',...args],{env}),error=>
+   error instanceof Error&&/EADDRINUSE|Address already in use|port .* in use/.test(error.message)&&/57923/.test(error.message));
+  assert.equal(readRuntime(workspace),undefined);
+ }
+ const {stdout}=await run(command,[...selfArgs,'start','--port','0'],{env});
+ const runtime=readRuntime(workspace);
+ assert.ok(runtime);
+ assert.equal(JSON.parse(stdout).url,runtime.url);
+ assert.notEqual(new URL(runtime.url).port,'57923');
 });

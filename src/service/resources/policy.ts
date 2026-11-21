@@ -58,6 +58,8 @@ export function admit(snapshot: HardwareSnapshot, demand: ResourceDemand, policy
   const failed=details.find(d=>d.startup>d.applicationLimit)??details.find(d=>d.limiting==='pressure'||d.shortfall>0);
   if(!failed)return {allowed:true,budgets,details};
   const source={user_limit:'用户设置的应用上限',capacity:'扣除系统保留后的容量',platform_limit:'平台上限',application_usage:'本程序已有占用',system_memory:'当前系统资源',pressure:'系统内存压力偏高'}[failed.limiting];
-  const message=`任务启动预约 ${gib(failed.startup)}，当前启动预算约 ${gib(failed.startupBudget)}${failed.resident?`，可复用驻留 ${gib(failed.resident)}`:''}，尚差约 ${gib(failed.shortfall)}；限制来自${source}`;
+  const message=failed.limiting==='pressure'&&failed.shortfall===0
+    ?`任务启动预约 ${gib(failed.startup)}；虽然含系统缓存的启动预算约 ${gib(failed.startupBudget)}${failed.resident?`（另有可复用驻留 ${gib(failed.resident)}）`:''}，但当前系统内存压力偏高（已有较多内存被压缩或使用交换空间），正在等待压力恢复正常`
+    :`任务启动预约 ${gib(failed.startup)}，当前启动预算约 ${gib(failed.startupBudget)}${failed.resident?`，可复用驻留 ${gib(failed.resident)}`:''}，尚差约 ${gib(failed.shortfall)}；${failed.limiting==='pressure'?'同时系统内存压力偏高':`限制来自${source}`}`;
   return {...no(permanent?'INSUFFICIENT_CAPACITY':'WAITING_FOR_MEMORY',message,!permanent),details};
 }

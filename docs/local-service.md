@@ -17,10 +17,12 @@
 macOS 调速保存内嵌 Rubber Band 4.0.0 R3 双遍离线程序；源码构建需要 Xcode Command Line Tools，`npm run build` 自动下载并校验固定源码、编译和打包，后续复用经校验的源码缓存。直接运行服务测试前，`npm run test:service` 会先构建该程序；手动运行单个测试可先执行 `npm run build:speed-native`。终端用户不需要编译工具。调速失败会报错，不会静默切回旧算法。独立辅助程序的完整对应源码、构建脚本和 GPL 许可内嵌于 `/speed-native/source.zip`，构建记录位于 `/speed-native/manifest.json`。
 
 ```sh
-./release/start.sh --workspace "$HOME/Music/MusicRoom" --port 5174
+./release/start.sh
 ```
 
-启动脚本执行相邻的 `music-room start`，等待后台就绪后打印网页 URL 并退出，在浏览器打开即可。省略 `--port` 会选择空闲端口；省略 `--workspace` 使用 `~/Music/MusicRoom`。重复启动同一工作目录会复用现有服务；若现有服务是前台或旧版程序，启动器会明确提示它仍随所属终端退出，应等任务完成后 `stop` 再 `start`。直接运行 `music-room`（无命令）也默认启动独立后台。日志写入工作目录 `music-room.log`。
+启动脚本执行相邻的 `music-room start`，等待后台就绪后打印网页 URL 并退出。桌面启动器、启动脚本和命令行都用同一套默认值。默认工作目录 `~/Music/MusicRoom` 对应 [127.0.0.1:57923](http://127.0.0.1:57923/)。指定其他工作目录时，系统会分配空闲端口。也可以用 `--port` 指定端口，或传入 `--port 0` 让系统分配。
+
+重复启动同一工作目录会复用现有服务及其端口。若现有服务是前台或旧版程序，启动器会提示它仍随所属终端退出，应等任务完成后 `stop` 再 `start`。直接运行 `music-room`（无命令）也默认启动独立后台。日志写入工作目录 `music-room.log`。
 
 关闭启动终端不再停止服务。需要主动退出时使用：
 
@@ -35,7 +37,7 @@ macOS 调速保存内嵌 Rubber Band 4.0.0 R3 双遍离线程序；源码构建�
 ```sh
 mkdir -p "$HOME/Applications/MusicRoom"
 cp release/music-room release/start.sh "$HOME/Applications/MusicRoom/"
-"$HOME/Applications/MusicRoom/start.sh" --workspace "$HOME/Music/MusicRoom" --port 5174
+"$HOME/Applications/MusicRoom/start.sh"
 ```
 
 没有 `.app`、安装器、桌面外壳、Developer ID 或公证流程。macOS 可执行文件本身的本地有效性由构建工具处理，不要求用户申请 Apple 开发者账号。
@@ -115,6 +117,31 @@ SDK、解码器与运行时版本变更后必须重跑独立验收。Bun 打包�
 
 产品、存储与逐轮设计见[本地服务方案](design/local-service.md)。音色与组件声明见[署名页](../public/credits.html)和[服务依赖说明](../public/service-licenses.txt)。
 
+
+## YuE2 成品归档到 MinIO
+
+归档默认关闭。启用后，新生成的 YuE2 FLAC 仍先保存到本地。后台上传至私有桶，读回校验 SHA-256 后登记归档状态。上传失败时本地原件可继续使用，服务按分钟重试。模型、乐谱、恢复点和任务索引保留在本地。旧音频逐个选择归档，便于试迁。语音、音色转换和音效沿用各自的本地保存方式。
+
+服务每次启动从 `~/Library/Application Support/MusicRoom/minio.json` 加载默认工作区的 MinIO 配置。双击启动器、启动脚本和命令行共用这个入口。配置必须由当前用户拥有，权限为 `0600`，使用 JSON 普通文件。安装的服务固定使用 `http://127.0.0.1:57923/`。更新配置后请等生成任务结束，再正常停止并重启服务。
+
+| 字段 | 值 |
+| --- | --- |
+| `endpoint` | 浏览器与本机共同可达的 HTTPS 来源，例如 `https://minio.strategylab.xyz:10003` |
+| `bucket` | 预建私有桶。当前彻底删除按无版本桶设计 |
+| `prefix` | 每个工作区唯一的对象前缀 |
+| `accessKeyId`、`secretAccessKey` | 仅对该前缀有 GetObject、PutObject、DeleteObject 权限的凭据 |
+| `region` | 可省略，默认 `us-east-1` |
+| `allowRelease` | 可省略，默认 `false`。异机副本通过恢复验证后才开启逐首手动释放 |
+
+独立工作区使用同目录下的 `minio-<工作区绝对真实路径的 SHA-256>.json`，只在该目录建立专用配置后才启用。测试需要临时覆盖时，可设置 `MUSIC_ROOM_MINIO_ENDPOINT` 以及原配套的桶、前缀、凭据和区域变量，整组覆盖配置文件。
+
+试迁时，从本机工作区的 `engines/yue2-jobs.json` 查已完成任务的 `job.id`，用已有本地服务令牌调用 `POST /api/music-archive`，请求体为 `{"jobId":"<任务 ID>"}`。返回 `{"archived":true,"local":true}` 表示远端已校验，本机保留原件。`yue2_get_job` 的 `archiveState` 可查看待归档或已归档状态。恢复验证后，对已备份对象可显式提交 `{"jobId":"<任务 ID>","release":true}`。服务将再次校验远端对象，成功后释放该原件，并返回 `local:false`。释放失败时保留原件。启用开关后，后台自动归档依然保留新生成的本地原件。
+
+归档音频由浏览器使用 15 分钟有效的签名地址分段试听。直连播放失败时，播放器会改从本机服务读取，有本地原件时仍可播放。回收站保留对象，恢复版本可重新请求链接。进入回收站前发出的链接会持续有效至到期或对象被彻底删除。在管理原件的工作区彻底删除时，会同时处理 MinIO 和对应本机文件，远端删除失败可在回收站重试。
+
+工作区备份保存对象引用，MinIO 音频需要独立备份。恢复时使用原桶和前缀配置，并恢复外部 YuE2 目录中的乐谱和任务数据。通过当前版本恢复的副本可以读取共享原件。在副本里彻底删除恢复的歌曲只移除副本自己的版本，归档、释放和删除共享原件由来源工作区管理。要保护升级前已恢复的副本，请先备份该副本，再用当前版本恢复到新目录，以保留副本里的编辑。
+
+回退到旧版服务前，先恢复已释放的 FLAC 到各自的 YuE2 歌曲目录并校验 SHA-256。写入和试听上线前，先用非私人测试音频验证 104/EasyTier 的浏览器实际路由、几十 MiB 上传、HTTPS 签名和 Range。隔离 MinIO 与 Chrome 可通过 `npm run build` 后执行 `npm run verify:music-minio` 验证，测试使用本机 Docker 里已备好的 `minio/minio:latest` 或 `MUSIC_ROOM_TEST_MINIO_IMAGE` 指定的镜像。通过 `MUSIC_ROOM_TEST_BINARY` 指定测试用独立包，可对发布入口执行同一验证。
 
 ## 备份与恢复
 

@@ -4,7 +4,7 @@ import type {OperationResults} from '../../service/operations.ts';
 import './effect-creation.css';
 
 const esc=(value:unknown)=>String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
-type EffectInput={prompt:string;seconds:number;seed?:number;parentId?:string};
+type EffectInput={prompt:string;seconds:number;seed?:number};
 type Hooks={api:WorkbenchService;project:string;title:string;draft:StudioInput;save:()=>void;modal:(title:string,html:string,wide?:boolean)=>void;close:()=>void;submit:(input:EffectInput)=>Promise<OperationResults['sound_effect_generate']>;submitted:(job:OperationResults['sound_effect_generate'],visible:boolean)=>Promise<void>};
 
 /** Project effects use the same draft, background task and version ownership as other sounds. */
@@ -20,7 +20,7 @@ export function openEffectCreation(h:Hooks){
  cancelPrepare.onclick=()=>{cancelPrepare.disabled=true;void h.api.call('sound_effect_cancel_preparation',{}).catch(error=>{if(visible())status.textContent=(error as Error).message;}).finally(()=>{cancelPrepare.disabled=false;});};
  const save=()=>{prompt.setCustomValidity(prompt.value&&!prompt.value.trim()?'请描述要生成的声音':'');h.draft.text=prompt.value;h.draft.effectSeconds=Number(form.querySelector<HTMLInputElement>('[name="effect-seconds"]:checked')!.value);h.draft.seed=seed.value===''?undefined:Number(seed.value);h.save();};
  form.addEventListener('input',save);form.addEventListener('change',save);
- form.onsubmit=e=>{e.preventDefault();if(submitting||!installed||preparing)return;save();submitting=true;submit.disabled=true;status.textContent='正在提交音效任务…';const input:EffectInput={prompt:prompt.value.trim(),seconds:h.draft.effectSeconds!,...(seed.value!==''?{seed:Number(seed.value)}:{}),...(h.draft.parentId?{parentId:h.draft.parentId}:{})};
+ form.onsubmit=e=>{e.preventDefault();if(submitting||!installed||preparing)return;save();submitting=true;submit.disabled=true;status.textContent='正在提交音效任务…';const input:EffectInput={prompt:prompt.value.trim(),seconds:h.draft.effectSeconds!,...(seed.value!==''?{seed:Number(seed.value)}:{})};
   void(async()=>{try{const job=await h.submit(input),stillVisible=visible();if(stillVisible)h.close();await h.submitted(job,stillVisible);}catch(error){if(visible())status.textContent=(error as Error).message;}finally{submitting=false;if(visible())submit.disabled=!installed||preparing;}})();
  };void update();
 }

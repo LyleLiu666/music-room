@@ -11,9 +11,9 @@ export function musicRecoveryNote(recovery?:MusicRecovery){
 }
 /** Recovery follows the backend reason code, never guesses from an error's wording. */
 export function resourceFailure(resource:Pick<ResourceTaskState,'reason'|'message'|'diagnostic'>|undefined,music:boolean,canRetry=true,recovery?:MusicRecovery,effect=false){
- if(!resource?.reason||!['PRESSURE_PROTECTION','PEAK_EXCEEDED','INSUFFICIENT_CAPACITY','RESOURCE_TELEMETRY_UNAVAILABLE','RESOURCE_PROFILE_UNVERIFIED'].includes(resource.reason))return '';
- const title=resource.reason==='RESOURCE_PROFILE_UNVERIFIED'?'生成前检查未通过':resource.reason==='RESOURCE_TELEMETRY_UNAVAILABLE'?'内存监测失败，生成已停止':resource.reason==='INSUFFICIENT_CAPACITY'?'当前内存额度不足以运行此模型':'为保护电脑，生成已停止';
- const advice=resource.reason==='RESOURCE_PROFILE_UNVERIFIED'?(effect?'任务尚未开始，请检查音效描述、1–5 秒时长和模型状态。':music?'任务尚未开始，请检查输入范围与模型状态。':'任务尚未开始，请检查正文长度与模型状态。长稿会自动分段，最多 8000 字。'):resource.reason==='RESOURCE_TELEMETRY_UNAVAILABLE'?'程序未能可靠读取内存数据，已停止任务。无需修改创作内容；请查看技术详情中的监测错误。':resource.reason==='INSUFFICIENT_CAPACITY'?'请查看本机内存与应用上限，确认是否满足模型需求。':resource.reason==='PEAK_EXCEEDED'?'任务占用超过已验证的内存预算。请尝试减少生成内容；如果仍然失败，需要核查模型的内存预算。':'运行时触发了内存保护。请先关闭暂时不用的应用，查看内存状态，待压力恢复正常后再尝试。';
+ if(!resource?.reason||!['PRESSURE_PROTECTION','PEAK_EXCEEDED','INSUFFICIENT_CAPACITY','WAITING_FOR_MEMORY','RESOURCE_TELEMETRY_UNAVAILABLE','RESOURCE_PROFILE_UNVERIFIED'].includes(resource.reason))return '';
+ const title=resource.reason==='RESOURCE_PROFILE_UNVERIFIED'?'生成前检查未通过':resource.reason==='RESOURCE_TELEMETRY_UNAVAILABLE'?'内存监测失败，生成已停止':resource.reason==='INSUFFICIENT_CAPACITY'?'当前内存额度不足以运行此模型':resource.reason==='WAITING_FOR_MEMORY'?'等待可用内存超时，生成尚未开始':'为保护电脑，生成已停止';
+ const advice=resource.reason==='RESOURCE_PROFILE_UNVERIFIED'?(effect?'任务尚未开始，请检查音效描述、1–5 秒时长和模型状态。':music?'任务尚未开始，请检查输入范围与模型状态。':'任务尚未开始，请检查正文长度与模型状态。长稿会自动分段，最多 8000 字。'):resource.reason==='RESOURCE_TELEMETRY_UNAVAILABLE'?'程序未能可靠读取内存数据，已停止任务。无需修改创作内容；请查看技术详情中的监测错误。':resource.reason==='INSUFFICIENT_CAPACITY'?'请查看本机内存与应用上限，确认是否满足模型需求。':resource.reason==='PEAK_EXCEEDED'?'任务占用超过已验证的内存预算。请尝试减少生成内容；如果仍然失败，需要核查模型的内存预算。':resource.reason==='WAITING_FOR_MEMORY'?'电脑内存压力持续偏高或可用内存不足（页面上的“可用估计”包含系统缓存，不代表立即可用的空闲内存）。请先关闭暂时不用的其他应用，查看内存状态，待压力恢复正常后再尝试。':'运行时触发了内存保护。请先关闭暂时不用的应用，查看内存状态，待压力恢复正常后再尝试。';
  return `<div class="empty-player"><span aria-hidden="true">${icon('circle')}</span><div><strong>${title}</strong><p>${advice}${music&&!['RESOURCE_TELEMETRY_UNAVAILABLE','RESOURCE_PROFILE_UNVERIFIED'].includes(resource.reason)?'也可在“修改要求”中改用“较快尝试”，但仍需满足内存要求。':''}创作要求已保留，无需重写。</p>${music?`<p class="music-recovery-note">${musicRecoveryNote(recovery)}</p>`:''}<div class="failure-actions">${canRetry?`<button class="primary" data-action="retry-generation">${music&&recovery?'继续生成':'重试生成'}</button><button class="secondary" data-action="iterate">修改要求</button>`:'<button class="primary" data-action="iterate">修改后重试</button>'}<button class="quiet" data-action="resource-overview">查看内存状态</button></div>${resource.message?`<details class="failure-details"><summary>技术详情</summary><p>${escape(resource.message)}${resource.diagnostic?`<br>${escape(resource.diagnostic)}`:''}</p></details>`:''}</div></div>`;
 }
 const gib=(bytes:number)=>`${(bytes/2**30).toFixed(1)} GiB`;
@@ -70,13 +70,14 @@ export function resourceOverview(status:ResourceStatus|undefined,details='',offl
   const parts:[string,number,string,string?][]=[
    ['本程序',p.owned,'owned',ownedPurpose(active,residentList.length>0,observation?.usage?.[p.id])],
    ['其余内存',p.capacity-p.owned-available,'other'],
-   ['系统可用估计',available,'free']
+   ['系统可用估计',available,'free','（含可回收缓存，非纯空闲）']
   ];
   const name=hardware.topology==='unified'?'共享内存':p.id==='memory'?'系统内存':escape(p.id);
   const state=!hardware.supported?'设备不支持':hardware.pressure!=='normal'?'等待压力恢复':`新任务可用 <b>${gib(startupBudget)}</b>`;
   const legend=`<div class="memory-legend">${parts.map(([n,v,k,note])=>`<span><i class="memory-${k}"></i>${n} <b>${gib(v)}</b>${note??''}</span>`).join('')}</div>`;
-  return {summary:`<div class="memory-pool"><p class="memory-summary">${state} · 应用上限 <b>${gib(limit)}</b>（${policy.limits?.[p.id]===undefined?'自动':'手动'}）· ${name} ${gib(p.capacity)}</p><div class="memory-bar" role="img" aria-label="${name}分布：${parts.map(([n,v])=>`${n} ${gib(v)}`).join('，')}">${parts.map(([n,v,k])=>`<span class="memory-${k}" style="width:${(v/Math.max(p.capacity,1)*100).toFixed(2)}%" title="${n} ${gib(v)}"></span>`).join('')}</div>${legend}<p class="field-note">系统保留额度 <b>${gib(reserve)}</b></p></div>`,
-   detail:`<p class="field-note">系统可用估计 ${gib(p.available)} · 启动额外余量 ${gib(policy.headroom)}</p>`};
+  const pressureNote=hardware.pressure==='normal'?'':`<p class="field-note">为何显示还有 ${gib(available)} 却仍在等待：该估计包含系统随时可清理的缓存，并非真正空余内存${hardware.memory?`（当前实际空闲仅 ${gib(hardware.memory.free)}，已压缩 ${gib(hardware.memory.compressed)}、使用交换空间 ${gib(hardware.memory.swapUsed)}）`:''}。因系统内存压力${hardware.pressure==='critical'?'过高':'偏高'}，为防电脑卡顿已暂停启动新模型；关闭几个暂不使用的后台应用即可恢复。</p>`;
+  return {summary:`<div class="memory-pool"><p class="memory-summary">${state} · 应用上限 <b>${gib(limit)}</b>（${policy.limits?.[p.id]===undefined?'自动':'手动'}）· ${name} ${gib(p.capacity)}</p><div class="memory-bar" role="img" aria-label="${name}分布：${parts.map(([n,v])=>`${n} ${gib(v)}`).join('，')}">${parts.map(([n,v,k])=>`<span class="memory-${k}" style="width:${(v/Math.max(p.capacity,1)*100).toFixed(2)}%" title="${n} ${gib(v)}"></span>`).join('')}</div>${legend}<p class="field-note">系统保留额度 <b>${gib(reserve)}</b></p>${pressureNote}</div>`,
+   detail:`<p class="field-note">系统可用估计 ${gib(p.available)}（由系统可腾出比例粗估，含缓存） · 启动额外余量 ${gib(policy.headroom)}</p>`};
  }):[];
  const usage=observation?`<p class="field-note">当前任务采样 ${Object.values(observation.usage).map(gib).join(' / ')} · 运行保护上限 ${reservations.map(gib).join(' / ')}（采样保护并非瞬时硬上限）</p>`:'';
  const residents=offline?'状态未知':residentList.map(r=>`<b>${escape(resourceEngineNames[r.engine]??r.engine)}</b>`).join('、')||'无';

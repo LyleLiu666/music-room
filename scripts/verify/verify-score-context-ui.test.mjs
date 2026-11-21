@@ -13,7 +13,7 @@ import {testResources} from '../../src/service/resources/testing.ts';
 const unused={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
 test('MIDI tools belong to one sound; legacy links enter its version without a second library',async()=>{
  const root=await mkdtemp(join(tmpdir(),'score-context-')),read=p=>readFile(resolve('dist',p));
- let renderGate=Promise.resolve(),releaseRender=()=>{};
+ let renderGate=Promise.resolve(),releaseRender=()=>{},releaseAudio=()=>{};
  const renderer=({composition})=>({result:renderGate.then(()=>({wav:new Uint8Array(encodeWav([new Float32Array(Math.round(composition.score.duration*44100)),new Float32Array(Math.round(composition.score.duration*44100))],44100)),peak:0,rms:0,attenuation:1,engine:'test'})),cancel:()=>{}});
  const service=await MusicService.open(root,renderer,read,false,unused,undefined,undefined,testResources());
  const http=await serveHttp(service,{read,has:p=>existsSync(resolve('dist',p)),embedded:false});
@@ -74,14 +74,20 @@ test('MIDI tools belong to one sound; legacy links enter its version without a s
   const library=await service.call('studio_library',{}),child=library.versions.find(v=>v.parentId===v2.id);
   assert.ok(child);assert.equal(child.soundId,s.id);assert.equal(child.scoreMix.lead,'flute');
   assert.equal(library.sounds.length,2);assert.equal(library.versions.filter(v=>v.soundId===other.id).length,1);
+  const audioGate=new Promise(resolve=>releaseAudio=resolve);
+  await page.route(`**/artifacts/**/${child.source.id}/*`,async route=>{await audioGate;await route.continue();});
   await page.reload();await page.locator(`#version-audio[data-version="${child.id}"]`).waitFor();
+  assert.equal(await page.locator('#version-audio').getAttribute('src'),null);
   await page.locator('.more-menu summary').click();await page.click('[data-action="score-tools"]');await page.locator('#lead').waitFor({state:'attached'});
   assert.equal(await page.inputValue('#lead'),'flute','saved mix is restored when reopening its version');
   await page.click('[data-action="close"]');
+  releaseAudio();
+  await page.waitForFunction(()=>document.querySelector('#version-audio')?.readyState>=1);
+  assert.equal(await page.locator('#version-audio').evaluate(audio=>audio.paused),true);
   await page.goto(http.runtime.url+'/score.html#missing-revision');await page.waitForURL(url=>url.pathname==='/');
   await page.locator('#toast').filter({hasText:'不存在或已删除'}).waitFor();
   assert.equal(await page.locator('#score-tools-host').count(),0);
 
   assert.deepEqual(errors,[]);
- }catch(e){console.log('Score UI failure:',await page.locator('#status').allTextContents(),await page.locator('#toast').allTextContents(),errors);throw e;}finally{releaseRender();await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+ }catch(e){console.log('Score UI failure:',await page.locator('#status').allTextContents(),await page.locator('#toast').allTextContents(),errors);throw e;}finally{releaseRender();releaseAudio();await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
