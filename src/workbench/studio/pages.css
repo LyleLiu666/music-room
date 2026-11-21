@@ -316,56 +316,6 @@
   margin-bottom: var(--s-3);
 }
 
-/* ---------- 进行中与排队 ---------- */
-.queue-summary {
-  display: flex;
-  align-items: center;
-  gap: var(--s-2);
-  font-size: var(--t-13);
-  color: var(--ink-2);
-  margin-bottom: var(--s-2);
-}
-
-.queue-rows {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid var(--hair);
-}
-
-.queue-rows > li {
-  display: flex;
-  align-items: center;
-  gap: var(--s-4);
-  min-height: 52px;
-  padding: var(--s-2) var(--s-3);
-  border-bottom: 1px solid var(--hair);
-}
-
-.queue-row-main {
-  flex: 1;
-  min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: var(--t-13);
-  color: var(--ink-2);
-}
-
-.queue-row-main > strong,
-.queue-row-main > .task-title-link {
-  font-size: var(--t-14);
-  font-weight: 500;
-  color: var(--ink);
-  text-align: left;
-}
-
-.queue-demand,
-.queue-note {
-  font-size: var(--t-12);
-  color: var(--ink-3);
-}
-
 /* ---------- 设置 ---------- */
 .settings-layout {
   display: grid;

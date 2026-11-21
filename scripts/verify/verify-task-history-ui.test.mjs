@@ -14,6 +14,9 @@ test('task page retains completed results, navigates across projects, and projec
  });
  try{
   page.setDefaultTimeout(10000);await page.goto(server.resolvedUrls.local[0]);await page.getByRole('button',{name:'任务与资源',exact:true}).click();await page.locator('.task-history-row .task-state--running').waitFor();
+  assert.equal(await page.getByRole('heading',{name:'进行中与排队',exact:true}).count(),0);
+  assert.equal(await page.getByRole('heading',{name:'本机资源',exact:true}).isVisible(),true);
+  assert.equal(await page.getByRole('list',{name:'生成历史',exact:true}).isVisible(),true);
   completed=true;await page.locator('.task-history-row').getByRole('button',{name:'试听',exact:true}).waitFor();assert.equal(await page.getByRole('button',{name:'查看生成结果',exact:true}).count(),0);await page.reload();await page.getByRole('heading',{name:'任务与资源',exact:true}).waitFor();await page.getByRole('button',{name:'钢琴 · V3',exact:true}).click();await page.locator('.listening .version-label').getByText('V3',{exact:true}).waitFor();assert.equal(await page.locator('.project-header h1').textContent(),'项目 18');
   await mkdir(out,{recursive:true});
   for(const viewport of [{width:1280,height:720},{width:900,height:600}]){
