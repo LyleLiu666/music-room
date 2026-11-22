@@ -4,7 +4,7 @@ import {z} from 'zod';
 import {generationWithEnding,musicContextStatus,type MusicContext} from './input.ts';
 import type {YuE2Generate} from './contracts.ts';
 import {durationWithinTarget} from './duration.ts';
-import {scoreOperation} from './score.ts';
+import {scoreOperation,type ScoreSummary} from './score.ts';
 import type {AssetReader} from '../render/renderer.ts';
 
 // Imports only the frozen protocol and text tokenizer; never loads torch, MLX or weights.
@@ -21,21 +21,33 @@ const counts=z.object({prefixTokens:count,planningTokens:count,semanticTokens:co
 let pending:Promise<unknown>=Promise.resolve();
 /** Serialize the small tokenizer processes so rapid typing cannot create a process burst. */
 export function inspectMusicContext(directory:string,input:Pick<YuE2Generate,'style'|'lyrics'|'instrumental'|'ending'|'abc'|'targetDuration'>,read?:AssetReader):Promise<MusicContext>{
- const payload=JSON.stringify({...generationWithEnding(input),targetDuration:input.targetDuration,abc:input.abc?.trim()?input.abc:undefined});
+ const abc=input.abc?.trim()?input.abc:undefined;
+ const payload=JSON.stringify({...generationWithEnding(input),targetDuration:input.targetDuration,abc});
  const run=pending.then(async()=>{
- let durationIssue:string|undefined;
- if(input.targetDuration!==undefined&&input.abc?.trim()){
-  try{const summary=await scoreOperation({op:'inspect',abc:input.abc},read,join(directory,'.venv/bin/python'));
-   if(!Number.isFinite(summary.nominal_duration_seconds)||summary.nominal_duration_seconds<=0)durationIssue='自定义乐谱时长无效，请检查 ABC。';
-   else if(!durationWithinTarget(summary.nominal_duration_seconds,input.targetDuration))durationIssue=`自定义乐谱预计 ${summary.nominal_duration_seconds.toFixed(1)} 秒，不符合目标时长 ${input.targetDuration} 秒（允许偏差 ±15%）。请修改乐谱或选择“由模型决定”。`;
-  }catch{durationIssue='无法确认自定义乐谱的时长，请检查 ABC 或选择“由模型决定”。';}
- }
- return new Promise<MusicContext>((resolve,reject)=>{
-  const child=execFile(join(directory,'.venv/bin/python'),['-c',script,join(directory,'models/converted/qwen.tiktoken')],{timeout:10000,maxBuffer:16384},(error,stdout)=>{
-   if(error)return reject(new Error('无法检查音乐输入容量，请检查本机音乐模型安装。'));
-   try{const result=musicContextStatus(counts.parse(JSON.parse(stdout)));resolve(durationIssue?{...result,issue:durationIssue}:result);}catch{reject(new Error('音乐模型返回的输入容量信息无效。'));}
+  let scoreIssue:string|undefined;
+  const {targetDuration}=input;
+  const checkVocal=input.instrumental===false&&!!input.lyrics.trim();
+  if(abc&&(checkVocal||targetDuration!==undefined)){
+   try{
+    const summary:ScoreSummary=await scoreOperation({op:'inspect',abc:abc.trim()},read,join(directory,'.venv/bin/python'));
+    const seconds=summary.nominal_duration_seconds;
+    if(checkVocal&&summary.voices.Vocal.sounding_notes===0){
+     scoreIssue='ABC 乐谱的人声轨全是休止符。请修改乐谱，为人声加入音符，或清空 ABC 乐谱切换为自由规划。';
+    }else if(targetDuration!==undefined){
+     if(!Number.isFinite(seconds)||seconds<=0)scoreIssue='自定义乐谱时长无效，请检查 ABC。';
+     else if(!durationWithinTarget(seconds,targetDuration))scoreIssue=`自定义乐谱预计 ${seconds.toFixed(1)} 秒，不符合目标时长 ${targetDuration} 秒（允许偏差 ±15%）。请修改乐谱或选择“由模型决定”。`;
+    }
+   }catch{
+    if(targetDuration!==undefined)scoreIssue='无法确认自定义乐谱的时长，请检查 ABC 或选择“由模型决定”。';
+   }
+  }
+  return new Promise<MusicContext>((resolve,reject)=>{
+   const child=execFile(join(directory,'.venv/bin/python'),['-c',script,join(directory,'models/converted/qwen.tiktoken')],{timeout:10000,maxBuffer:16384},(error,stdout)=>{
+    if(error)return reject(new Error('无法检查音乐输入容量，请检查本机音乐模型安装。'));
+    try{const result=musicContextStatus(counts.parse(JSON.parse(stdout)));resolve(scoreIssue?{...result,issue:scoreIssue}:result);}catch{reject(new Error('音乐模型返回的输入容量信息无效。'));}
+   });
+   child.stdin?.on('error',()=>{});child.stdin?.end(payload);
   });
-  child.stdin?.on('error',()=>{});child.stdin?.end(payload);
- });});
+ });
  pending=run.catch(()=>{});return run;
 }

@@ -8,6 +8,8 @@ import {createServer} from 'node:http';
 import {ProjectStore} from '../projects/store.ts';
 import {YuE2Engine} from './engine.ts';
 import {YuE2Client} from './client.ts';
+import {inspectMusicContext} from './context.ts';
+import type {YuE2Generate} from './contracts.ts';
 import type {MusicObjectAudio} from './object-audio.ts';
 import {testResources} from '../resources/testing.ts';
 const delay=()=>new Promise(r=>setTimeout(r,5));
@@ -112,6 +114,43 @@ test('model context overflow is rejected before loading or creating an upstream 
  f.engine.inspectInput=async()=>({prefixTokens:12000,planningTokens:4098,semanticTokens:9000,contextTokens:24576,requiredTokens:25098,remainingTokens:-522,issue:'创作内容超过模型上下文容量'});
  await assert.rejects(f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true}),/上下文/);
  assert.equal(f.counts().launches,0);assert.equal(f.counts().submits,0);
+});
+
+test('a vocal ABC with only rests is rejected before entering the music queue',async t=>{
+ const f=await fixture(t);
+ const bin=join(f.directory,'.venv','bin');
+ await mkdir(bin,{recursive:true});
+ // Keep the real ABC parser, with deterministic token counts and no model installation.
+ await writeFile(join(bin,'python'),`#!/bin/sh
+if [ "$1" = "-c" ]; then
+ cat >/dev/null
+ printf '%s\\n' '{"prefixTokens":100,"planningTokens":0,"semanticTokens":9000,"contextTokens":24576}'
+else
+ exec python3 "$@"
+fi
+`,{mode:0o755});
+ const inspect=(input:YuE2Generate)=>inspectMusicContext(f.directory,input);
+ f.engine.inspectInput=inspect;
+ const abc=[
+  'X:1','T:','M:4/4','L:1/32','Q:1/4=120',
+  'V: Vocal clef=treble name="Vocal Melody" snm="Vocal"',
+  'V: Ins clef=treble name="Ins Melody" snm="Inst."','K:C',
+  'V: Vocal','"C"z32|','V: Ins','C8D8E8F8|',
+ ].join('\n');
+ const input={style:'piano',lyrics:'[Verse]\n晚风吹过窗边',preset:'fast' as const,instrumental:false,abc};
+ const issue=/人声轨全是休止符.*修改.*清空.*自由规划/;
+ assert.match((await inspect(input)).issue??'',issue);
+ await assert.rejects(f.client.generate(input),issue);
+ await assert.rejects(f.client.generate({...input,targetDuration:60}),issue);
+ assert.deepEqual((await f.client.list()).jobs,[]);
+ assert.equal(f.resources.snapshot().active,undefined);
+ assert.deepEqual(f.resources.snapshot().queued,[]);
+ assert.deepEqual(f.counts(),{launches:0,stops:0,submits:0});
+
+ assert.equal((await inspect({...input,abc:abc.replace('z32','C8z24')})).issue,undefined);
+ assert.equal((await inspect({...input,abc:undefined})).issue,undefined);
+ assert.equal((await inspect({...input,lyrics:'[instrumental]',instrumental:true})).issue,undefined);
+ assert.match((await inspect({...input,instrumental:true,lyrics:'[instrumental]',targetDuration:60})).issue??'',/不符合目标时长/);
 });
 
 test('saved ABC is read as a copy and rejects symbolic-link artifacts',async t=>{
