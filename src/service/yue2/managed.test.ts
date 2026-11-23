@@ -142,6 +142,13 @@ fi
  assert.match((await inspect(input)).issue??'',issue);
  await assert.rejects(f.client.generate(input),issue);
  await assert.rejects(f.client.generate({...input,targetDuration:60}),issue);
+ const unreadable={...input,abc:abc.replace('T:','T:歌名')};
+ const unreadableIssue=/无法检查演唱 ABC 乐谱的人声轨.*检查谱面格式.*清空 ABC/;
+ for(const targetDuration of [undefined,60]){
+  const request={...unreadable,targetDuration};
+  await assert.rejects(f.client.generate(request),unreadableIssue);
+  assert.match((await inspect(request)).issue??'',unreadableIssue);
+ }
  assert.deepEqual((await f.client.list()).jobs,[]);
  assert.equal(f.resources.snapshot().active,undefined);
  assert.deepEqual(f.resources.snapshot().queued,[]);

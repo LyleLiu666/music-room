@@ -38,7 +38,8 @@ export function inspectMusicContext(directory:string,input:Pick<YuE2Generate,'st
      else if(!durationWithinTarget(seconds,targetDuration))scoreIssue=`自定义乐谱预计 ${seconds.toFixed(1)} 秒，不符合目标时长 ${targetDuration} 秒（允许偏差 ±15%）。请修改乐谱或选择“由模型决定”。`;
     }
    }catch{
-    if(targetDuration!==undefined)scoreIssue='无法确认自定义乐谱的时长，请检查 ABC 或选择“由模型决定”。';
+    if(checkVocal)scoreIssue='无法检查演唱 ABC 乐谱的人声轨。请检查谱面格式，或清空 ABC 乐谱切换为自由规划。';
+    else if(targetDuration!==undefined)scoreIssue='无法确认自定义乐谱的时长，请检查 ABC 或选择“由模型决定”。';
    }
   }
   return new Promise<MusicContext>((resolve,reject)=>{

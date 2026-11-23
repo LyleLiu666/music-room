@@ -19,7 +19,7 @@ import {validateComposition} from '../../music/authoring/validate.mjs';
 import {ServiceError,hash,identity} from '../projects/store.ts';
 import type {MusicService} from '../service.ts';
 import type {Project} from '../projects/store.ts';
-import type {JobRequest} from '../jobs/jobs.ts';
+import type {Job,JobRequest} from '../jobs/jobs.ts';
 import type {SpeechVersion} from '../tts/speech.ts';
 export type SoundKind='clip'|'music'|'speech'|'conversion'|'effect';
 export type StudioSound={id:string;projectId:string;title:string;kind:SoundKind;createdAt:string;deleted?:boolean;purged?:boolean;finalVersionId?:string;legacyProject?:string;conversionSourceSha256?:string};
@@ -32,6 +32,8 @@ export type StudioConversionPagination={soundId:string;page:number;pageSize:numb
 type Data={format:'music-room-studio';version:1;sounds:StudioSound[];versions:StudioVersion[];pendingScores?:StudioVersion[]};
 const fail=(message:string):never=>{throw new ServiceError('INVALID_STUDIO',message);};
 const clone=copyPlainData;
+const scoreRenderKey=(projectId:string|undefined,revisionId:string)=>`${projectId}/${revisionId}`;
+const renderInProgress=(job:Job)=>job.state==='queued'||job.state==='running';
 function musicRequest(args:StudioInput,title:string):YuE2Generate {return {targetDuration:args.targetDuration,ending:args.ending??'natural',style:args.text,lyrics:args.instrumental===false?args.lyrics||'[verse]':args.structure?.trim()||'[instrumental]',seed:args.seed,abc:args.abc?.trim()||undefined,preset:args.preset??'fast',instrumental:args.instrumental!==false,title};}
 /** Stable ownership and listening decisions. Engine files remain authoritative for audio and task state. */
 export class StudioService{
@@ -114,14 +116,27 @@ export class StudioService{
   const speech=this.service.speech.snapshot(true);
   for(const s of speech.sounds){let target=this.data.sounds.find(x=>x.id===s.id);if(!target){target={...s,kind:'speech'};this.data.sounds.push(target);}Object.assign(target,s);}
   for(const v of speech.versions){const value:StudioVersion={speechEngine:[v.engine,v.backend].filter(Boolean).join(' · '),resource:v.resource,id:v.id,soundId:v.soundId,number:v.number,speed:v.speed,parentId:v.parentId,createdAt:v.createdAt,state:v.state,stage:v.stage,kept:v.kept,deleted:v.deleted,voiceName:v.voiceName,purged:v.purged,purgePending:undefined,error:v.error,duration:v.artifact?.duration,input:{soundId:v.soundId,text:v.text,voiceId:v.voiceId,referenceText:v.referenceText,emotion:v.emotion,emotionStrength:v.emotionStrength,parentId:v.parentId},source:{kind:'speech',id:v.id},audioPath:v.state==='succeeded'?`/speech/audio/${v.id}`:undefined};const old=this.data.versions.find(x=>x.id===v.id);if(old?.purgePending&&!v.purged)continue;if(old)Object.assign(old,value);else this.data.versions.push(value);}
-  for(const p of await this.service.store.projects()){
+  const projects=await this.service.store.projects(),scoreRenders=new Map<string,Job>();
+  for(const job of this.service.jobs.list()){
+   const key=scoreRenderKey(job.request.projectId,job.request.revisionId),previous=scoreRenders.get(key);
+   const active=renderInProgress(job);
+   if(!previous||(active===renderInProgress(previous)?job.createdAt>=previous.createdAt:active))scoreRenders.set(key,job);
+  }
+  for(const p of projects){
    for(const v of this.data.versions)if(v.source.kind==='score'&&v.source.projectId===p.id&&p.removedRevisionIds?.includes(v.source.id)){v.purged=true;v.purgePending=undefined;v.audioPath=undefined;v.input=undefined;}
    if(!p.revisions.length)continue;
    const unmapped=p.revisions.some(r=>!this.data.versions.some(v=>v.source.kind==='score'&&v.source.id===r.id));
    let s=this.data.sounds.find(x=>x.legacyProject===p.id&&!x.purged&&!x.deleted);if(!s&&unmapped){s={id:`sound-${randomUUID()}`,projectId:p.id,title:p.title,kind:'music',createdAt:p.revisions[0].createdAt,legacyProject:p.id};this.data.sounds.push(s);}
    for(const r of p.revisions){let v=this.data.versions.find(x=>x.source.kind==='score'&&x.source.id===r.id);if(!v){const doc=(await this.service.store.revision(p.id,r.id)).composition;v={id:r.id,soundId:s!.id,number:this.data.versions.filter(x=>x.soundId===s!.id).length+1,parentId:r.parentId,createdAt:r.createdAt,state:'succeeded',stage:'已保存乐谱',kept:false,deleted:false,source:{kind:'score',id:r.id,projectId:p.id},duration:doc.score.duration,input:{soundId:s!.id,text:doc.revision.description??doc.revision.summary??''}};this.data.versions.push(v);}
     const artifact=r.artifacts.at(-1);if(artifact){v.audioPath=`/artifacts/${p.id}/${r.id}/${artifact.jobId}`;v.stage='可以试听';}
-    if(v.renderJobId){const job=this.service.jobs.get(v.renderJobId);v.resource=job.resource;if(job.state==='failed'||job.state==='cancelled'||job.state==='interrupted'){v.error=job.error??job.stage;v.stage='试听文件未完成';v.renderJobId=undefined;}else if(job.state==='succeeded'){v.stage='可以试听';v.renderJobId=undefined;}else v.stage=job.stage;}
+    const job=scoreRenders.get(scoreRenderKey(p.id,r.id));
+    if(job){
+     const active=renderInProgress(job),failed=!active&&job.state!=='succeeded';
+     v.renderJobId=active?job.id:undefined;
+     v.resource=job.resource;
+     v.error=failed?job.error??job.stage:undefined;
+     v.stage=active?job.stage:artifact?'可以试听':'试听文件未完成';
+    }
    }
   }
   // Polling is bounded; an unavailable model never hides previously saved music.
@@ -132,6 +147,7 @@ export class StudioService{
     if(v.purged||v.purgePending)continue;v.state=job.status==='done'?'succeeded':job.status;v.resource=job.resource as ResourceTaskState|undefined;v.stage=job.stage??({done:'生成完成',running:'正在生成',queued:'排队中',failed:'生成失败',cancelled:'已取消'}[job.status]);v.error=job.error??undefined;v.musicProgress=musicProgress(job);v.musicTruncated=job.truncated??undefined;v.musicRecovery=job.recovery;if(v.input&&v.input.seed===undefined&&Number.isSafeInteger(job.seed))v.input.seed=job.seed as number;if(v.state==='succeeded')v.audioPath=`/yue2-audio/${job.id}`;
    }}catch{/* Keep saved results visible while the engine reconnects. */}
   }}
+  return scoreRenders;
  }
  assertMusicPlayback(jobId:string){
   const v=this.data.versions.find(v=>v.source.kind==='music'&&
@@ -165,7 +181,7 @@ export class StudioService{
  async libraryAudio(id:string){return this.serial(async()=>{const jobId=this.service.effects.projectJobForItem(id);if(jobId){await this.syncEffects();const v=this.data.versions.find(x=>x.source.kind==='sound-effect'&&x.source.id===jobId)??fail('音效所属版本不存在');this.activeSound(v.soundId);if(v.deleted||v.purged||v.purgePending)fail('版本在回收站中');}return this.service.soundLibrary.audioSync(id);});}
  async trimLibrary(args:TrimOptions&{itemId:string}){return this.serial(async()=>{if(this.service.effects.projectJobForItem(args.itemId))fail('请在所属项目的音效版本中截取');return this.service.soundLibrary.trim(args);});}
  async snapshot(options:StudioLibraryOptions={}){return this.serial(async()=>{
-  await this.sync();const backgroundVersions=this.data.versions.filter(v=>!v.purged&&!v.deleted&&(['queued','running'].includes(v.state)||v.renderJobId));let versions=this.data.versions.filter(v=>!v.purged),conversionPagination:StudioConversionPagination|undefined;
+  const scoreRenders=await this.sync();const backgroundVersions=this.data.versions.filter(v=>!v.purged&&!v.deleted&&(['queued','running'].includes(v.state)||v.renderJobId));let versions=this.data.versions.filter(v=>!v.purged),conversionPagination:StudioConversionPagination|undefined;
   const include=new Set<string|undefined>([options.selectedVersionId]);
   if(options.conversionSoundId){
    const sound=this.sound(options.conversionSoundId);if(sound.kind!=='conversion'||sound.purged)fail('音色转换声音不存在');
@@ -181,7 +197,10 @@ export class StudioService{
   const backgroundLyrics=this.service.lyricsGeneration.activeJobs().flatMap(job=>{
    const version=this.data.versions.find(v=>v.id===job.versionId);return version?[{job,soundId:version.soundId,number:version.number}]:[];
   });
-  const taskHistory=this.data.versions.filter(v=>!v.purged&&!v.deleted&&this.data.sounds.some(s=>s.id===v.soundId&&!s.deleted&&!s.purged&&projects.some(p=>p.id===s.projectId&&!p.deleted))).map(v=>({id:v.id,soundId:v.soundId,number:v.number,state:v.state,stage:v.stage,error:v.error,createdAt:v.createdAt,hasAudio:!!v.audioPath,duration:v.duration}));
+  const taskHistory=this.data.versions.filter(v=>!v.purged&&!v.deleted&&this.data.sounds.some(s=>s.id===v.soundId&&!s.deleted&&!s.purged&&projects.some(p=>p.id===s.projectId&&!p.deleted))).map(v=>{
+   const render=v.source.kind==='score'?scoreRenders.get(scoreRenderKey(v.source.projectId,v.source.id)):undefined;
+   return {id:v.id,soundId:v.soundId,number:v.number,state:render?.state??v.state,stage:render?.stage??v.stage,error:render?.error??v.error,createdAt:render?.createdAt??v.createdAt,hasAudio:!!v.audioPath,duration:v.duration,renderTaskId:v.renderJobId};
+  });
   const lyricTaskHistory=this.service.lyricsGeneration.historyJobs().flatMap(job=>{const v=taskHistory.find(v=>v.id===job.versionId);return v?[{...v,taskId:job.taskId,state:job.state,stage:job.message,error:undefined,createdAt:job.startedAt?new Date(job.startedAt).toISOString():v.createdAt}]:[];});
   if(options.compactLibrary)versions=versions.filter(v=>v.id===options.selectedVersionId||backgroundVersions.some(b=>b.id===v.id));
   return {...this.data,taskHistory:options.compactLibrary?[]:taskHistory,lyricTaskHistory:options.compactLibrary?[]:lyricTaskHistory,soundLibrary:options.includeSoundLibrary===false?[]:soundLibrary,soundLibraryRevision:soundCatalogRevision(availableSounds,this.service.soundCatalog.playlists()),backgroundVersions,backgroundLyrics,sounds:this.data.sounds.filter(s=>!s.purged),versions:versions.map((v):StudioVersion=>({...v,musicRecovery:this.bestMusicRecovery(v)})),conversionPagination,projects,voices:this.service.speech.snapshot().voices,conversionVoices:this.service.speech.conversionVoices(),engines:{conversion:this.service.conversion.snapshot({page:1,pageSize:1}).status,speech:this.service.speech.status(),music:await this.service.yue2.status()}};

@@ -11,6 +11,67 @@ import {encodeWav} from '../../src/wav.ts';
 import {testResources} from '../../src/service/resources/testing.ts';
 
 const unused={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
+test('score preview tasks show their own state and can be cancelled from history and the version',async t=>{
+ const root=await mkdtemp(join(tmpdir(),'score-preview-cancel-'));
+ const read=p=>readFile(resolve('dist',p)),resources=testResources();
+ let service,http,browser;
+ t.after(async()=>{await browser?.close();await http?.close();await service?.close();await rm(root,{recursive:true,force:true});});
+ let finish,rendererStarts=0;
+ const renderer=({composition})=>{
+  rendererStarts++;
+  const {promise,resolve:resolveAudio,reject}=Promise.withResolvers();
+  const frames=new Float32Array(Math.round(composition.score.duration*44100));
+  finish=()=>resolveAudio({wav:new Uint8Array(encodeWav([frames,frames],44100)),peak:0,rms:0,attenuation:1,engine:'test'});
+  return {result:promise,cancel:()=>reject(Error('preview cancelled'))};
+ };
+ service=await MusicService.open(root,renderer,read,false,unused,undefined,undefined,resources);
+ http=await serveHttp(service,{read,has:p=>existsSync(resolve('dist',p)),embedded:false});
+ browser=await chromium.launch({channel:'chrome',headless:true});
+ const page=await browser.newPage();page.setDefaultTimeout(7000);
+ await service.call('create_project',{projectId:'film',title:'短片项目'});
+ const sound=await service.call('studio_create_sound',{projectId:'film',title:'开场旋律',kind:'clip'});
+ const version=await service.call('studio_import_score',{soundId:sound.id,compositionJson:await readFile('src/music/authoring/example.json','utf8')});
+ const history=page.getByRole('list',{name:'生成历史'});
+ const row=history.getByRole('listitem').filter({hasText:'开场旋律 · V1'});
+ const cancelLabel='取消试听生成';
+
+ await resources.pause();
+ await page.goto(http.runtime.url);
+ await page.getByRole('button',{name:'生成试听音频',exact:true}).click();
+ await page.getByText('正在准备试听…',{exact:true}).waitFor();
+ await page.locator('[data-action="task-list"]').click();
+ await row.waitFor();
+ assert.equal(await row.locator('.task-state').innerText(),'排队中');
+ await row.getByRole('button',{name:cancelLabel,exact:true}).click();
+ await row.locator('.task-state').getByText('已取消',{exact:true}).waitFor();
+ assert.equal(await row.getByRole('button',{name:cancelLabel,exact:true}).count(),0);
+ assert.equal(rendererStarts,0);
+
+ await resources.resume();
+ await row.getByRole('button',{name:'开场旋律 · V1',exact:true}).click();
+ await page.getByRole('button',{name:'生成试听音频',exact:true}).click();
+ await page.getByText('正在准备试听…',{exact:true}).waitFor();
+ await page.locator('[data-action="task-list"]').click();
+ await row.locator('.task-state').getByText('生成中',{exact:true}).waitFor();
+ await row.getByRole('button',{name:'开场旋律 · V1',exact:true}).click();
+ await page.getByRole('button',{name:cancelLabel,exact:true}).click();
+ await page.getByRole('button',{name:'生成试听音频',exact:true}).waitFor();
+ const saved=(await service.call('studio_library',{})).versions.find(v=>v.id===version.id);
+ assert.equal(saved.state,'succeeded');
+ assert.equal(saved.audioPath,undefined);
+ assert.equal(rendererStarts,1);
+
+ await page.getByRole('button',{name:'生成试听音频',exact:true}).click();
+ await page.getByText('正在准备试听…',{exact:true}).waitFor();
+ await page.locator('[data-action="task-list"]').click();
+ await row.locator('.task-state').getByText('生成中',{exact:true}).waitFor();
+ assert.equal(rendererStarts,2);
+ finish();
+ await row.locator('.task-state').getByText('已完成',{exact:true}).waitFor();
+ assert.equal(await row.getByRole('button',{name:cancelLabel,exact:true}).count(),0);
+ await row.getByRole('button',{name:'开场旋律 · V1',exact:true}).click();
+ await page.locator('#version-audio').waitFor();
+});
 test('MIDI tools belong to one sound; legacy links enter its version without a second library',async()=>{
  const root=await mkdtemp(join(tmpdir(),'score-context-')),read=p=>readFile(resolve('dist',p));
  let renderGate=Promise.resolve(),releaseRender=()=>{},releaseAudio=()=>{};
