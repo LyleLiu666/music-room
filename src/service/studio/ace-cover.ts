@@ -14,6 +14,7 @@ export const coverRequest=z.object({
  requestId:z.string().regex(SCORE_ID_PATTERN),
  ...coverRange,
  style:z.string().trim().min(1).max(1200),
+ styleLabel:z.string().trim().min(1).max(1200).optional(),
  lyrics:z.string().trim().max(8000),
  strength:z.enum(['close','balanced','bold']),
 }).strict().refine(({startSeconds,endSeconds})=>endSeconds-startSeconds>=10&&endSeconds-startSeconds<=60,'翻唱片段需为 10–60 秒');

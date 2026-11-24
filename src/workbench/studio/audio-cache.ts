@@ -11,7 +11,7 @@ export interface AudioUrlCacheOptions {
  revokeObjectURL?:(url:string)=>void;
 }
 
-type CachedAudio={url:string;size:number};
+type CachedAudio={url:string;blob:Blob};
 type PendingAudio={controller:AbortController;task:Promise<string>};
 
 /** Full-blob cache with transport and active-player ownership supplied by its host.
@@ -41,6 +41,13 @@ export class AudioUrlCache {
   this.pending.set(path,pending);return pending.task;
  }
 
+ async samples(path:string):Promise<ArrayBuffer>{
+  await this.get(path);
+  const entry=this.entries.get(path);
+  if(!entry)throw this.staleError();
+  return entry.blob.arrayBuffer();
+ }
+
  private async read(path:string,pending:PendingAudio):Promise<string>{
   this.assertCurrent(path,pending);
   const response=await this.options.request(path,{signal:pending.controller.signal});
@@ -52,7 +59,7 @@ export class AudioUrlCache {
   this.assertCurrent(path,pending);
   const url=this.options.createObjectURL?.(blob)??URL.createObjectURL(blob);
   if(!this.isCurrent(path,pending)){this.revoke(url);throw this.staleError();}
-  this.entries.set(path,{url,size:blob.size});this.cachedBytes+=blob.size;
+  this.entries.set(path,{url,blob});this.cachedBytes+=blob.size;
   const active=new Set(this.options.activeUrls());
   for(const [key,entry] of this.entries){
    if(this.cachedBytes<=AUDIO_CACHE_LIMIT_BYTES&&this.entries.size<=AUDIO_CACHE_LIMIT_ENTRIES)break;
@@ -95,6 +102,6 @@ export class AudioUrlCache {
 
  private remove(path:string,entry:CachedAudio):void{
   this.revoke(entry.url);
-  this.entries.delete(path);this.cachedBytes-=entry.size;
+  this.entries.delete(path);this.cachedBytes-=entry.blob.size;
  }
 }

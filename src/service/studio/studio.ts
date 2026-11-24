@@ -405,7 +405,7 @@ export class StudioService{
   const provenance:CoverProvenance={...input,sourceVersionId:source.id,sourceNumber:source.number,seed:randomInt(0,2147483648)};
   const version:StudioVersion={id,soundId:sound.id,number:Math.max(0,...this.data.versions.filter(v=>v.soundId===sound.id).map(v=>v.number))+1,
    parentId:source.id,createdAt:new Date().toISOString(),state:'queued',stage:'等待翻唱',kept:false,deleted:false,cover:provenance,
-   source:{kind:'audio',id},input:{soundId:sound.id,text:args.style,instrumental:!args.lyrics,lyrics:args.lyrics}};
+   source:{kind:'audio',id},input:{soundId:sound.id,text:args.styleLabel??args.style,instrumental:!args.lyrics,lyrics:args.lyrics}};
   this.data.versions.push(version);
   return {version,sourcePath:source.audioPath};
   });
