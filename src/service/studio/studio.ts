@@ -222,9 +222,9 @@ export class StudioService{
   if(previous){this.activeSound(previous.soundId);if(JSON.stringify(previous.attach)!==JSON.stringify(attach)||previous.deleted||previous.purged)throw new ServiceError('CONFLICT','加入项目的请求不同或版本已删除');return previous;}
   this.service.store.assertActive(args.projectId);if(this.service.effects.projectJobForItem(args.itemId))fail('这个音效已经属于项目，请选择声音库中的独立录音');
   const item=this.service.soundLibrary.verify(args.itemId);
-  const now=new Date().toISOString(),sound:StudioSound={id:`sound-${randomUUID()}`,projectId:args.projectId,title:args.title,kind:'effect',createdAt:now},id=`attached-${randomUUID()}`;
-  const input=item.source?{soundId:sound.id,text:item.source.prompt,effectSeconds:item.source.seconds,seed:item.source.seed}:undefined;
-  const version:StudioVersion={id,soundId:sound.id,number:1,createdAt:now,state:'succeeded',stage:'已加入项目',kept:false,deleted:false,duration:item.duration,input,attach,source:{kind:'library',id:item.id},audioExtension:item.extension,audioPath:`/studio-audio/${id}`};
+  const now=new Date().toISOString(),sound:StudioSound={id:`sound-${randomUUID()}`,projectId:args.projectId,title:args.title,kind:item.origin==='live-capture'?'clip':'effect',createdAt:now},id=`attached-${randomUUID()}`;
+  const input=item.origin==='sound-effect'?{soundId:sound.id,text:item.source.prompt,effectSeconds:item.source.seconds,seed:item.source.seed}:undefined;
+  const version:StudioVersion={id,soundId:sound.id,number:1,createdAt:now,state:'succeeded',stage:'已加入项目',kept:item.origin==='live-capture',deleted:false,duration:item.duration,input,attach,source:{kind:'library',id:item.id},audioExtension:item.extension,audioPath:`/studio-audio/${id}`};
   this.data.sounds.push(sound);this.data.versions.push(version);return version;
  });}
  async uploadConversion(args:{pitchShiftSemitones?:number;soundId?:string;parentId?:string;name:string;bytes:Uint8Array;voiceId:string;requestId:string},signal?:AbortSignal){return this.serial(async()=>{

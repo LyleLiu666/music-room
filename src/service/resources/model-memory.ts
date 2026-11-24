@@ -8,6 +8,7 @@ function demand(startup: number, peak = startup) {
 /** Fixed reservations for the supported model profiles. Profiles still validate inputs before admission. */
 export const modelMemory = {
   lyrics: demand(4 * 2 ** 30, 8 * 2 ** 30),
+  magentaLive: demand(3_000_000_000,5_000_000_000),
   aceCover: demand(4_000_000_000,5_000_000_000),
   soundEffects: demand(5_000_000_000),
   breeze: demand(5_000_000_000),

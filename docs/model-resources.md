@@ -23,6 +23,7 @@ Music Room 用同一个服务管理 Stable Audio 3 Small-SFX、Breeze TTS 2、In
 
 | 任务 | 当前固定配置 / 输入范围 | 任务预约 |
 | --- | --- | --- |
+| 即兴演奏 | Magenta RealTime 2 Small / MLX，持续按一秒分块生成，保留最近 24 秒已生成的 PCM | 3 GB 启动预约，5 GB 运行保护（十进制） |
 | 翻唱 | ACE-Step 1.5 Turbo Q5 / Metal，原曲中选取 10–60 秒 | 4 GB 启动预约，5 GB 运行保护（十进制） |
 | 音效 | Stable Audio 3 Small-SFX / MLX；1–5 秒、描述最多 1000 字；固定模型与程序身份 | 5 GB（十进制） |
 | 语音（有参考文字稿） | Breeze 4bit / MLX；正文最多 8000 字，每段最多 140 字；参考最长 15 秒 | 5 GB（十进制） |

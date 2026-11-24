@@ -1,3 +1,4 @@
+import {liveStartSchema,liveNextSchema,liveSaveSchema,type LivePlay} from './studio/live-play.ts';
 import {coverRange,coverRequest} from './studio/ace-cover.ts';
 import type {CoverEngine} from './studio/ace-cover-runtime.ts';
 import type {MusicCreationGuide} from './yue2/authoring-guide.ts';
@@ -73,6 +74,13 @@ export const operations = {
   studio_cancel:{description:'取消指定声音版本的生成任务。',schema:z.object({versionId:id}).strict()},
   studio_import_score:{description:'将 Agent 交付的 JSON 乐谱导入指定声音，新版保留来源，不覆盖旧版。',schema:z.object({soundId:id,compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
   studio_save_speed:{description:'将已完成音频按指定速度保存为独立新版本，保持音调并保留原版。requestId 用于安全重试。',schema:z.object({versionId:id,rate:z.number().min(.5).max(2).refine(n=>n!==1),requestId:z.string().min(1).max(120)}).strict()},
+  live_play_status:{description:'查询本机 Magenta 模型准备与演奏状态。',schema:z.object({}).strict()},
+  live_play_prepare:{description:'排队准备本机 Magenta Small 模型。',schema:z.object({}).strict()},
+  live_play_cancel_preparation:{description:'取消准备并等待所属安装进程退出。',schema:z.object({}).strict()},
+  live_play_start:{description:'在共享队列中创建唯一实时演奏会话。',schema:liveStartSchema},
+  live_play_next:{description:'根据风格和已播放位置取得连续的一秒立体声 PCM16。',schema:liveNextSchema},
+  live_play_save:{description:'从已播放位置回留前 15 秒到声音库。',schema:liveSaveSchema},
+  live_play_stop:{description:'停止演奏并等待本机模型进程释放。',schema:liveStartSchema},
   ace_cover_status:{description:'查看本机 ACE-Step 翻唱模型及准备状态。',schema:z.object({}).strict()},
   ace_cover_prepare:{description:'将固定版 ACE-Step 翻唱模型的准备工作加入本机队列。',schema:z.object({}).strict()},
   ace_cover_cancel_preparation:{description:'取消翻唱模型准备，等待进程释放。',schema:z.object({}).strict()},
@@ -127,6 +135,8 @@ export type LibrarySnapshot = {projects:Project[];documents:Composition[];jobs:J
 export type AuthoringContext = {project?:Project;revision?:RevisionDocument;feedback:Feedback[];guide:string;example:Composition;prompt:string;rules:string;workflow:Operation[];tracks:string};
 export type ResourceStatus=Awaited<ReturnType<ResourceCoordinator['status']>>;
 export type OperationResults = {
+  live_play_status:ReturnType<LivePlay['status']>;live_play_prepare:ReturnType<LivePlay['status']>;live_play_cancel_preparation:Awaited<ReturnType<LivePlay['cancelPreparation']>>;
+  live_play_start:ReturnType<LivePlay['start']>;live_play_next:Awaited<ReturnType<LivePlay['next']>>;live_play_save:Awaited<ReturnType<LivePlay['save']>>;live_play_stop:Awaited<ReturnType<LivePlay['stop']>>;
   ace_cover_status:ReturnType<CoverEngine['status']>;ace_cover_prepare:ReturnType<CoverEngine['status']>;ace_cover_cancel_preparation:Awaited<ReturnType<CoverEngine['cancelPreparation']>>;
   studio_cover_selection:Awaited<ReturnType<StudioService['coverSelection']>>;studio_cover_generate:StudioVersion;
   sound_effect_status:ReturnType<SoundEffects['status']>;sound_effect_prepare:ReturnType<SoundEffects['status']>;sound_effect_cancel_preparation:Awaited<ReturnType<SoundEffects['cancelPreparation']>>;

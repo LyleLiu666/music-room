@@ -56,7 +56,8 @@
     "verify:breeze:binary": "node scripts/verify/verify-breeze-binary.mjs",
     "verify:sound-effects:real": "node scripts/verify/verify-sound-effects-real.ts",
     "verify:music-minio": "node scripts/verify/verify-music-minio.mjs",
-    "verify:ace-cover:real": "node scripts/verify/verify-ace-cover-real.ts"
+    "verify:ace-cover:real": "node scripts/verify/verify-ace-cover-real.ts",
+    "verify:magenta-live:real": "node scripts/verify/verify-magenta-live-real.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1173.0",

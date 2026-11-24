@@ -56,3 +56,13 @@ test('sound effect resource admission is limited to the verified fixed runtime a
  assert.equal(estimateResources('sound-effects',valid).verified,true);
  for(const bad of [{...valid,seconds:6},{...valid,seconds:0},{...valid,prompt:''},{...valid,resourceProfile:{...effectProfile,program:'changed'}}])assert.equal(estimateResources('sound-effects',bad).verified,false);
 });
+
+test('cover and live reserves require the fixed local models',async()=>{
+ const {liveProfile}=await import('../studio/live-assets.ts');
+ const {coverProfile}=await import('../studio/ace-cover.ts');
+ const live=estimateResources('magenta-live',{resourceProfile:liveProfile});
+ assert.deepEqual(live,{verified:true,startup:{memory:3_000_000_000},peak:{memory:5_000_000_000}});
+ assert.equal(estimateResources('magenta-live',{resourceProfile:{...liveProfile,mlx:'changed'}}).verified,false);
+ assert.equal(estimateResources('ace-cover',{resourceProfile:coverProfile,seconds:60}).verified,true);
+ assert.equal(estimateResources('ace-cover',{resourceProfile:coverProfile,seconds:60.001}).verified,false);
+});
