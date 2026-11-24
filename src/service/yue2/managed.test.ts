@@ -116,15 +116,14 @@ test('model context overflow is rejected before loading or creating an upstream 
  assert.equal(f.counts().launches,0);assert.equal(f.counts().submits,0);
 });
 
-test('a vocal ABC with only rests is rejected before entering the music queue',async t=>{
+test('a vocal ABC with only rests uses the accompaniment and original lyrics without changing the editable score',async t=>{
  const f=await fixture(t);
  const bin=join(f.directory,'.venv','bin');
  await mkdir(bin,{recursive:true});
- // Keep the real ABC parser, with deterministic token counts and no model installation.
+ // Keep the real ABC parser and use score length as a deterministic substitute for the tokenizer.
  await writeFile(join(bin,'python'),`#!/bin/sh
 if [ "$1" = "-c" ]; then
- cat >/dev/null
- printf '%s\\n' '{"prefixTokens":100,"planningTokens":0,"semanticTokens":9000,"contextTokens":24576}'
+ exec python3 -c 'import json,sys; print(json.dumps(dict(prefixTokens=len(json.load(sys.stdin).get("abc") or ""),planningTokens=0,semanticTokens=9000,contextTokens=24576)))'
 else
  exec python3 "$@"
 fi
@@ -137,11 +136,18 @@ fi
   'V: Ins clef=treble name="Ins Melody" snm="Inst."','K:C',
   'V: Vocal','"C"z32|','V: Ins','C8D8E8F8|',
  ].join('\n');
+ const effective=abc.split('\n').filter(line=>!line.startsWith('V: Vocal')&&line!=='"C"z32|').join('\n');
  const input={style:'piano',lyrics:'[Verse]\n晚风吹过窗边',preset:'fast' as const,instrumental:false,abc};
- const issue=/人声轨全是休止符.*修改.*清空.*自由规划/;
- assert.match((await inspect(input)).issue??'',issue);
- await assert.rejects(f.client.generate(input),issue);
- await assert.rejects(f.client.generate({...input,targetDuration:60}),issue);
+ const prepared=await inspect(input);
+ assert.equal(prepared.issue,undefined);
+ assert.equal(prepared.vocalRestsOmitted,true);
+ assert.equal(prepared.prefixTokens,effective.length);
+ const exact=await inspectMusicContext(f.directory,input,undefined,'exact-score');
+ assert.match(exact.issue??'',/固定乐谱试听/);
+ assert.equal(exact.prefixTokens,abc.length);
+ await assert.rejects(f.client.generate({...input,targetDuration:60}),/不符合目标时长/);
+ const silent={...input,abc:abc.replace('C8D8E8F8|','Z|')};
+ await assert.rejects(f.client.generate(silent),/伴奏轨都没有音符/);
  const unreadable={...input,abc:abc.replace('T:','T:歌名')};
  const unreadableIssue=/无法检查演唱 ABC 乐谱的人声轨.*检查谱面格式.*清空 ABC/;
  for(const targetDuration of [undefined,60]){
@@ -154,10 +160,32 @@ fi
  assert.deepEqual(f.resources.snapshot().queued,[]);
  assert.deepEqual(f.counts(),{launches:0,stops:0,submits:0});
 
- assert.equal((await inspect({...input,abc:abc.replace('z32','C8z24')})).issue,undefined);
- assert.equal((await inspect({...input,abc:undefined})).issue,undefined);
- assert.equal((await inspect({...input,lyrics:'[instrumental]',instrumental:true})).issue,undefined);
+ for(const request of [
+  {...input,abc:abc.replace('z32','C8z24')},
+  {...input,abc:undefined},
+  {...input,lyrics:'[instrumental]',instrumental:true},
+ ]){
+  const context=await inspect(request);
+  assert.equal(context.issue,undefined);
+  assert.equal(context.vocalRestsOmitted,undefined);
+ }
+ const labelsOnly=await inspect({...input,lyrics:'[Intro]\n[Verse]'});
+ assert.match(labelsOnly.issue??'',/填写歌词/);
+ assert.equal(labelsOnly.vocalRestsOmitted,undefined);
  assert.match((await inspect({...input,instrumental:true,lyrics:'[instrumental]',targetDuration:60})).issue??'',/不符合目标时长/);
+ const {job}=await f.client.generate(input);
+ for(let i=0;i<100&&f.bodies.length<1;i++)await delay();
+ assert.equal(f.bodies[0].params.abc,abc);
+ assert.equal(f.bodies[0].params.lyrics,input.lyrics);
+ assert.equal(f.bodies[0].params.omit_vocal_rests,true);
+ assert.deepEqual(f.bodies[0].loras,[]);
+ await f.complete();
+ await writeFile(join(f.directory,'data/songs','a'.repeat(32),'song/score.abc'),effective);
+ for(let i=0;i<200&&(await f.client.job(job.id)).job.status!=='done';i++)await delay();
+ assert.equal(await f.client.score(job.id),abc);
+ await f.client.close();
+ const reopened=new YuE2Client(f.engine,f.store,f.resources);
+ try{assert.equal(await reopened.score(job.id),abc);}finally{await reopened.close();}
 });
 
 test('saved ABC is read as a copy and rejects symbolic-link artifacts',async t=>{

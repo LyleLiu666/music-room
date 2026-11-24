@@ -1,6 +1,6 @@
 import {copyPlainData} from '../projects/copy-data.ts';
 import {MusicEdits,musicEditLabels,type MusicEditKind,type MusicEditChange,type MusicEditProvenance} from './music-edits.ts';
-import {readLyrics,referenceLyrics} from './lyrics.ts';
+import {readLyrics,referenceLyrics,saveLyricsReview,type LyricsReview} from './lyrics.ts';
 import {soundCatalogRevision} from './sound-catalog.ts';
 import {collectedSounds,type LibrarySound} from './sound-library.ts';
 import {musicProgress,type MusicProgress} from '../yue2/progress.ts';
@@ -49,6 +49,14 @@ export class StudioService{
  }
  private async serial<T>(fn:()=>Promise<T>,rollback=true):Promise<T>{const next=this.pending.then(async()=>{const before=clone(this.data);try{const result=await fn();if(JSON.stringify(before)!==JSON.stringify(this.data))this.save();return clone(result);}catch(e){if(rollback)this.data=before;else this.save();throw e;}});this.pending=next.catch(()=>{});return next;}
  lyrics(id:string){const v=this.version(id);this.activeSound(v.soundId);if(v.deleted||v.purged||v.purgePending)fail('版本在回收站中');return {...readLyrics(this.service.store.path('lyrics'),v),canGenerate:!!referenceLyrics(v.input).trim()&&v.state==='succeeded'&&!!v.audioPath,...this.service.lyricsGeneration.status(id)};}
+ reviewLyrics(id:string,update:LyricsReview){
+  const v=this.version(identity(id));
+  this.activeSound(v.soundId);
+  if(v.deleted||v.purged||v.purgePending||v.state!=='succeeded'||!v.audioPath)fail('请选择已完成的音频版本');
+  const {job}=this.service.lyricsGeneration.status(id);
+  if(job?.state==='queued'||job?.state==='running')throw new ServiceError('CONFLICT','同步歌词正在生成，请生成完成后校对');
+  return saveLyricsReview(this.service.store.path('lyrics'),v,update,(path,doc)=>this.service.store.atomicJSON(path,doc));
+ }
  lyricSource(id:string){const v=this.version(identity(id));this.activeSound(v.soundId);if(v.deleted||v.purged||v.purgePending||v.state!=='succeeded'||!v.audioPath||!referenceLyrics(v.input).trim())fail('请选择有参考歌词的已完成歌曲');return {id:v.id,audioPath:v.audioPath!,reference:v.input!.lyrics!,audio:async()=>{if(v.source.kind==='music')return this.service.yue2Client.audio(v.source.id);if(v.source.kind==='audio')return this.audio(v.id);throw Error('此音频来源暂不支持歌词生成');}};}
  private save(){this.service.store.atomicJSON(this.service.store.path('studio.json'),this.data);}
  private async recoverScorePublications(){

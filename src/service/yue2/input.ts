@@ -3,8 +3,8 @@ import {durationGuidance} from './duration.ts';
 
 // Form payload limits, not model capacity. The installed tokenizer checks context separately.
 export const musicInputLimits={style:100000,lyrics:100000,abc:100000} as const;
-export type MusicContext={prefixTokens:number;planningTokens:number;semanticTokens:number;contextTokens:number;requiredTokens:number;remainingTokens:number;issue?:string};
-export function musicContextStatus(counts:Omit<MusicContext,'requiredTokens'|'remainingTokens'|'issue'>):MusicContext{
+export type MusicContext={prefixTokens:number;planningTokens:number;semanticTokens:number;contextTokens:number;requiredTokens:number;remainingTokens:number;issue?:string;vocalRestsOmitted?:true};
+export function musicContextStatus(counts:Pick<MusicContext,'prefixTokens'|'planningTokens'|'semanticTokens'|'contextTokens'>):MusicContext{
  const requiredTokens=counts.prefixTokens+counts.planningTokens+counts.semanticTokens;
  const remainingTokens=counts.contextTokens-requiredTokens;
  return {...counts,requiredTokens,remainingTokens,...(remainingTokens<0?{issue:`创作内容与生成预算共需 ${requiredTokens} 个 token，超过模型 ${counts.contextTokens} 个 token 的上下文容量。请缩短风格、歌词或乐谱后再试。`}:{})};

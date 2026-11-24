@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtempSync,writeFileSync,rmSync} from 'node:fs';
+import {mkdtempSync,writeFileSync,readFileSync,rmSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {readLyrics,lyricsLrc} from './lyrics.ts';
@@ -32,5 +32,41 @@ test('explicit instrumental versions ignore even persisted or invalid lyric side
   assert.deepEqual(readLyrics(dir,v),{kind:'none',reference:'',lines:[],draft:false});
   writeFileSync(join(dir,'v1.json'),'old invalid sidecar');
   assert.equal(readLyrics(dir,v).kind,'none');
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('manual review exposes unresolved lines, saves corrections and protects newer edits',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'lyrics-review-save-'));
+ try{
+  const version={id:'v9',audioPath:'/audio/9',input:{lyrics:'创作时的歌词'}};
+  const file=join(dir,'v9.json');
+  writeFileSync(file,JSON.stringify({
+   format:'music-room-lyrics',version:1,versionId:version.id,audioPath:version.audioPath,duration:20,draft:true,
+   lines:[{text:'识别错词',start:1,end:3}],
+   unresolved:[{text:'还没有起止时间',window:[4,9]},{text:'另一句',reason:'旧稿未保存范围'}],
+  }));
+  const draft=readLyrics(dir,version);
+  assert.equal(draft.kind,'synced');
+  assert.equal(draft.duration,20);
+  assert.deepEqual(draft.unresolved,[{text:'还没有起止时间',window:[4,9]},{text:'另一句',reason:'旧稿未保存范围'}]);
+  const {saveLyricsReview}=await import('./lyrics.ts');
+  const write=(path:string,value:unknown)=>writeFileSync(path,JSON.stringify(value));
+  const lines=[{text:'更正后的歌词',start:1,end:3},{text:'已补上时间',start:5,end:8}];
+  const update={revision:draft.revision,lines,pending:[{index:1,text:'改过但仍待定位'}]};
+  const saved=saveLyricsReview(dir,version,update,write);
+  assert.equal(saved.kind,'synced');
+  assert.equal(saved.reference,'创作时的歌词');
+  assert.equal(saved.manuallyEdited,true);
+  assert.equal(saved.draft,true);
+  assert.deepEqual(saved.lines,lines);
+  assert.deepEqual(saved.unresolved,[{text:'改过但仍待定位',reason:'旧稿未保存范围'}]);
+  const stored=readFileSync(file,'utf8');
+  assert.throws(()=>saveLyricsReview(dir,version,update,write),/歌词已更新/);
+  assert.throws(()=>saveLyricsReview(dir,version,{...update,revision:saved.revision,lines:[{text:'超出音频',start:19,end:21}]},write),/歌词时间轴无效/);
+  assert.equal(readFileSync(file,'utf8'),stored);
+  const final=saveLyricsReview(dir,version,{...update,revision:saved.revision,pending:[]},write);
+  assert.equal(final.draft,false);
+  assert.deepEqual(readLyrics(dir,version),final);
+  assert.match(lyricsLrc(final.lines),/\[00:05.00\]已补上时间/);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });

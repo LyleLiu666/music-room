@@ -40,6 +40,11 @@ export async function serveHttp(service:MusicService,assets:WebAssets,port=0,com
       if(path==='/api/studio-lyrics') {
         if(req.method==='POST'){const body=await readJSON();if(typeof body.versionId!=='string'||typeof body.requestId!=='string')throw new ServiceError('INVALID_REQUEST','歌词请求无效');json(res,202,service.lyricsGeneration.start(body.versionId,body.requestId));return;}
         if(req.method==='DELETE'){const id=url.searchParams.get('versionId')??'';service.studio.lyrics(id);json(res,200,await service.lyricsGeneration.cancel(id));return;}
+        if(req.method==='PUT'&&req.headers['content-type']?.split(';')[0].trim()==='application/json'){
+          const body=await readJSON();
+          if(typeof body?.revision!=='string')throw new ServiceError('INVALID_REQUEST','歌词校对请求无效');
+          json(res,200,service.studio.reviewLyrics(url.searchParams.get('versionId')??'',body));return;
+        }
         if(req.method!=='GET'){json(res,405,{message:'不支持此方法'});return;}
         const result=service.studio.lyrics(url.searchParams.get('versionId')??'');
         if(url.searchParams.get('format')==='lrc'){

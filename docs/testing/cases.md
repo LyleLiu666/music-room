@@ -25,8 +25,8 @@
 | RETRY-01 / P0 | 实际 HTTP 保存成功后代理断开 TCP；重启；同请求并发重试 8 次 | 导入和混音各只一份；相同 ID 不同参数拒绝；原成品不变 | `src/server/lost-response.test.ts` |
 | RETRY-02 / P0 | 调速已保存，浏览器收到失败，再点保存 | 复用 requestId；同一新版本；下载的速度和重新打开后播放速度正确 | `scripts/verify/verify-speed-ui.test.mjs`、`src/service/studio/speed.test.ts` |
 | RETRY-03 / P1 | 音乐失败后重试或从检查点恢复 | 原版本编号不变；旧尝试归档；参数、种子与检查点匹配；删除后不可复活 | `music-retry.test.ts`、`src/service/yue2/recovery.test.ts`、`verify-studio-ui.test.mjs` |
-| MUSIC-PLAN-01 / P1 | 模型给出截断、无效或偏离所选目标时长的乐谱；成品音频提前结束 | 指定目标时乐谱与最终音频均须在 ±15% 范围内；规划最多三次，仍不达标报错且不合成；音频不达标保留诊断但任务失败；自定义谱不自动改写，自动时长不限制 | `src/service/yue2/duration.test.ts`、`duration_runtime_test.py`；真实失败保留在执行记录 |
-| MUSIC-ABC-01 / P1 | 演唱带歌词，指定的 ABC 人声轨只有休止符或谱面无法解析，包含自动时长和目标时长 | 入队前提示检查谱面或清空 ABC 使用自由规划。网页保留歌词和草稿。纯音乐和含有人声音符的演唱谱仍按原规则检查 | `src/service/yue2/managed.test.ts`、`scripts/verify/verify-music-input-ui.test.mjs` |
+| MUSIC-PLAN-01 / P1 | 模型给出截断、无效或偏离所选目标时长的乐谱；成品音频提前结束 | 指定目标时乐谱与最终音频均须在 ±15% 范围内；规划最多三次，仍不达标报错且不合成；音频不达标保留诊断但任务失败；自定义谱按原谱检查时长，自动时长不限制 | `src/service/yue2/duration.test.ts`、`duration_runtime_test.py`；真实失败保留在执行记录 |
+| MUSIC-ABC-01 / P1 | 演唱带歌词，指定的 ABC 人声轨只有休止符；覆盖两轨全静音、无歌词、无法解析、纯音乐、有人声音符及目标时长 | 人声全休止且伴奏有音符时，用伴奏和原歌词生成，原双轨谱可再次编辑，容量按实际输入算，时长按原谱和成品检查；两轨全静音或非法谱按规则拦截。创作页提示处理方式并保留草稿 | `src/service/yue2/managed.test.ts`、`src/service/yue2/duration_runtime_test.py`、`scripts/verify/verify-music-input-ui.test.mjs` |
 | MUSIC-PLAN-02 / P1 | 使用原失败提示词、seed 42、fast、纯音乐、自动时长与自然收尾 | 首轮参数不变；失败后的采样恢复不改提示词 / 歌词，不增加输出预算；三次内写出完整乐谱并生成可播放音频。原始失败与后续结果分别留存 | `tests/quality/music-planning-regression.json`、`scripts/verify/verify-music-planning-real.ts`、`duration_runtime_test.py` |
 | MUSIC-PLAN-03 / P1 | 显式目标时长，上一轮有效谱过长 / 过短，或输入已接近上下文上限 | 后续只附加最新时长偏差及按速度 / 拍号计算的拍数 / 小节数；首轮、歌词与输出预算不变；说明不超 512 token 余量或完整上下文，容量不足时省略；自动时长与无效谱不附加说明；合格谱及合成请求保留原输入，仍执行原时长门槛 | `src/service/yue2/duration_runtime_test.py` 的 `test_explicit_duration_retry_uses_measured_error_to_obtain_an_in_range_score`、`test_feedback_*`、`test_auto_and_invalid_scores_do_not_receive_duration_feedback`；由 `duration.test.ts` 接入服务入口 |
 | UPGRADE-01 / P0 | 用提交 `c3a213395f31501d081f6269e2c6983796b4986b` 生成的真实旧格式目录，升级、关闭、再打开 | 原件哈希、父子关系、保留 / 成品选择、删除状态和反馈不变，无重复声音 | `src/service/projects/upgrade.test.ts`；样本见 `tests/fixtures/workspace-2026-10-10/` |
@@ -34,6 +34,7 @@
 | QUOTA-01 / P0 | 北京时间 08:00 前预留，跨日收到回执；新日已有请求 | 不能从新日计数中扣旧日预约；新日增加已知用量 | `src/service/studio/lyrics-review.test.ts` |
 | QUOTA-02 / P0 | 两个工作目录共用账号；第二轮超时；失败后重试；时钟回拨 / 计数损坏 | 账号计数共用；缓存命中的轮次不重复收费；未知用量保留预约；异常计数禁止请求 | 同上 |
 | LYRICS-01 / P1 | 识别有重复、漏唱、新增、改词，模型核对不一致 / 格式错误 / 取消；Cloudflare 优先、额度不足切换 OpenAI 备用接口、两轮重新核对、缓存与额度隔离 | 不把参考词当实际演唱；不确定结果保留待核对；失败不覆盖旧稿 | `lyrics-review.test.ts`、`lyrics-generation.test.ts`、`scripts/verify/test-lyrics-worker.py`、`scripts/experiments/*test*` |
+| LYRICS-02 / P1 | 已生成同步歌词含待定位句，包含早期草稿没有试听范围的记录 | 可试听、改词、填起止时间或排除误识别的句子。保存后重开和 LRC 使用校对结果，原音频与创作歌词保持原值。非法时间、过期保存与生成中的覆盖被拒绝 | `src/service/studio/lyrics.test.ts`、`scripts/verify/verify-lyrics-ui.test.mjs` |
 | MEDIA-01 / P0 | WAV 8 / 44.1 / 48 / 96 kHz，1 / 2 声道，整数 8/16/24/32 与浮点 32/64；单帧、600 秒、600 秒多一帧 | 合法组合通过；超边界拒绝；内存估计随速度正确变化 | `src/service/studio/audio-budget.test.ts` |
 | MEDIA-02 / P0 | 截断头部、容器长度矛盾、字节率错误、缺填充、尾部碎片、固定随机种子损坏 500 次 | 返回受控错误，无底层解析异常或超额分配 | 同上 |
 | MEDIA-03 / P0 | FLAC 缺帧、哈希不符、扩展名欺骗、超上传大小、路径越界 / 链接 | 不提交记录、不读写外部文件、不出现可下载的伪成功音频 | `sound-library.test.ts`、`audio-files.test.ts`、`src/server/resource-io.test.ts`、`http.test.ts` |

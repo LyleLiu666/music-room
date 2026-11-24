@@ -37,6 +37,8 @@ TTS 候选横向比较见[本机 TTS 模型选型](tts-model-selection.md)，模
 | [执行指南](testing/running.md) | 命令怎么运行，怎样准备隔离环境、保存证据和清理 |
 | [固定语料与听评](testing/quality.md) | 输入、种子、模型效果评分和歌词真值如何验收 |
 | [维护规则](testing/maintenance.md) | 新增 / 修改 / 删除用例，处理失败与维护基线时遵循什么规则 |
+| [2026-11-24 同步歌词人工校对](testing/verification-lyrics-manual-review-2026-11-24.md) | 待定位句、歌词时间轴、保存冲突及浏览器验证 |
+| [2026-11-24 全休止人声轨生成](testing/verification-vocal-abc-omission-2026-11-24.md) | 真实试听样本、伴奏与歌词输入检查、回归与安装结果 |
 | [2026-11-08 项目音效工作流](testing/verification-effect-workflow-2026-11-08.md) | 项目内音效版本、独立录音加入项目、平滑截取与本轮未完成验收 |
 | [2026-11-08 音效接入与复验](testing/verification-sound-effects-integration-2026-11-08.md) | 固定模型、MCP 与声音库、内存保护、取消、备份和已知待验收项 |
 | [2026-11-07 语音工作区 UX](testing/verification-voicestudio-ux-2026-11-07.md) | 正文/参考音色双栏、TXT 导入、草稿恢复与浏览器回归 |

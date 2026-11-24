@@ -13,7 +13,7 @@ import {yue2JobSchema,yue2JobId,type YuE2Generate,type YuE2Job,type YuE2JobResul
 import {musicAudioLimit, type AudioDigest, type MusicObjectAudio} from './object-audio.ts';
 
 const archiveSchema=z.object({namespace:z.string(),ready:z.boolean()});
-type RecordJob={archive?:z.infer<typeof archiveSchema>;sharedArtifacts?:boolean;purgePending?:boolean;purged?:boolean;checkedAt?:number;job:YuE2Job;directory:string;upstreamId?:string;input?:YuE2Generate;hash?:string;bytes?:number};
+type RecordJob={archive?:z.infer<typeof archiveSchema>;sharedArtifacts?:boolean;purgePending?:boolean;purged?:boolean;checkedAt?:number;job:YuE2Job;directory:string;upstreamId?:string;input?:YuE2Generate;vocalRestsOmitted?:true;hash?:string;bytes?:number};
 /** Durable public identity. The upstream accepts one job only while this proxy owns execution. */
 export class YuE2Proxy {
  private records=new Map<string,RecordJob>();
@@ -32,7 +32,7 @@ export class YuE2Proxy {
    if(lstatSync(path).isSymbolicLink())throw new ServiceError('UNSAFE_PATH','音乐任务文件不能是符号链接');
    const data=JSON.parse(readFileSync(path,'utf8'));if(data.version!==1||!Array.isArray(data.jobs))throw new ServiceError('CORRUPT_ENGINE','音乐任务格式无效');
    this.restored=data.restored===true;
-   for(const raw of data.jobs){const record=z.object({job:yue2JobSchema,directory:z.string().refine(isAbsolute),upstreamId:yue2JobId.optional(),input:z.unknown().optional(),hash:z.string().optional(),bytes:z.number().optional(),archive:archiveSchema.optional(),sharedArtifacts:z.boolean().optional(),purgePending:z.boolean().optional(),purged:z.boolean().optional(),checkedAt:z.number().optional()}).parse(raw) as RecordJob;
+   for(const raw of data.jobs){const record=z.object({job:yue2JobSchema,directory:z.string().refine(isAbsolute),upstreamId:yue2JobId.optional(),input:z.unknown().optional(),vocalRestsOmitted:z.literal(true).optional(),hash:z.string().optional(),bytes:z.number().optional(),archive:archiveSchema.optional(),sharedArtifacts:z.boolean().optional(),purgePending:z.boolean().optional(),purged:z.boolean().optional(),checkedAt:z.number().optional()}).parse(raw) as RecordJob;
     if(['queued','running'].includes(record.job.status)){record.job.status='failed';record.job.stage='interrupted';record.job.error='工作台退出，任务已中断；请手动重试';}
     this.records.set(record.job.id,record);
    }this.save();
@@ -169,14 +169,17 @@ export class YuE2Proxy {
  async generate(input:YuE2Generate,body:unknown,resumeFrom?:string){
   if(this.closed)throw new ServiceError('CLOSED','服务正在退出');await this.migrate();
   const state=await this.engine.status();if(!state.canGenerate||!state.directory)throw new ServiceError('YUE2_UNAVAILABLE','请先准备并启用音乐模型');
+  const context=await this.engine.inspectInput(input);
+  if(context?.issue)throw new ServiceError('YUE2_CONTEXT_EXCEEDED',context.issue);
+  const vocalRestsOmitted=context?.vocalRestsOmitted;
   if(resumeFrom){
    const source=this.record(resumeFrom);
    if(!['failed','cancelled'].includes(source.job.status)||!source.input||source.directory!==state.directory||!source.upstreamId||!sameMusicGeneration(input,{...source.input,seed:source.input.seed??source.job.seed as number|undefined})||!readMusicRecovery(source.directory,source.upstreamId))throw new ServiceError('YUE2_RECOVERY_UNAVAILABLE','恢复点不可用或创作要求已改变，请修改要求后重新生成');
+   if(source.vocalRestsOmitted!==vocalRestsOmitted)throw new ServiceError('YUE2_RECOVERY_UNAVAILABLE','恢复点使用了不同的乐谱处理方式，请从头生成');
    body={...(body as object),params:{...(body as {params:object}).params,resume_from:source.upstreamId}};
   }
-  const context=await this.engine.inspectInput(input);
-  if(context?.issue)throw new ServiceError('YUE2_CONTEXT_EXCEEDED',context.issue);
-  const id=randomUUID().replaceAll('-',''),record:RecordJob={job:{id,kind:'create',status:'queued',title:input.title,created_at:new Date().toISOString()},directory:state.directory,input:structuredClone(input)};
+  if(vocalRestsOmitted)body={...(body as object),params:{...(body as {params:object}).params,abc:input.abc?.trim(),omit_vocal_rests:true}};
+  const id=randomUUID().replaceAll('-',''),record:RecordJob={job:{id,kind:'create',status:'queued',title:input.title,created_at:new Date().toISOString()},directory:state.directory,input:structuredClone(input),vocalRestsOmitted};
   this.records.set(id,record);this.save();const controller=new AbortController();
   const done=this.resources.run({id,engine:'yue2',signal:controller.signal,demand:this.resources.estimate('yue2',{...input,...generationWithEnding(input),context,resourceProfile:this.engine.resourceProfile()}),onState:resource=>{record.job.resource=resource;record.job.stage=resource.message??resource.stage;this.save();},execute:async execution=>{
    await this.engine.activate(execution);execution.signal.throwIfAborted();execution.running();
@@ -212,7 +215,9 @@ export class YuE2Proxy {
   await this.migrate();const record=this.record(id);this.playable(record);
   const path=this.artifactPath(record,'score.abc');
   if(!existsSync(path))throw new ServiceError('NOT_FOUND','此版本没有保存 ABC 乐谱');
-  return new TextDecoder('utf-8',{fatal:true}).decode(readAudioFile(path,musicInputLimits.abc*4));
+  const effective=new TextDecoder('utf-8',{fatal:true}).decode(readAudioFile(path,musicInputLimits.abc*4));
+  // Score edits use the native two-voice source. The model-side score remains in the engine artifacts.
+  return record.vocalRestsOmitted?record.input?.abc??effective:effective;
  }
  async purge(id:string,removeLocal:(directory:string,id:string)=>void){
   await this.migrate();const record=this.record(id);

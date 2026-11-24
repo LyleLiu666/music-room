@@ -235,6 +235,21 @@ def parse_abc(text: str) -> Score:
     return parse(text)
 
 
+def accompaniment_only_abc(score: Score) -> str | None:
+    """Keep the original accompaniment and shared notation for a silent Vocal voice."""
+    if score.voices["Vocal"].notes or not score.voices["Ins"].notes:
+        return None
+    lines = score.text.splitlines(keepends=True)
+    omitted = {5}  # The two-voice parser has verified the header layout.
+    for index, voice in score.music_lines.items():
+        if voice == "Vocal":
+            start = index - 1
+            while lines[start].startswith(("M:", "K:")):
+                start -= 1
+            omitted.update(range(start, index + 1))
+    return "".join(line for index, line in enumerate(lines) if index not in omitted)
+
+
 def report(score: Score) -> dict:
     return {
         "scope": "native-dialect structural check; not native serializer reconstruction or audio verification",

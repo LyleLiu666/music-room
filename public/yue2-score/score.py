@@ -2,7 +2,7 @@
 import json, re, sys
 from pathlib import Path
 sys.path.insert(0,str(Path(__file__).parent/'vendor'))
-from abc_tools import parse_abc, report, compare, json_value
+from abc_tools import accompaniment_only_abc, parse_abc, report, compare, json_value
 from instrumentalize import convert_score, section_starts
 
 def inspect_score(text):
@@ -59,6 +59,11 @@ def dispatch(data):
   if count!=1: raise ValueError('需要唯一的 Q:1/4 速度标记')
   return dict(abc=abc,check=check_edit(data['abc'],abc,'tempo'))
  if op=='inspect': return inspect_score(data['abc'])
+ if op=='generation':
+  score=parse_abc(data['abc'])
+  vocal=score.voices['Vocal']
+  return dict(seconds=float(vocal.time*60/score.bpm), vocalNotes=len(vocal.notes),
+              accompanimentABC=accompaniment_only_abc(score) if data['omitSilentVocal'] else None)
  if op=='transfer': return transfer(data['abc'],data.get('overlap','error'))
  if op=='check': return check_edit(data['before'],data['abc'],data['kind'])
  if op=='section': return section_edit(data['abc'],data['lyrics'],data['index'],data['action'],data.get('instrumental',False))

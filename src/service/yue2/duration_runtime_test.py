@@ -164,6 +164,32 @@ class DurationTests(unittest.TestCase):
    else:
     with self.assertRaisesRegex(ValueError,'自定义乐谱.*目标时长'):self.run_plan(p,r)
    self.assertEqual(len(p.requests),1)
+ def test_preserves_the_source_for_duration_and_sends_only_accompaniment_to_the_model(self):
+  both=score(60).replace('C32|','"C"z32|').replace('V: Ins\nz32|','V: Ins\nE32|')
+  both=both.replace('V: Vocal\n', '% verse\nV: Vocal\n',1)
+  both=both.replace('V: Vocal\n"C"z32|\nV: Ins\nE32|','V: Vocal\nM:4/4\nK:G\n"C"z32|\nV: Ins\nM:4/4\nK:G\nE32|',1)
+  effective='\n'.join(line for line in both.split('\n')[:5]+both.split('\n')[6:8])+'\n% verse\n'
+  effective+=('V: Ins\nM:4/4\nK:G\nE32|\n'+'V: Ins\nE32|\n'*14).rstrip()
+  request=Request(abc=both,lyrics='[Verse]\n原词不变')
+  for target in (None,60,180):
+   p=Pipe([(effective,False)])
+   if target==180:
+    with self.assertRaisesRegex(ValueError,'自定义乐谱.*目标时长'):
+     plan_for_duration(p,request,None,None,None,target,self.out,omit_vocal_rests=True)
+    continue
+   result=plan_for_duration(p,request,None,None,None,target,self.out,omit_vocal_rests=True)
+   self.assertEqual(p.requests,[replace(request,abc=effective)])
+   self.assertEqual(result.request,request)
+   self.assertEqual(result.abc,effective)
+   report=json.loads((self.out/'duration.json').read_text())
+   self.assertEqual(report['scoreSeconds'],60)
+   self.assertTrue(report['accepted'])
+   self.assertTrue(report['vocalRestsOmitted'])
+  for unusable in (score(60),both.replace('E32|','z32|'),'invalid'):
+   p=Pipe([])
+   with self.assertRaises(ValueError):
+    plan_for_duration(p,replace(request,abc=unusable),None,None,None,None,self.out,omit_vocal_rests=True)
+   self.assertEqual(p.requests,[])
  def test_auto_duration_replans_truncated_score_without_forcing_a_duration(self):
   p=Pipe([(score(180),True),(score(120),False)])
   result=plan_for_duration(p,Request(),None,None,None,None,self.out)
