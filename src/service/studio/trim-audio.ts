@@ -7,8 +7,8 @@ export const trimOptions={startSeconds:z.number().finite().nonnegative(),endSeco
 export type TrimOptions={startSeconds:number;endSeconds:number;fadeInMs:number;fadeOutMs:number;requestId:string};
 
 /** Sample-accurate WAV output with independent, bounded fades and no change to the source. */
-export async function trimAudio(bytes:Uint8Array,options:TrimOptions){
- const {sampleRate,channelData}=await decodeAudio(bytes,undefined,30),length=channelData[0].length;
+export async function trimAudio(bytes:Uint8Array,options:TrimOptions,signal?:AbortSignal,maxSeconds=30){
+ const {sampleRate,channelData}=await decodeAudio(bytes,signal,maxSeconds),length=channelData[0].length;
  const start=Math.round(options.startSeconds*sampleRate),end=Math.round(options.endSeconds*sampleRate);
  const fadeIn=Math.round(options.fadeInMs*sampleRate/1000),fadeOut=Math.round(options.fadeOutMs*sampleRate/1000),frames=end-start;
  if(!Number.isFinite(options.startSeconds)||!Number.isFinite(options.endSeconds)||options.startSeconds<0||options.endSeconds>length/sampleRate||end>length||frames<1)throw new ServiceError('INVALID_AUDIO','请选择音频范围内有效的起止时间');

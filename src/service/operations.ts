@@ -1,3 +1,5 @@
+import {coverRange,coverRequest} from './studio/ace-cover.ts';
+import type {CoverEngine} from './studio/ace-cover-runtime.ts';
 import type {MusicCreationGuide} from './yue2/authoring-guide.ts';
 import {effectRequest,type SoundEffects} from './studio/sound-effects.ts';
 import {trimOptions} from './studio/trim-audio.ts';
@@ -71,6 +73,11 @@ export const operations = {
   studio_cancel:{description:'取消指定声音版本的生成任务。',schema:z.object({versionId:id}).strict()},
   studio_import_score:{description:'将 Agent 交付的 JSON 乐谱导入指定声音，新版保留来源，不覆盖旧版。',schema:z.object({soundId:id,compositionJson:z.string().min(1).max(4*1024*1024),parentId:id.optional()}).strict()},
   studio_save_speed:{description:'将已完成音频按指定速度保存为独立新版本，保持音调并保留原版。requestId 用于安全重试。',schema:z.object({versionId:id,rate:z.number().min(.5).max(2).refine(n=>n!==1),requestId:z.string().min(1).max(120)}).strict()},
+  ace_cover_status:{description:'查看本机 ACE-Step 翻唱模型及准备状态。',schema:z.object({}).strict()},
+  ace_cover_prepare:{description:'将固定版 ACE-Step 翻唱模型的准备工作加入本机队列。',schema:z.object({}).strict()},
+  ace_cover_cancel_preparation:{description:'取消翻唱模型准备，等待进程释放。',schema:z.object({}).strict()},
+  studio_cover_selection:{description:'读取原曲选段歌词；只有同步歌词可按选段匹配。',schema:z.object({versionId:id,...coverRange}).strict()},
+  studio_cover_generate:{description:'以已有音乐的 10–60 秒片段生成翻唱子版本，并保留来源与原曲。',schema:coverRequest},
   studio_trim_audio:{description:'截取项目中的音效版本并另存为子版本；按毫秒淡入淡出，保留原版，requestId 去重。',schema:z.object({versionId:id,...trimOptions}).strict()},
   studio_save_mix:{description:'将当前乐谱混音保存为同一声音的新版本并后台合成，保留原版与成品选择；requestId 保证重试不重复创建。',schema:z.object({versionId:id,requestId:id,mix:mixSchema}).strict()},
   studio_render:{description:'把已有乐谱合成为试听文件。',schema:z.object({versionId:id}).strict()},
@@ -120,6 +127,8 @@ export type LibrarySnapshot = {projects:Project[];documents:Composition[];jobs:J
 export type AuthoringContext = {project?:Project;revision?:RevisionDocument;feedback:Feedback[];guide:string;example:Composition;prompt:string;rules:string;workflow:Operation[];tracks:string};
 export type ResourceStatus=Awaited<ReturnType<ResourceCoordinator['status']>>;
 export type OperationResults = {
+  ace_cover_status:ReturnType<CoverEngine['status']>;ace_cover_prepare:ReturnType<CoverEngine['status']>;ace_cover_cancel_preparation:Awaited<ReturnType<CoverEngine['cancelPreparation']>>;
+  studio_cover_selection:Awaited<ReturnType<StudioService['coverSelection']>>;studio_cover_generate:StudioVersion;
   sound_effect_status:ReturnType<SoundEffects['status']>;sound_effect_prepare:ReturnType<SoundEffects['status']>;sound_effect_cancel_preparation:Awaited<ReturnType<SoundEffects['cancelPreparation']>>;
   sound_effect_generate:ReturnType<SoundEffects['start']>;sound_effect_job:ReturnType<SoundEffects['get']>;sound_effect_cancel:Awaited<ReturnType<SoundEffects['cancel']>>;
   studio_music_edit_open:MusicEditDraft;studio_music_edit_prepare:MusicEditDraft;studio_music_edit_brief:{text:string};studio_music_edit_generate:StudioVersion;

@@ -1,3 +1,4 @@
+import {coverProfile} from '../studio/ace-cover.ts';
 import type {ResourceDemand} from './contracts.ts';
 import {referenceModels} from '../tts/reference-models.ts';
 import {cleanReferenceScript} from '../tts/reference-python.ts';
@@ -31,6 +32,7 @@ export function estimateResources(engine:string,input:any):ResourceDemand{
    peak=yueMemoryBudget(input.preset,input.instrumental,c);verified=true;
   }
  }
+ if(engine==='ace-cover'&&match(input?.resourceProfile,coverProfile)&&Number.isFinite(input?.seconds)&&input.seconds>=10&&input.seconds<=60)return structuredClone(modelMemory.aceCover);
  if(engine==='reference'&&match(input?.resourceProfile,referenceProfile)&&Number.isFinite(input?.duration)&&input.duration>=.3&&input.duration<=15.1)return structuredClone(modelMemory.reference);
  if(engine==='conversion'&&match(input?.resourceProfile,conversionProfile))return structuredClone(modelMemory.conversion);
  return {verified,startup:{memory:peak},peak:{memory:peak}};
