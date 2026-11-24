@@ -386,7 +386,7 @@ export class StudioService{
  async coverSelection(args:{versionId:string;startSeconds:number;endSeconds:number}){return this.serial(async()=>{
   const {version}=this.coverSource(args.versionId);
   if(args.endSeconds<=args.startSeconds)fail('请选择有效的翻唱片段');
-  return coverLyrics(readLyrics(this.service.store.path('lyrics'),version),args);
+  return coverLyrics(readLyrics(this.service.store.path('lyrics'),version),args,version.duration);
  });}
  async startCover(args:CoverRequest){const prepared=await this.serial(async()=>{
   if(this.closing)throw new ServiceError('CLOSED','服务正在退出');

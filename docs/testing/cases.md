@@ -13,7 +13,7 @@
 | LIVE-02 / P0 | 从声音库开启演奏，拖动切换风格，15 秒后回留、试听及加入指定项目，等待停止 | 模型释放后窗口关闭；保存不打断演奏；侧栏状态、来源列和灵感标记正确；日夜主题及小窗可操作 | `scripts/verify/verify-magenta-live-ui.test.mjs` |
 | LIVE-01 / P0 | 启动 Magenta 会话、改变风格、按已播放位置回留片段、停止；故障后重复启动 | 分块连续，提前生成部分不进入回留，精确 15 秒；保存去重与重开可读；释放前后共享队列行为正确 | `src/service/studio/live-play.test.ts`、`src/service/studio/live-ring.test.ts`、`scripts/verify/verify-magenta-live-real.ts` |
 | COVER-02 / P0 | 从原唱拖动选段，提交后切回原唱同位置；在日间与夜间标记成品 | 数字与波形同步，循环时两个播放按钮一致；按相对秒数切换，原曲时长及描述保留；成品状态一致 | `scripts/verify/verify-ace-cover-ui.test.mjs` |
-| COVER-01 / P0 | 用固定范围选取原唱，重复提交，完成或取消翻唱后重开工作区 | 同步歌词按时间选取；重复请求关联已有任务；翻唱为独立子版本，取消不发布音频，原曲和成品选择完整保留 | `src/service/studio/ace-cover.test.ts`、`scripts/verify/verify-ace-cover-real.ts` |
+| COVER-01 / P0 | 用固定范围选取原唱，重复提交，完成或取消翻唱后重开工作区 | 同步歌词按时间选取，原词按顺序估算并保留段落；重复请求关联已有任务；翻唱为独立子版本，取消不发布音频，原曲和成品选择完整保留 | `src/service/studio/ace-cover.test.ts`、`scripts/verify/verify-ace-cover-real.ts` |
 | SFX-05 / P0 | 截取项目音效或独立 WAV / FLAC，选择起止与淡入淡出；提交前后强制退出 | 原音不变；新 WAV 的长度与边界正确，首尾平滑，双声道及未淡化片段保留；非法时间被拒绝；重试无重复且无孤立文件 | `src/service/studio/trim-audio.test.ts`、`src/service/studio/effect-workflow.test.ts`、`src/service/studio/publication-crash.test.ts`、`scripts/verify/verify-sound-library-ui.test.mjs` |
 | DRAFT-01 / P0 | 同浏览器两窗口打开同一目录，分别编辑不同声音；旧窗口导航后刷新 | 两份草稿都保留；不能用整个旧快照覆盖新稿 | `src/workbench/studio/drafts.test.ts`、`scripts/verify/verify-drafts-ui.test.mjs` |
 | DRAFT-02 / P0 | 两窗口编辑同一声音，分别选择保留当前 / 使用已保存内容 | 冲突可见；选择前当前输入不丢失；选择后刷新符合决定；转换的升降调也适用 | 同上 |
@@ -94,6 +94,7 @@
 | REAL-02 | 独立包已构建，普通用户账号 | 隐藏 dist，PATH 仅系统命令；开启 MCP，渲染、下载、重开 | 所有资源来自包；本机模型与系统组件要求按使用文档执行；不要求源码和 Node |
 | REAL-03 | 有足够磁盘的受控测试卷 | 安装 / 下载 / 保存时逐步耗尽空间，然后释放空间重试 | 不把部分安装标成就绪；已有模型和产物不损坏；不默认在用户磁盘造满盘 |
 | REAL-04 | 保存了声音的隔离目录 | 锁屏、睡眠、唤醒；网络断开再恢复；关闭所有网页再打开 | 后台状态可恢复，音频仍可读；失败说明明确，不假显示完成 |
+| REAL-05 | 已构建独立包，隔离目录有 Magenta 和 ACE 权重 | Chrome 开始真实即兴，切换风格并回留；演奏时提交 ACE 翻唱，停止前后查看队列 | 回留可见且为 15 秒；演奏期间翻唱排队；停止后翻唱完成且原曲哈希保持一致。断言见 `scripts/verify/verify-cover-live-binary-real.ts` |
 | UI-ZOOM-01 | 200% 浏览器缩放，深浅主题 | 新建、创作、版本菜单、回收站、下载、声音库 | 无重要控件遮挡；正文可读；状态不只靠颜色；保留截图 |
 | SOAK-01 | 固定机器，隔离目录 | 至少 60 分钟连续循环，另做真实模型混合任务 | 记录真实持续时间、任务数、RSS / 系统压力、p95；短测不等价于长稳 |
 | QUALITY-01 | 固定语料已准备，真实模型完成 | 按固定样本逐条听评，实际唱词独立转写 | 见[质量标准](quality.md)；任何未评分项维持待验收 |

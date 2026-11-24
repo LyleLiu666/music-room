@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import {mkdir,copyFile,readFile,writeFile} from 'node:fs/promises';
 import {resolve,join,dirname} from 'node:path';
+import {constants} from 'node:fs';
 import {setTimeout} from 'node:timers/promises';
 import {MusicService} from '../../src/service/service.ts';
 import {liveAssets} from '../../src/service/studio/live-assets.ts';
@@ -14,7 +15,7 @@ await mkdir(root,{mode:0o700});
 if(cache)for(const [filename] of liveAssets){
  const file=join(root,'engines','magenta-live','magenta-rt-v2',filename);
  await mkdir(dirname(file),{recursive:true,mode:0o700});
- await copyFile(join(cache,filename),file);
+ await copyFile(join(cache,filename),file,constants.COPYFILE_FICLONE);
 }
 const noMusic={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
 const noSpeech={installed:()=>false,prepare:async()=>{},generate:async()=>{throw Error('unused');}};

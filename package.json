@@ -22,7 +22,7 @@
     "serve": "node src/server/dev.ts start",
     "mcp": "node src/server/dev.ts mcp",
     "verify:service": "npm run test:service && npm run verify:score",
-    "build:binary": "npm run build && node scripts/build/build-binary.mjs",
+    "build:binary": "npm run build:ace-cover-native && npm run build && node scripts/build/build-binary.mjs",
     "verify:library:binary": "MUSIC_ROOM_BINARY=1 node --test --test-timeout=90000 scripts/verify/verify-listening-queue-ui.test.mjs",
     "verify:binary": "node scripts/verify/verify-binary.mjs",
     "verify:yue2:real": "node scripts/verify/verify-yue2-real.mjs",
@@ -57,7 +57,9 @@
     "verify:sound-effects:real": "node scripts/verify/verify-sound-effects-real.ts",
     "verify:music-minio": "node scripts/verify/verify-music-minio.mjs",
     "verify:ace-cover:real": "node scripts/verify/verify-ace-cover-real.ts",
-    "verify:magenta-live:real": "node scripts/verify/verify-magenta-live-real.ts"
+    "verify:magenta-live:real": "node scripts/verify/verify-magenta-live-real.ts",
+    "build:ace-cover-native": "node scripts/build/build-ace-cover-native.ts",
+    "verify:cover-live:binary:real": "node scripts/verify/verify-cover-live-binary-real.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "3.1173.0",

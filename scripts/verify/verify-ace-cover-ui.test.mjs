@@ -94,6 +94,8 @@ test('cover panel selects, loops and submits; grouped comparison keeps time and 
   await page.setViewportSize({width:390,height:844});
   await page.locator('[data-action=cover]').click();
   await page.locator('#cover-panel').waitFor();
+  await page.locator('[data-lyric-source]').filter({hasText:'按原歌词顺序估算'}).waitFor();
+  assert.match(await page.locator('#cover-form [name=lyrics]').inputValue(),/阳光爬上窗沿/);
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.getByRole('button',{name:'关闭翻唱面板'}).click();
   assert.deepEqual(errors,[]);

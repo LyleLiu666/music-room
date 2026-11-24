@@ -20,7 +20,19 @@ export const coverRequest=z.object({
 }).strict().refine(({startSeconds,endSeconds})=>endSeconds-startSeconds>=10&&endSeconds-startSeconds<=60,'翻唱片段需为 10–60 秒');
 export type CoverRequest=z.output<typeof coverRequest>;
 export type CoverProvenance=Omit<CoverRequest,'versionId'>&{sourceVersionId:string;sourceNumber:number;seed:number;bpm?:number};
-export function coverLyrics(result:LyricsResult,{startSeconds,endSeconds}:Pick<CoverRequest,'startSeconds'|'endSeconds'>){
+export function coverLyrics(result:LyricsResult,{startSeconds,endSeconds}:Pick<CoverRequest,'startSeconds'|'endSeconds'>,duration?:number){
  if(result.kind==='synced')return {kind:'synced' as const,text:result.lines.filter(line=>line.end>startSeconds&&line.start<endSeconds).map(line=>line.text).join('\n')};
- return {kind:result.kind,text:result.reference};
+ if(result.kind==='none'||!duration||!Number.isFinite(duration))return {kind:result.kind,text:result.reference};
+ const lines:{text:string;section:string}[]=[];
+ let section='';
+ for(const line of result.reference.split(/\r?\n/u)){
+  const text=line.trim();
+  if(!text)continue;
+  if(/^\[[^\]]+\]$/u.test(text))section=text;
+  else lines.push({text,section});
+ }
+ const first=Math.floor(startSeconds/duration*lines.length),after=Math.ceil(endSeconds/duration*lines.length);
+ const selected=lines.slice(first,after);
+ const text=selected.map((line,index)=>line.section&&line.section!==selected[index-1]?.section?`${line.section}\n${line.text}`:line.text).join('\n');
+ return {kind:'plain' as const,text};
 }

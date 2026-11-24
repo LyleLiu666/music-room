@@ -1,7 +1,9 @@
-import {existsSync,lstatSync,mkdirSync,readFileSync,writeFileSync,renameSync,rmSync,accessSync,constants} from 'node:fs';
+import {existsSync,lstatSync,mkdirSync,readFileSync,writeFileSync,renameSync,rmSync} from 'node:fs';
 import {mkdtemp,readFile} from 'node:fs/promises';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
+import type {AssetReader} from '../render/renderer.ts';
+import {coverArchives,coverProgramAsset,coverProgramManifest,buildCoverProgram} from './ace-cover-program.ts';
 import {ownedCommand} from '../resources/commands.ts';
 import {installTask} from '../resources/installation.ts';
 import type {ResourceCoordinator} from '../resources/coordinator.ts';
@@ -9,10 +11,6 @@ import {userCancelled,type ResourceExecution} from '../resources/contracts.ts';
 import {downloadSpeechFile} from '../tts/native-install.ts';
 import {coverModel,coverProfile,coverStrengths,type CoverProvenance} from './ace-cover.ts';
 
-const archives=[
- ['ace.tar.gz',`https://codeload.github.com/ServeurpersoCom/acestep.cpp/tar.gz/${coverProfile.revision}`,'03be6fb9f19caa80a60df2113d275b0cea0fd197f3d2985a3f9cd8d515213613'],
- ['ggml.tar.gz','https://codeload.github.com/ServeurpersoCom/ggml/tar.gz/ef4555b7aede4467a5de803b103615e0a5f30dd8','5e9c6bc3f06804d437d1ff4cbc5070593de3f3e0a25bd9dd34029e28e94a4c6d'],
-] as const;
 const weights=[
  [coverModel,'a241c9a721e3704cb04b17ce6a40c9aa714d3ee5cf49c2219972020eb761f5a4'],
  ['Qwen3-Embedding-0.6B-Q8_0.gguf','972f23255e46adfe744a0eb9a0039f3c63988f65753b0968d776e8b27168c321'],
@@ -39,7 +37,7 @@ export type CoverDriver={
  prepare:(context:ResourceExecution,report:(message:string)=>void)=>Promise<void>;
  generate:(source:Uint8Array,cover:CoverProvenance,context:ResourceExecution)=>Promise<Uint8Array>;
 };
-export function createCoverDriver(root:string):CoverDriver{
+export function createCoverDriver(root:string,embedded?:AssetReader):CoverDriver{
  const models=join(root,'models'),binary=join(root,'ace-synth'),marker=join(root,'installed.json');
  const files=()=>[stamp(binary),...weights.map(([name])=>stamp(join(models,name)))];
  const supported=()=>process.platform==='darwin'&&process.arch==='arm64';
@@ -54,25 +52,23 @@ export function createCoverDriver(root:string):CoverDriver{
   if(!supported())throw Error('翻唱模型当前支持 Apple Silicon Mac');
   if(installed())return;
   directory(root);directory(models);
-  const cmake=['/opt/homebrew/bin/cmake','/usr/local/bin/cmake','/Applications/CMake.app/Contents/bin/cmake'].find(path=>{try{accessSync(path,constants.X_OK);return true;}catch{return false;}});
-  if(!cmake)throw Error('首次本机构建翻唱程序需要 CMake，可用 brew install cmake 安装');
   const context={...execution,report,stage:report};
-  for(const [name,url,sha] of archives)await downloadSpeechFile(url,join(root,name),sha,context);
+  if(!embedded)for(const [name,url,sha] of coverArchives)await downloadSpeechFile(url,join(root,name),sha,context);
   for(const [name,sha] of weights){
    report(`准备翻唱模型 · ${name}`);
    await downloadSpeechFile(`https://huggingface.co/Serveurperso/ACE-Step-1.5-GGUF/resolve/${coverProfile.weights}/${name}`,join(models,name),sha,context);
   }
   const staging=await mkdtemp(join(root,'build-'));
   try{
-   const ggml=join(staging,'ggml');
-   await command('/usr/bin/tar',['-xzf',join(root,archives[0][0]),'--strip-components','1','-C',staging],staging,execution);
-   directory(ggml);
-   await command('/usr/bin/tar',['-xzf',join(root,archives[1][0]),'--strip-components','1','-C',ggml],staging,execution);
-   report('正在构建本机翻唱程序');
-   await command(cmake,['-S',staging,'-B','out','-DCMAKE_BUILD_TYPE=Release','-DBUILD_SHARED_LIBS=OFF'],staging,execution);
-   await command(cmake,['--build','out','--target','ace-synth','-j','2'],staging,execution);
-   const program=join(staging,'out','ace-synth');
-   await command('/usr/bin/otool',['-L',program],staging,execution).then(log=>{if(log.includes('libggml'))throw Error('翻唱程序未静态链接推理库');});
+   report('正在准备本机翻唱程序');
+   let program:string;
+   if(embedded){
+    const manifest=JSON.parse(new TextDecoder().decode(await embedded(coverProgramManifest)));
+    const data=await embedded(coverProgramAsset);
+    if(manifest.revision!==coverProfile.revision||manifest.sha256!==createHash('sha256').update(data).digest('hex'))throw Error('内置翻唱程序校验失败');
+    program=join(staging,'ace-synth');
+    writeFileSync(program,data,{flag:'wx',mode:0o700});
+   }else program=await buildCoverProgram(staging,root,(commandPath,args)=>command(commandPath,args,staging,execution));
    execution.signal.throwIfAborted();
    renameSync(program,binary);
    const metadata={revision:coverProfile.revision,weights:coverProfile.weights,files:files(),binarySha:createHash('sha256').update(readFileSync(binary)).digest('hex')};

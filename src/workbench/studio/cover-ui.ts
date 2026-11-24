@@ -273,7 +273,7 @@ export class CoverUI {
    timer=setTimeout(()=>void this.h.api.call('studio_cover_selection',{versionId:source.id,startSeconds:this.clip.start,endSeconds:this.clip.end}).then(result=>{
     if(lifetime.signal.aborted||generation!==statusVersion||lyricsChanged)return;
     lyricsPending=false;lyrics.value=result.text;
-    note.textContent=result.kind==='synced'?'来自同步歌词 · 可校对':result.kind==='plain'?'原歌词没有时间标记，请保留这段实际唱到的词':'可填写这段歌词，纯音乐可留空';
+    note.textContent=result.kind==='synced'?'来自同步歌词 · 可校对':result.kind==='plain'?'按原歌词顺序估算，请对照试听校对':'可填写这段歌词，纯音乐可留空';
    },error=>{if(!lifetime.signal.aborted&&generation===statusVersion){lyricsPending=false;note.textContent=error.message;}}),140);
   };
   query<HTMLButtonElement>('[data-cover-refresh-lyrics]').onclick=e=>{lyricsChanged=false;(e.currentTarget as HTMLButtonElement).hidden=true;updateLyrics();};

@@ -33,6 +33,8 @@ test('play live changes style while streaming, captures the heard window and joi
   await page.locator('#play-live').click();
   await page.waitForFunction(()=>document.querySelector('[data-live-status]')?.textContent.includes('正在演奏'));
   assert.equal(await page.locator('#play-live').getAttribute('aria-pressed'),'true');
+  const titleBox=await page.locator('.sound-library-title').boundingBox(),entryBox=await page.locator('#play-live').boundingBox(),tabsBox=await page.locator('.library-tabs').boundingBox();
+  assert.ok(Math.abs(titleBox.y-entryBox.y)<5&&tabsBox.y>entryBox.y+entryBox.height,'desktop live entry shares the heading row above the tabs');
   assert.match(await page.locator('[data-task-live]').innerText(),/正在演奏/);
   assert.equal(await page.locator('[data-live-save]').isDisabled(),true);
   const slider=page.locator('[data-live-mix]');await slider.focus();await page.keyboard.press('End');
@@ -44,6 +46,8 @@ test('play live changes style while streaming, captures the heard window and joi
   const row=page.locator('.sound-library-row').filter({hasText:'片段 1'});
   await row.waitFor();
   assert.match(await row.innerText(),/玩一段/);assert.match(await row.innerText(),/灵感/);
+  const nameBox=await row.locator('.sound-library-copy strong').boundingBox(),sourceBox=await row.locator('.sound-library-copy > span').boundingBox();
+  assert.ok(sourceBox.x>nameBox.x&&Math.abs(sourceBox.y-nameBox.y)<5,'source appears in its own desktop column');
   assert.match(await page.locator('[data-live-saved]').innerText(),/0:15/);
   const count=generated;await page.waitForTimeout(1200);assert.ok(generated>count,'capture does not interrupt stream');
   await mkdir('test-results/magenta-live-ui',{recursive:true});

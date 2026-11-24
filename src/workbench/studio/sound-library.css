@@ -99,4 +99,8 @@
 .library-header-actions {margin-left:auto;display:flex;gap:8px;align-items:center;}
 .library-header-actions button {padding:8px 12px;font-size:var(--t-13);min-height:36px;white-space:nowrap;}
 .effect-actions {display:flex;gap:8px;flex-wrap:wrap;}
-@media (max-width:640px) { .library-header-actions {gap:4px;} .library-header-actions button {padding:7px 8px;} }
+@media (max-width:640px) {
+ .sound-library-header {column-gap:6px;}
+ .library-header-actions {gap:4px;}
+ .library-header-actions button {padding:7px 7px;}
+}

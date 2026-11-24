@@ -14,6 +14,7 @@ release/
 .ui-review/
 
 public/resource-native/
+public/ace-cover-native/
 
 # Python runtime caches
 __pycache__/

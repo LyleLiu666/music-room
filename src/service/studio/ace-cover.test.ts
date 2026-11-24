@@ -2,12 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {coverLyrics,coverRequest,coverStrengths} from './ace-cover.ts';
 
-test('cover selection uses overlapping timed lines and exposes untimed reference without guessing the range',()=>{
+test('cover selection uses timed intersections and suggests the corresponding untimed reference ranges',()=>{
  const bounds={startSeconds:15,endSeconds:45};
- const base={draft:false,reference:'原歌词',lines:[]};
- assert.deepEqual(coverLyrics({...base,kind:'plain'},bounds),{kind:'plain',text:'原歌词'});
+ const base={draft:false,reference:'[Verse]\n第一句\n第二句\n\n[Chorus]\n第三句\n第四句',lines:[]};
+ assert.deepEqual(coverLyrics({...base,kind:'plain'},bounds,60),{kind:'plain',text:'[Verse]\n第二句\n[Chorus]\n第三句'});
+ assert.deepEqual(coverLyrics({...base,kind:'plain'},{startSeconds:55,endSeconds:60},60),{kind:'plain',text:'[Chorus]\n第四句'});
+ assert.deepEqual(coverLyrics({...base,kind:'none',reference:''},bounds,60),{kind:'none',text:''});
  const lines=[{start:12,end:15,text:'以前'},{start:14,end:16,text:'起点切中'},{start:40,end:47,text:'终点切中'},{start:45,end:50,text:'以后'}];
- assert.deepEqual(coverLyrics({...base,kind:'synced',lines,duration:60,revision:'abc',unresolved:[],manuallyEdited:false},bounds),{kind:'synced',text:'起点切中\n终点切中'});
+ assert.deepEqual(coverLyrics({...base,kind:'synced',lines,duration:60,revision:'abc',unresolved:[],manuallyEdited:false},bounds,60),{kind:'synced',text:'起点切中\n终点切中'});
 });
 test('cover admits a bounded clip and gives each edit strength a distinct source ratio',()=>{
  const request={requestId:'cover-one',versionId:'source-1',startSeconds:15,endSeconds:45,style:'沙哑女声',lyrics:'同样的歌词',strength:'balanced'};

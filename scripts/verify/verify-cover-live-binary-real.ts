@@ -1,0 +1,102 @@
+import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+import {randomUUID} from 'node:crypto';
+import {copyFile,mkdir,readFile,writeFile} from 'node:fs/promises';
+import {constants,existsSync} from 'node:fs';
+import {resolve,join} from 'node:path';
+import {setTimeout} from 'node:timers/promises';
+import {Client} from '@modelcontextprotocol/sdk/client/index.js';
+import {StdioClientTransport} from '@modelcontextprotocol/sdk/client/stdio.js';
+import {chromium,type Browser} from 'playwright';
+import {coverModel} from '../../src/service/studio/ace-cover.ts';
+import {hash} from '../../src/service/projects/store.ts';
+import {audioShape} from '../../src/service/studio/audio-budget.ts';
+import type {Operation,OperationInput,OperationResults} from '../../src/service/operations.ts';
+
+const [directory,source,aceCache]=process.argv.slice(2);
+if(!directory||!source||!aceCache)throw Error('传入已完成的 Magenta 真实验收工作区、原曲 WAV 和 ACE 模型缓存目录');
+const root=resolve(directory);
+await readFile(join(root,'report.json'));
+const binary=resolve('release/music-room'),environment={...process.env,PATH:'/usr/bin:/bin'};
+const original=await readFile(source),shape=audioShape(original);
+assert.ok(shape.frames/shape.rate>=15);
+const runId=randomUUID(),src=`original-${runId}`;
+const models=join(root,'engines','ace-cover','models');
+await mkdir(models,{recursive:true,mode:0o700});
+for(const model of [coverModel,'Qwen3-Embedding-0.6B-Q8_0.gguf','vae-BF16.gguf'])await copyFile(join(aceCache,model),join(models,model),constants.COPYFILE_FICLONE);
+const connect=async()=>{
+ const client=new Client({name:'cover-live-binary-real',version:'1'});
+ await client.connect(new StdioClientTransport({command:binary,args:['mcp','--workspace',root],env:environment,stderr:'inherit'}));
+ return client;
+};
+let client=await connect();
+let browser:Browser|undefined;
+const call=async<K extends Operation>(name:K,args:OperationInput<K>)=>{
+ const response=await client.callTool({name,arguments:args as Record<string,unknown>});
+ assert.equal(response.isError??false,false,JSON.stringify(response.content));
+ return response.structuredContent as OperationResults[K];
+};
+const stop=()=>execFileSync(binary,['stop','--workspace',root],{env:environment,encoding:'utf8'});
+try{
+ const project=await call('create_project',{projectId:`mixed-${runId}`,title:'真实队列验收'});
+ const sound=await call('studio_create_sound',{projectId:project.id,title:'原曲',kind:'music'});
+ await client.close();stop();
+ const index=join(root,'studio.json'),data=JSON.parse(await readFile(index,'utf8'));
+ data.versions.push({id:src,soundId:sound.id,number:1,createdAt:new Date().toISOString(),state:'succeeded',stage:'已完成',kept:false,deleted:false,duration:shape.frames/shape.rate,source:{kind:'audio',id:src},audioPath:`/studio-audio/${src}`,audioHash:hash(original)});
+ await mkdir(join(root,'studio-audio'),{recursive:true,mode:0o700});
+ await writeFile(join(root,'studio-audio',src+'.wav'),original);await writeFile(index,JSON.stringify(data));
+ client=await connect();
+ assert.equal((await call('live_play_status',{})).installed,true);
+ await call('ace_cover_prepare',{});
+ for(let i=0;;i++){
+  const status=await call('ace_cover_status',{});
+  if(status.installed)break;
+  assert.equal(status.preparation?.state,'preparing',status.preparation?.message??'翻唱准备失败');
+  assert.ok(i<1000,'翻唱安装超时');await setTimeout(300);
+ }
+ assert.equal(existsSync(join(root,'engines','ace-cover','ace.tar.gz')),false,'the packaged program must not require source archives');
+ const runtime=JSON.parse(await readFile(join(root,'.music-room.runtime.json'),'utf8'));
+ const download=async(path:string)=>{const response=await fetch(runtime.url+path,{headers:{authorization:`Bearer ${runtime.token}`}});assert.equal(response.status,200);return new Uint8Array(await response.arrayBuffer());};
+ const embedded=JSON.parse(new TextDecoder().decode(await download('/ace-cover-native/manifest.json')));
+ assert.equal(hash(await readFile(join(root,'engines','ace-cover','ace-synth'))),embedded.sha256);
+ browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required']});
+ const page=await browser.newPage({viewport:{width:1440,height:900}}),errors:string[]=[];
+ page.on('pageerror',error=>errors.push(error.message));
+ await page.goto(runtime.url);
+ await page.locator('[data-action=sound-library]').click();
+ await page.locator('#play-live').click();
+ await page.locator('[data-live-status]').filter({hasText:'正在演奏'}).waitFor({timeout:60_000});
+ const sessionId=(await call('live_play_status',{})).session?.id;
+ assert.ok(sessionId);
+ await page.locator('[data-live-mix]').press('End');
+ await page.locator('[data-live-heard-label]').filter({hasText:'迪斯科 100%'}).waitFor({timeout:15_000});
+ const req={requestId:`cover-${runId}`,versionId:src,startSeconds:0,endSeconds:15,style:'Raspy low alto Mandarin singing with overdriven rock band',lyrics:'[Verse]\n周六的阳光爬上窗沿\n你把帐篷绑在车后架\n两瓶汽水在车筐里晃',strength:'balanced' as const};
+ const cover=await call('studio_cover_generate',req);
+ await page.getByRole('button',{name:'留下刚才这段'}).click({timeout:25_000});
+ await page.locator('[data-live-saved]').filter({hasText:'0:15'}).waitFor();
+ await page.screenshot({path:join(root,'live-binary.png')});
+ const concurrent=await call('resource_status',{});
+ assert.equal(concurrent.active?.id,sessionId);
+ assert.ok(concurrent.queued.some(task=>task.id===cover.id));
+ const shutdown=Date.now();
+ await page.getByRole('button',{name:'停止并关闭'}).click();
+ await page.locator('#live-panel').waitFor({state:'hidden'});
+ assert.equal((await call('live_play_status',{})).session?.phase,'stopped');
+ const releaseMs=Date.now()-shutdown;
+ let result:OperationResults['studio_cover_generate']|undefined;
+ for(let i=0;i<360;i++){
+  result=(await call('studio_library',{})).versions.find(v=>v.id===cover.id);
+  if(result?.state==='succeeded')break;
+  assert.notEqual(result?.state,'failed',result?.error??'翻唱失败');
+  await setTimeout(300);
+ }
+ assert.equal(result?.state,'succeeded');assert.equal(result?.duration,15);assert.equal(result?.parentId,src);
+ assert.deepEqual(errors,[]);
+ assert.equal(hash(await download(`/studio-audio/${src}`)),hash(original));
+ const bytes=await download(result!.audioPath!);
+ assert.deepEqual(audioShape(bytes),{frames:720000,rate:48000,channels:2});
+ await writeFile(join(root,'cover-mixed.wav'),bytes);
+ const report={liveSession:sessionId,coverId:cover.id,originalId:src,originalSha256:hash(original),coverSha256:hash(bytes),shape,releaseMs,coverPeak:result?.resource?.peak?.memory};
+ await writeFile(join(root,'mixed-report.json'),JSON.stringify(report,null,2));
+ console.log(report);
+}finally{await browser?.close();await client.close();stop();}

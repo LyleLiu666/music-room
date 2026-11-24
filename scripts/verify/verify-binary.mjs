@@ -11,6 +11,7 @@ import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {presetVoices} from '../../src/service/tts/preset-manifest.ts';
 import {nativeProgramManifest} from '../../src/service/tts/native-program-manifest.ts';
+import {coverBuildOptions} from '../../src/service/studio/ace-cover-program.ts';
 import {audioShape} from '../../src/service/studio/audio-budget.ts';
 import {decodeAudio} from '../../src/service/studio/decode-audio.ts';
 import {encodeWav} from '../../src/wav.ts';
@@ -37,8 +38,25 @@ try {
   const status=await tool('status');assert.equal(status.workspace,await realpath(workspace));assert.equal(status.engines.find(e=>e.id==='yue2').available,false);
   const effectStatus=await tool('sound_effect_status');assert.equal(typeof effectStatus.installed,'boolean');for(const name of ['sound_effect_prepare','sound_effect_generate','sound_effect_job','sound_effect_cancel','studio_attach_sound','studio_trim_audio','sound_library_trim'])assert.ok((await client.listTools()).tools.some(t=>t.name===name));
   if(!effectStatus.installed){const notReady=await client.callTool({name:'sound_effect_generate',arguments:{requestId:'binary-sfx',title:'音效',prompt:'A paper shredder',seconds:3}});assert.equal(notReady.isError,true);}results.push('sound effect MCP tools are discoverable and report the actual model readiness');
-  assert.equal((await tool('yue2_status')).phase,'uninstalled');assert.ok((await client.listTools()).tools.some(t=>t.name==='yue2_generate'));
   const runtime=JSON.parse(await readFile(join(workspace,'.music-room.runtime.json'),'utf8'));assert.equal(runtime.command,await realpath(binary));
+  const availableTools=new Set((await client.listTools()).tools.map(t=>t.name));
+  for(const name of ['ace_cover_prepare','studio_cover_selection','studio_cover_generate','live_play_start','live_play_next','live_play_save','live_play_stop'])assert.ok(availableTools.has(name),name);
+  assert.equal((await tool('ace_cover_status')).installed,false);
+  assert.equal((await tool('live_play_status')).installed,false);
+  for(const [name,args] of [['live_play_start',{sessionId:'live-unavailable'}],['studio_cover_selection',{versionId:'absent',startSeconds:0,endSeconds:15}]]){
+    assert.equal((await client.callTool({name,arguments:args})).isError,true);
+  }
+  if(process.platform==='darwin'&&process.arch==='arm64'){
+    const manifestResponse=await fetch(runtime.url+'/ace-cover-native/manifest.json');assert.equal(manifestResponse.status,200);
+    const manifest=await manifestResponse.json(),program=await fetch(runtime.url+'/ace-cover-native/ace-synth');
+    assert.deepEqual(manifest.configure,coverBuildOptions);
+    assert.equal(program.status,200);assert.equal(createHash('sha256').update(new Uint8Array(await program.arrayBuffer())).digest('hex'),manifest.sha256);
+    for(const name of ['acestep-license.txt','ggml-license.txt']){
+      const license=await fetch(runtime.url+'/ace-cover-native/'+name);assert.equal(license.status,200);assert.match(await license.text(),/MIT License/i);
+    }
+  }
+  results.push('ACE cover and Magenta session tools discoverable, validate readiness, and embed the ACE native program');
+  assert.equal((await tool('yue2_status')).phase,'uninstalled');assert.ok((await client.listTools()).tools.some(t=>t.name==='yue2_generate'));
   const speech=await tool('tts_library');
   assert.equal(speech.voices.filter(v=>v.builtinId).length,5);
   for(const voice of speech.voices.filter(v=>v.builtinId)){
