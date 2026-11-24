@@ -10,6 +10,7 @@
 | SFX-02 / P0 | 队列暂停或生成中取消；超内存；重启时已提交 / 未提交产物 | 停止所属工作且不假报成功；已保存音频校验后恢复，不创建重复记录 | `src/service/studio/sound-effects.test.ts`、`src/service/studio/sound-effects-runtime.test.ts`、`src/service/resources/profiles.test.ts` |
 | SFX-03 / P1 | 在声音库准备模型并生成音效，与外部导入分别筛选 | 明确准备、取消及生成状态；声音可试听，来源分类正确 | `scripts/verify/verify-sound-library-ui.test.mjs` |
 | SFX-04 / P0 | 项目内生成多个音效版本；请求丢失、重启、删除或彻底删除；将独立录音加入项目 | 版本归属、参数、音频和原有播放列表保留；重试不重复；删除后的内容不复活 | `src/service/studio/effect-workflow.test.ts`、`src/server/lost-response.test.ts`、`src/server/mcp.test.ts`、`scripts/verify/verify-sound-library-ui.test.mjs` |
+| LIVE-02 / P0 | 从声音库开启演奏，拖动切换风格，15 秒后回留、试听及加入指定项目，等待停止 | 模型释放后窗口关闭；保存不打断演奏；侧栏状态、来源列和灵感标记正确；日夜主题及小窗可操作 | `scripts/verify/verify-magenta-live-ui.test.mjs` |
 | LIVE-01 / P0 | 启动 Magenta 会话、改变风格、按已播放位置回留片段、停止；故障后重复启动 | 分块连续，提前生成部分不进入回留，精确 15 秒；保存去重与重开可读；释放前后共享队列行为正确 | `src/service/studio/live-play.test.ts`、`src/service/studio/live-ring.test.ts`、`scripts/verify/verify-magenta-live-real.ts` |
 | COVER-02 / P0 | 从原唱拖动选段，提交后切回原唱同位置；在日间与夜间标记成品 | 数字与波形同步，循环时两个播放按钮一致；按相对秒数切换，原曲时长及描述保留；成品状态一致 | `scripts/verify/verify-ace-cover-ui.test.mjs` |
 | COVER-01 / P0 | 用固定范围选取原唱，重复提交，完成或取消翻唱后重开工作区 | 同步歌词按时间选取；重复请求关联已有任务；翻唱为独立子版本，取消不发布音频，原曲和成品选择完整保留 | `src/service/studio/ace-cover.test.ts`、`scripts/verify/verify-ace-cover-real.ts` |

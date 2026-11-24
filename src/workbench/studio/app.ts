@@ -2,6 +2,7 @@ import './tokens.css';
 import {browsedVoices,type VoiceFilter} from './voice-browsing.ts';
 import {bindSpeechWorkspace} from './speech-workspace.ts';
 import {openEffectCreation} from './effect-creation.ts';
+import {LiveUI} from './live-ui.ts';
 import {CoverUI} from './cover-ui.ts';
 import {openTrimDialog} from './trim-dialog.ts';
 import {musicAgentEntry,musicAgentBrief} from './music-agent.ts';
@@ -28,6 +29,7 @@ import './style.css';
 import './pages.css';
 import './base.css';
 import './cover-ui.css';
+import './live-ui.css';
 import {icon} from './icons.ts';
 import {musicRecoveryNote,resourceOverview,memoryLimitSummary,resourceFailure} from './resources.ts';
 import {updateThemeControls,themeToggle,themeSettings} from './theme.ts';
@@ -80,7 +82,7 @@ async function start(){
  const selectable=(v:StudioVersion)=>!['queued','running'].includes(v.state)&&!v.renderJobId;
  const voiceList=()=>data.voices.filter(v=>!v.deleted).toSorted((a,b)=>Number(!!b.builtinId)-Number(!!a.builtinId)||Number(!!b.favorite)-Number(!!a.favorite));
  const draft=()=>drafts[soundId]??(drafts[soundId]=newCreationDraft(soundId,voiceList()[0]?.id));
- root.innerHTML=`<aside id="library-connection" role="status" hidden></aside><div class="studio-shell"><aside class="sidebar"><a class="brand" href="./">Music Room</a><div class="project-toolbar"><input id="project-search" type="search" placeholder="搜索项目" aria-label="搜索项目"><button class="new-project" data-action="new-project" aria-label="新建项目" title="新建项目">${icon('plus')}</button></div><nav id="projects" aria-label="项目"></nav><nav class="sidebar-libraries" aria-label="工作区导航"><button class="library-entry sound-library-entry" data-action="sound-library" aria-current="false"><span aria-hidden="true"></span> 声音库</button><button class="library-entry" data-action="voice-library" aria-current="false"><span aria-hidden="true"></span> 音色库</button><button class="library-entry task-list-entry" data-action="task-list" aria-current="false"><span aria-hidden="true"></span> 任务与资源<small class="task-live" data-task-live aria-hidden="true"></small></button></nav><div id="sidebar-monitor"></div><div class="sidebar-bottom"><button data-action="settings">设置</button>${themeToggle()}</div></aside><main id="workspace"><p class="loading">正在打开创作空间…</p></main><aside id="cover-panel" class="workbench-side-panel" aria-label="翻唱这段" hidden></aside></div><section id="background-playback" aria-label="正在播放" hidden><div class="background-heading"><button class="quiet" data-action="return-playback"></button><button class="quiet" data-action="stop-playback">停止播放</button></div><div class="background-controls"><button class="secondary" data-action="toggle-playback">暂停</button><output id="background-time"></output><input id="background-progress" type="range" min="0" max="1" step="0.1" value="0" aria-label="正在播放的音频进度"></div><div id="background-player"></div></section><footer id="global-status-bar">${playbackBar()}</footer><dialog id="dialog" aria-labelledby="dialog-title"></dialog><div id="toast" role="status" aria-live="polite" hidden></div><input id="score-file" type="file" accept=".json,.mid,.midi" hidden>`;
+ root.innerHTML=`<aside id="library-connection" role="status" hidden></aside><div class="studio-shell"><aside class="sidebar"><a class="brand" href="./">Music Room</a><div class="project-toolbar"><input id="project-search" type="search" placeholder="搜索项目" aria-label="搜索项目"><button class="new-project" data-action="new-project" aria-label="新建项目" title="新建项目">${icon('plus')}</button></div><nav id="projects" aria-label="项目"></nav><nav class="sidebar-libraries" aria-label="工作区导航"><button class="library-entry sound-library-entry" data-action="sound-library" aria-current="false"><span aria-hidden="true"></span> 声音库</button><button class="library-entry" data-action="voice-library" aria-current="false"><span aria-hidden="true"></span> 音色库</button><button class="library-entry task-list-entry" data-action="task-list" aria-current="false"><span aria-hidden="true"></span> 任务与资源<small class="task-live" data-task-live aria-hidden="true"></small></button></nav><div id="sidebar-monitor"></div><div class="sidebar-bottom"><button data-action="settings">设置</button>${themeToggle()}</div></aside><main id="workspace"><p class="loading">正在打开创作空间…</p></main><aside id="cover-panel" class="workbench-side-panel" aria-label="翻唱这段" hidden></aside><aside id="live-panel" class="workbench-side-panel" aria-label="玩一段" hidden></aside></div><section id="background-playback" aria-label="正在播放" hidden><div class="background-heading"><button class="quiet" data-action="return-playback"></button><button class="quiet" data-action="stop-playback">停止播放</button></div><div class="background-controls"><button class="secondary" data-action="toggle-playback">暂停</button><output id="background-time"></output><input id="background-progress" type="range" min="0" max="1" step="0.1" value="0" aria-label="正在播放的音频进度"></div><div id="background-player"></div></section><footer id="global-status-bar">${playbackBar()}</footer><dialog id="dialog" aria-labelledby="dialog-title"></dialog><div id="toast" role="status" aria-live="polite" hidden></div><input id="score-file" type="file" accept=".json,.mid,.midi" hidden>`;
  bindPlaybackBar(root,audio=>{const v=data?.versions.find(v=>v.id===audio.dataset.version)??(backgroundVersion?.id===audio.dataset.version?backgroundVersion:undefined);const owner=data?.sounds.find(s=>s.id===v?.soundId);return v&&owner?`${owner.title} · V${v.number}`:audio.getAttribute('aria-label')??'正在播放';},(audio,time)=>{
   if(audio===listeningQueue.audio)listeningQueue.seek(time);
   else audio.currentTime=time;
@@ -89,7 +91,15 @@ async function start(){
  const machineMonitor=new MachineMonitorView($('#sidebar-monitor'),api.call.bind(api));machineMonitor.onUpdate=()=>updateResourceOverview();machineMonitor.mount();
  let toastTimer:ReturnType<typeof setTimeout>;
  const listeningQueue=new ListeningQueue(root,api,notify);
- const soundLibrary=new SoundLibraryView({api,queue:listeningQueue,workspace:$('#workspace'),modal,close,notify,refresh:()=>refresh(true),url:audioUrl,open:async item=>{parkPlayer();workspaceView='project';projectId=item.projectId;soundId=item.soundId;versionId=item.versionId;conversionPage=1;await refresh(true);}});
+ const soundLibrary=new SoundLibraryView({api,live:()=>void (live.active()?live.close():live.open()).catch(e=>notify(e.message)),liveOpen:()=>live.active(),queue:listeningQueue,workspace:$('#workspace'),modal,close,notify,refresh:()=>refresh(true),url:audioUrl,open:async item=>{parkPlayer();workspaceView='project';projectId=item.projectId;soundId=item.soundId;versionId=item.versionId;conversionPage=1;await refresh(true);}});
+ const live=new LiveUI({
+  api,panel:$('#live-panel'),url:audioUrl,notice:notify,
+  pauseOther:()=>pause(),change:()=>{if(workspaceView==='sounds')soundLibrary.render(data.soundLibraryRevision);renderTaskSidebar(resourceSnapshot,resourceOffline,live.isPlaying());},
+  refresh:()=>refresh(true),attach:(item)=>soundLibrary.attachDialog(item),
+ });
+ for(const event of ['play','pause','ended'])root.addEventListener(event,ev=>{
+  if(ev.target instanceof HTMLAudioElement&&live.active())void live.mediaPlayback(ev.target,event==='play').catch(error=>notify(error.message));
+ },true);
  const cover=new CoverUI({api,panel:$('#cover-panel'),url:audioUrl,samples:path=>audioCache.samples(path),change:()=>render(),notice:notify,saved:async saved=>{
   if(workspaceView==='project'&&saved.soundId===soundId&&saved.parentId===versionId){versionId=saved.id;selectedVersions.clear();}
   await refresh(true);notify(`已提交 V${saved.number} 翻唱`);
@@ -167,6 +177,7 @@ async function start(){
   renderProjects();
   $('[data-action="task-list"]').setAttribute('aria-current',workspaceView==='tasks'?'page':'false');
   $('[data-action="settings"]').setAttribute('aria-current',workspaceView==='settings'?'page':'false');
+  if(workspaceView!=='sounds'&&live.active())void live.close().catch(e=>notify(e.message));
   if(workspaceView!=='project'){cover.attach(undefined,undefined,undefined);cover.close();}
   if(workspaceView==='tasks'){parkPlayer();renderTasksPage();return;}
   if(workspaceView==='settings'){parkPlayer();renderSettingsPage();return;}
@@ -472,7 +483,7 @@ async function start(){
  function refreshResources(initial=false):Promise<void>{
   resourceRefreshInitial||=initial;
   if(resourceRefreshTask){resourceRefreshAgain=true;return resourceRefreshTask;}
-  resourceRefreshTask=(async()=>{do{resourceRefreshAgain=false;const first=resourceRefreshInitial;resourceRefreshInitial=false;try{const value=await api.call('resource_status',{});if(!Array.isArray(value.queued))throw Error('后台队列状态暂不可用');resourceSnapshot=value;resourceOffline=false;renderTaskSidebar(value,false);updateResourceOverview();const limitInput=document.querySelector<HTMLInputElement>('#resource-memory-limit');if(first&&limitInput&&!limitInput.dataset.dirty)limitInput.value=value.policy.limits?.memory===undefined?'':String(value.policy.limits.memory/2**30);}catch(error){resourceOffline=true;renderTaskSidebar(resourceSnapshot,true);updateResourceOverview();}}while(resourceRefreshAgain);})().finally(()=>{resourceRefreshTask=undefined;});
+  resourceRefreshTask=(async()=>{do{resourceRefreshAgain=false;const first=resourceRefreshInitial;resourceRefreshInitial=false;try{const value=await api.call('resource_status',{});if(!Array.isArray(value.queued))throw Error('后台队列状态暂不可用');resourceSnapshot=value;resourceOffline=false;renderTaskSidebar(value,false,live.isPlaying());updateResourceOverview();const limitInput=document.querySelector<HTMLInputElement>('#resource-memory-limit');if(first&&limitInput&&!limitInput.dataset.dirty)limitInput.value=value.policy.limits?.memory===undefined?'':String(value.policy.limits.memory/2**30);}catch(error){resourceOffline=true;renderTaskSidebar(resourceSnapshot,true,live.isPlaying());updateResourceOverview();}}while(resourceRefreshAgain);})().finally(()=>{resourceRefreshTask=undefined;});
   return resourceRefreshTask;
  }
  function updateEngineStatus(){if(!$('#tts-status'))return;$('#tts-status').textContent=data.engines.speech.message;$('#music-status').textContent=data.engines.music.message;const music=data.engines.music,enable=$<HTMLButtonElement>('[data-action="start-music"]'),pending=musicStarting||['preparing','starting'].includes(music.phase);enable.textContent=pending?'启用中…':music.canGenerate?'已启用':music.modelsReady?'启用':'请先安装模型';enable.disabled=pending||music.canGenerate||!music.modelsReady;$('#music-enable-help').hidden=!music.canGenerate;const conversion=data.engines.conversion;$('#conversion-status').textContent=conversion.message;$('#conversion-models').textContent=[conversion.model,conversion.backend,conversion.separationModel?`人声分离：${conversion.separationModel}`:undefined].filter(Boolean).join(' · ');$('#conversion-directory').textContent=conversion.directory??'尚未配置';$('#engine-logs').textContent=[...data.engines.speech.logs.slice(-5),...data.engines.music.logs.slice(-5)].join('\n');}
@@ -628,5 +639,5 @@ async function start(){
  document.addEventListener('visibilitychange',()=>refreshLoop.reschedule());
  renderTaskSidebar(undefined,false);syncNow();refreshLoop.reschedule();
  window.addEventListener('beforeunload',event=>{if(draftStorage.hasUnsaved(drafts)){event.preventDefault();event.returnValue=true;}});
- window.addEventListener('pagehide',event=>{if(!event.persisted){disposeScore();audioCache.dispose();refreshLoop.dispose();}});
+ window.addEventListener('pagehide',event=>{live.pageExit();if(!event.persisted){disposeScore();audioCache.dispose();refreshLoop.dispose();}});
 }

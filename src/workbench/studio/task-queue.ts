@@ -14,8 +14,8 @@ export function liveSummary(status:QueueStatus|undefined,offline:boolean){
  if(status.active||waiting)return {text:[status.active?'1 进行中':'',waiting?`${waiting} 排队`:''].filter(Boolean).join(' · '),state:'working'};
  return {text:'',state:''};
 }
-export function renderTaskSidebar(status:QueueStatus|undefined,offline:boolean){
- const summary=queueSummary(status,offline),live=liveSummary(status,offline);
+export function renderTaskSidebar(status:QueueStatus|undefined,offline:boolean,playing=false){
+ const summary=queueSummary(status,offline),live=playing&&!offline?{text:'正在演奏',state:'working'}:liveSummary(status,offline);
  for(const el of document.querySelectorAll<HTMLElement>('[data-task-live]')){
   if(el.textContent!==live.text)el.textContent=live.text;
   el.dataset.state=live.state;el.closest('button')?.setAttribute('title',summary);
