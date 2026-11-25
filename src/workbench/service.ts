@@ -3,7 +3,11 @@ import type {Composition} from '../music/authoring/validate.mjs';
 import type {Mix} from '../audio.ts';
 import type {Job} from '../service/jobs/jobs.ts';
 import type {Operation,OperationInput,OperationResults} from '../service/operations.ts';
-type Bootstrap = {token:string;url:string;workspace:string;mcp:unknown};
+type Bootstrap = {token:string;url:string;workspace:string;musicPlaybackOrigin?:string;mcp:unknown};
+export class WorkbenchApiError extends Error {
+  readonly code?:string;
+  constructor(message:string,code?:string){super(message);this.code=code;}
+}
 export class WorkbenchService {
   bootstrap:Bootstrap;
   private reconnecting?:Promise<void>;
@@ -44,15 +48,27 @@ export class WorkbenchService {
     }
     return response;
   }
+  async musicPlayback(path:string,signal?:AbortSignal):Promise<string|null> {
+    const origin=this.bootstrap.musicPlaybackOrigin;
+    if(!origin||!/^\/yue2-audio\/[a-f0-9]{32}$/.test(path))return null;
+    const response=await this.request(path+'?playback=1',{signal:signal?AbortSignal.any([signal,AbortSignal.timeout(10_000)]):AbortSignal.timeout(10_000)});
+    const value=await response.json();
+    if(!response.ok)throw new Error(value.message??'音频地址暂时不可用');
+    if(value.url===null)return null;
+    const url=new URL(value.url);
+    if(url.origin!==origin)throw new Error('音频地址不属于此工作区的 MinIO');
+    return url.href;
+  }
   async call<K extends Operation>(name:K,args:OperationInput<K>):Promise<OperationResults[K]> {
-    // Bound background reads, including response-body consumption. Mutations may
-    // legitimately take minutes and must never be replayed after an ambiguous timeout.
-    const signal=name==='sound_effect_status'||name==='sound_effect_job'||name==='sound_library_page'||name==='sound_library_queue'||name==='sound_library_items'||name==='studio_library'||name==='monitor_status'||name==='resource_status'||name==='yue2_inspect_input'||name==='yue2_score'?AbortSignal.timeout(10000):undefined;
+    // Bound background reads and live acknowledgments. Calls are never replayed after an ambiguous timeout.
+    const signal=name==='live_play_next'||name==='live_play_stop'?AbortSignal.timeout(16000):name==='live_play_start'||name==='live_play_save'||name==='live_play_status'||name==='ace_cover_status'||name==='studio_cover_selection'||name==='sound_effect_status'||name==='sound_effect_job'||name==='sound_library_page'||name==='sound_library_queue'||name==='sound_library_items'||name==='studio_library'||name==='monitor_status'||name==='resource_status'||name==='yue2_inspect_input'||name==='yue2_score'?AbortSignal.timeout(10000):undefined;
     try{
       const response=await this.request(`/api/${name}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(args),signal});
-      const value:unknown=await response.json();if(!response.ok)throw new Error((value as {message?:string}).message??'本地服务请求失败');return value as OperationResults[K];
+      const value:unknown=await response.json();
+      if(!response.ok){const error=value as {message?:string;code?:string}|null;throw new WorkbenchApiError(error?.message??'本地服务请求失败',error?.code);}
+      return value as OperationResults[K];
     }catch(error){
-      if(signal?.aborted)throw new Error(name==='yue2_inspect_input'?'输入容量检查超时，请重试':name==='yue2_score'?'读取乐谱超时，请重试':'状态查询超时');
+      if(signal?.aborted)throw new Error(name==='live_play_start'?'演奏启动确认超时':name==='live_play_save'?'回留确认超时，请重试':name==='live_play_stop'?'停止请求超时，请重试':name==='yue2_inspect_input'?'输入容量检查超时，请重试':name==='yue2_score'?'读取乐谱超时，请重试':'状态查询超时');
       throw error;
     }
   }

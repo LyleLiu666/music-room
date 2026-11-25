@@ -48,7 +48,7 @@
 | [jobs/jobs.ts](../../src/service/jobs/jobs.ts)、[studio/](../../src/service/studio/) | 乐谱渲染、调速任务、业务记录及状态投影 |
 | [operations.ts](../../src/service/operations.ts)、[server/](../../src/server/) | 统一查询与操作契约、HTTP/MCP 一致性 |
 | [workbench/studio/](../../src/workbench/studio/) | 设置页资源状态、任务等待与取消、创作入口就绪判断 |
-| `scripts/verify-resources-real.ts`（拟新增） | 隔离工作区内的真实测量与故障验收 |
+| `scripts/verify/verify-resources-real.ts`（原方案拟新增） | 隔离工作区内的真实测量与故障验收 |
 
 不预先拆出大量单方法文件，不创建通用调度框架。共享语义稳定的资源管理能力集中管理，各引擎专有逻辑与其测试留在引擎目录。
 

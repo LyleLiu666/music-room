@@ -6,4 +6,4 @@
 
 日常回归只复制样本，禁止原地打开或更新。`src/service/projects/upgrade.test.ts` 校验哈希后在临时目录测试两次升级和完整备份恢复。
 
-需要新的历史样本时，用完整 Git 历史运行 `node scripts/generate-upgrade-fixture.mjs 新目录`。脚本使用固定旧提交，拒绝覆盖已有目录。新样本应单独审阅来源及行为，不能在测试失败时直接重生成覆盖基准。
+需要新的历史样本时，用完整 Git 历史运行 `node scripts/build/generate-upgrade-fixture.mjs 新目录`。脚本使用固定旧提交，拒绝覆盖已有目录。新样本应单独审阅来源及行为，不能在测试失败时直接重生成覆盖基准。

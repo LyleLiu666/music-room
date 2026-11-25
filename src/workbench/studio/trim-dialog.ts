@@ -1,0 +1,13 @@
+type TrimInput={startSeconds:number;endSeconds:number;fadeInMs:number;fadeOutMs:number;requestId:string};
+type Hooks={key:string;title:string;duration:number;modal:(title:string,html:string,wide?:boolean)=>void;close:()=>void;save:(input:TrimInput)=>Promise<void>};
+const requests=new Map<string,{key:string;id:string}>();
+/** Times are explicit and edits always create a new sound; original audio remains intact. */
+export function openTrimDialog(h:Hooks){
+ h.modal(`截取音频 · ${h.title}`,`<form id="trim-form"><p class="field-note">原音频 ${h.duration.toFixed(2)} 秒。截取后另存，原文件保留；支持最长 30 秒的来源。</p><label for="trim-start">从第几秒开始</label><input id="trim-start" type="number" min="0" max="${h.duration}" step="any" value="0" required><label for="trim-end">到第几秒结束</label><input id="trim-end" type="number" min="0" max="${h.duration}" step="any" value="${h.duration}" required><div class="trim-fades"><label for="trim-fade-in">淡入（毫秒）</label><input id="trim-fade-in" type="number" min="0" max="500" step="1" value="30" required><label for="trim-fade-out">淡出（毫秒）</label><input id="trim-fade-out" type="number" min="0" max="500" step="1" value="30" required></div><p class="field-note">默认起止各平滑 30 毫秒；可设置为 0，不做淡化。</p><p id="trim-status" role="status" class="field-note"></p><button class="primary" type="submit" id="trim-submit">保存截取版</button></form>`);
+ const form=document.querySelector<HTMLFormElement>('#trim-form')!,dialog=form.closest('dialog')!,status=form.querySelector<HTMLElement>('#trim-status')!,submit=form.querySelector<HTMLButtonElement>('#trim-submit')!;dialog.dataset.mode='trim-audio';let pending=false;
+ form.onsubmit=e=>{e.preventDefault();if(pending)return;const number=(selector:string)=>Number(form.querySelector<HTMLInputElement>(selector)!.value),values={startSeconds:number('#trim-start'),endSeconds:number('#trim-end'),fadeInMs:number('#trim-fade-in'),fadeOutMs:number('#trim-fade-out')};
+  if(values.startSeconds<0||values.endSeconds<=values.startSeconds||values.endSeconds>h.duration||(values.fadeInMs+values.fadeOutMs)/1000>values.endSeconds-values.startSeconds){status.textContent='请检查起止时间，以及淡入淡出总时长。';return;}
+  const key=JSON.stringify(values);let request=requests.get(h.key);if(!request||request.key!==key){request={key,id:`trim-${crypto.randomUUID()}`};requests.set(h.key,request);}pending=true;submit.disabled=true;status.textContent='正在保存截取版…';
+  void h.save({...values,requestId:request.id}).then(()=>{requests.delete(h.key);if(form.isConnected&&dialog.open)h.close();}).catch(error=>{if(form.isConnected&&dialog.open)status.textContent=(error as Error).message;}).finally(()=>{pending=false;submit.disabled=false;});
+ };
+}

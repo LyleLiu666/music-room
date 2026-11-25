@@ -61,3 +61,19 @@ test('speech sound retry recovers a committed speech record after the studio ind
   await assert.rejects(service.call('studio_create_sound',{...input,kind:'music'}),/编号|不同/);
  }finally{service.store.atomicJSON=write;await service.close();await rm(root,{recursive:true,force:true});}
 });
+
+test('a committed project effect survives a lost response, concurrent retries and restart',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'lost-effect-'));
+ const driver={profile:{id:'fixture'},installed:()=>true,prepare:async()=>{},generate:async(req:{seconds:number})=>new Uint8Array(encodeWav([new Float32Array(req.seconds*8000).fill(.2)],8000))};
+ const open=()=>MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,{effects:driver});let service=await open(),http=await serveHttp(service,assets);
+ let args:{soundId:string;requestId:string;title:string;prompt:string;seconds:number};
+ const request=()=>fetch(http.runtime.url+'/api/sound_effect_generate',{method:'POST',headers:{authorization:`Bearer ${http.runtime.token}`,'content-type':'application/json'},body:JSON.stringify(args)});
+ try{
+  await service.call('create_project',{projectId:'office',title:'办公室'});const sound=await service.call('studio_create_sound',{projectId:'office',title:'水声',kind:'effect'});args={soundId:sound.id,requestId:'effect-response-lost',title:'水声',prompt:'water flowing',seconds:3};
+  let saved:any,proxyError:unknown;const proxy=createServer(async(_req,res)=>{try{const response=await request();assert.equal(response.status,200);saved=await response.json();}catch(error){proxyError=error;}finally{res.destroy();}});proxy.listen(0,'127.0.0.1');await once(proxy,'listening');
+  try{await assert.rejects(fetch(`http://127.0.0.1:${(proxy.address() as any).port}`));if(proxyError)throw proxyError;assert.ok(saved.id);}finally{proxy.closeAllConnections();await new Promise<void>(r=>proxy.close(()=>r()));}
+  for(let i=0;i<300&&['queued','running'].includes(service.effects.get(saved.id).state);i++)await new Promise(r=>setTimeout(r,10));assert.equal(service.effects.get(saved.id).state,'succeeded');
+  await http.close();await service.close();service=await open();http=await serveHttp(service,assets);
+  const retries=await Promise.all(Array.from({length:5},async()=>{const response=await request();assert.equal(response.status,200);return response.json();}));assert.ok(retries.every(value=>value.id===saved.id));const data=await service.call('studio_library',{});assert.equal(data.versions.filter(v=>v.soundId===sound.id&&v.id===saved.id).length,1);assert.equal((await service.call('sound_library_page',{filter:'effects'})).total,1);
+ }finally{await http.close();await service.close();await rm(root,{recursive:true,force:true});}
+});

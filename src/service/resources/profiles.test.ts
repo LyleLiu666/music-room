@@ -17,10 +17,30 @@ test('media estimates scale with actual length and rate; unknown model or input 
 test('only matched versions and bounded input envelopes receive measured model reservations',()=>{
  assert.equal(estimateResources('reference',{resourceProfile:referenceProfile,duration:15}).peak.memory,8*2**30);assert.equal(estimateResources('reference',{resourceProfile:referenceProfile,duration:16}).verified,false);assert.equal(estimateResources('reference',{resourceProfile:{...referenceProfile,program:'changed'},duration:2}).verified,false);
  assert.equal(estimateResources('conversion',{resourceProfile:conversionProfile}).verified,true);assert.equal(estimateResources('conversion',{resourceProfile:{...conversionProfile,commit:'changed'}}).verified,false);
- const input={resourceProfile:yueProfile,style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true,context:{prefixTokens:1357,planningTokens:4098,semanticTokens:9000,contextTokens:24576}};assert.equal(estimateResources('yue2',input).verified,true);assert.equal(estimateResources('yue2',{...input,context:undefined}).verified,false);assert.equal(estimateResources('yue2',{...input,context:{...input.context,prefixTokens:11479}}).verified,false);assert.equal(estimateResources('yue2',{...input,style:'a'.repeat(3937)}).verified,true);assert.ok(estimateResources('yue2',input).peak.memory>14*2**30);assert.equal(estimateResources('yue2',{...input,preset:'unknown'}).verified,false);
+ const input={resourceProfile:yueProfile,style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true,context:{prefixTokens:1357,planningTokens:4098,semanticTokens:9000,contextTokens:24576}};assert.equal(estimateResources('yue2',input).verified,true);assert.equal(estimateResources('yue2',{...input,context:undefined}).verified,false);assert.equal(estimateResources('yue2',{...input,context:{...input.context,prefixTokens:11479}}).verified,false);assert.equal(estimateResources('yue2',{...input,style:'a'.repeat(3937)}).verified,true);assert.equal(estimateResources('yue2',input).peak.memory,8*2**30);assert.equal(estimateResources('yue2',input).startup?.memory,8*2**30);assert.equal(estimateResources('yue2',{...input,preset:'unknown'}).verified,false);
 });
 
 test('long speech reserves the same model envelope with sequential bounded segments',()=>{assert.equal(estimateResources('tts',{text:'文'.repeat(8000),resourceProfile:ttsProfile}).verified,true);});
+
+test('YuE2 budgets cover long BF16 music requests that still fit the model context',()=>{
+ const input={resourceProfile:yueProfile,preset:'quality',instrumental:true,
+  context:{prefixTokens:15560,planningTokens:0,semanticTokens:9000,contextTokens:24576}};
+ const demand=estimateResources('yue2',input);
+ // Pinned tokenizer and weight manifest, plus the two static semantic caches.
+ const tensorBytes=9_954_000_000;
+ assert.equal(demand.verified,true);
+ assert.ok((demand.startup?.memory??0)>tensorBytes,'startup must cover weights, both caches and runtime overhead');
+ assert.equal(demand.peak.memory,demand.startup?.memory);
+ const now=Date.now(), hardware={supported:true,topology:'unified' as const,sampledAt:now,pressure:'normal' as const,
+  pools:[{id:'memory',capacity:32*2**30,available:24*2**30,owned:2**30}]};
+ assert.equal(admit(hardware,demand,{...policy,limits:{memory:8*2**30}},now).allowed,false);
+ assert.equal(admit(hardware,demand,policy,now).allowed,true);
+ const shorter={...input,context:{...input.context,prefixTokens:5000}};
+ assert.ok(demand.peak.memory>estimateResources('yue2',shorter).peak.memory);
+ assert.equal(estimateResources('yue2',{...shorter,instrumental:false}).peak.memory,8*2**30);
+ assert.ok(estimateResources('yue2',{...input,preset:'fast',instrumental:false}).peak.memory>8*2**30,
+  'long inputs also need room for acoustic chunks with a quantized AR model');
+});
 
 test('Breeze reservation requires the pinned streaming runtime, transcript and bounded reference',async()=>{
  const {breezeProfile}=await import('../tts/breeze-runtime.ts');
@@ -35,4 +55,14 @@ test('sound effect resource admission is limited to the verified fixed runtime a
  assert.equal(estimateResources('sound-effects',valid).peak.memory,5_000_000_000);
  assert.equal(estimateResources('sound-effects',valid).verified,true);
  for(const bad of [{...valid,seconds:6},{...valid,seconds:0},{...valid,prompt:''},{...valid,resourceProfile:{...effectProfile,program:'changed'}}])assert.equal(estimateResources('sound-effects',bad).verified,false);
+});
+
+test('cover and live reserves require the fixed local models',async()=>{
+ const {liveProfile}=await import('../studio/live-assets.ts');
+ const {coverProfile}=await import('../studio/ace-cover.ts');
+ const live=estimateResources('magenta-live',{resourceProfile:liveProfile});
+ assert.deepEqual(live,{verified:true,startup:{memory:3_000_000_000},peak:{memory:5_000_000_000}});
+ assert.equal(estimateResources('magenta-live',{resourceProfile:{...liveProfile,mlx:'changed'}}).verified,false);
+ assert.equal(estimateResources('ace-cover',{resourceProfile:coverProfile,seconds:60}).verified,true);
+ assert.equal(estimateResources('ace-cover',{resourceProfile:coverProfile,seconds:60.001}).verified,false);
 });

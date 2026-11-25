@@ -1,13 +1,14 @@
 """Music Room's bounded duration planner for the pinned YuE2 Studio runtime.
 
 Explicit target durations gate both planning and completed audio.
-Automatic duration preserves free-length output; supplied scores are never rewritten.
+Automatic duration preserves free-length output. The submitted two-voice score
+is used for validation even when its silent vocal voice is omitted for the model.
 """
 import json,math
 from dataclasses import replace,asdict
 from pathlib import Path
 from typing import Literal
-from abc_tools import parse_abc
+from abc_tools import accompaniment_only_abc, parse_abc
 
 TARGETS=(60,120,180,240,300)
 TOLERANCE=.15
@@ -57,21 +58,30 @@ def validate_audio_duration(summary,target,out_dir):
   raise ValueError(message)
  return summary
 
-def plan_for_duration(pipe,native,sampling,cancelled,on_token,target,out_dir):
+def plan_for_duration(pipe,native,sampling,cancelled,on_token,target,out_dir,*,omit_vocal_rests=False):
  from yue2.protocol import token_prefixes,resolve_sampling
  if target is not None and (type(target) is not int or target not in TARGETS): raise ValueError('目标时长请选择约 1–5 分钟')
  out_dir=Path(out_dir);out_dir.mkdir(parents=True,exist_ok=True)
+ source_score=None
+ if omit_vocal_rests:
+  source_score=parse_abc((native.abc or '').strip())
+  accompaniment=accompaniment_only_abc(source_score)
+  if not accompaniment:raise ValueError('只有人声全休止且伴奏有音符时，才可略过人声轨。')
+  model_request=replace(native,abc=accompaniment)
+ else:model_request=native
+ score_details={'vocalRestsOmitted':True} if omit_vocal_rests else {}
  attempts=[];base_sampling=resolve_sampling(sampling,pipe.generation_config.abc)
  def accept(plan,seconds,selected):
   within=within_target(seconds,target)
-  (out_dir/'duration.json').write_text(json.dumps(dict(targetSeconds=target,tolerance=TOLERANCE,attempts=len(attempts),scoreSeconds=seconds,accepted=True,withinTarget=within,selectedAttempt=selected,plans=attempts),ensure_ascii=False,indent=2))
-  pipe.log(f'完整乐谱预计 {seconds:.0f} 秒，开始按谱生成音频')
+  (out_dir/'duration.json').write_text(json.dumps(dict(targetSeconds=target,tolerance=TOLERANCE,attempts=len(attempts),scoreSeconds=seconds,accepted=True,withinTarget=within,selectedAttempt=selected,plans=attempts,**score_details),ensure_ascii=False,indent=2))
+  if omit_vocal_rests:pipe.log(f'乐谱预计 {seconds:.0f} 秒，略过全休止人声轨，按伴奏谱生成音频')
+  else:pipe.log(f'完整乐谱预计 {seconds:.0f} 秒，开始按谱生成音频')
   return replace(plan,request=native,prefix=token_prefixes(native,pipe.tokenizer,plan.abc_ids))
  for attempt in range(1,(1 if native.abc else MAX_ATTEMPTS)+1):
   pipe.check_execution()
   if cancelled and cancelled(): raise InterruptedError('Cancelled during duration planning')
   # The first seed is untouched; bounded subsequent seeds make retries reproducible.
-  request=native if attempt==1 else replace(native,seed=(native.seed+attempt-1)%2147483648)
+  request=model_request if attempt==1 else replace(native,seed=(native.seed+attempt-1)%2147483648)
   attempt_sampling=base_sampling if attempt==1 else replace(base_sampling,**{name:max(getattr(base_sampling,name),value) for name,value in RETRY_SAMPLING[attempt-2].items()})
   feedback=None;correction=duration_correction(attempts[-1] if attempts else None,target)
   if correction:
@@ -89,14 +99,14 @@ def plan_for_duration(pipe,native,sampling,cancelled,on_token,target,out_dir):
   seconds=None;problem=None;arrangement=None
   try:
    if plan.truncated: raise ValueError('乐谱写作达到长度上限')
-   score=parse_abc(plan.abc or '')
+   score=source_score if omit_vocal_rests else parse_abc(plan.abc or '')
    seconds=float(score.voices['Vocal'].time*60/score.bpm)
    if not math.isfinite(seconds) or seconds<=0:raise ValueError('乐谱时长无效')
    arrangement=dict(bpm=score.bpm,meter=list(score.voices['Vocal'].meter))
    if not within_target(seconds,target):raise ValueError(f'乐谱预计 {seconds:.1f} 秒，未达到目标时长 {target} 秒（允许偏差 ±15%）')
   except ValueError as exc: problem=str(exc)
   attempts.append(dict(attempt=attempt,seed=request.seed,sampling=asdict(attempt_sampling),scoreSeconds=seconds,problem=problem,arrangement=arrangement,durationFeedback=feedback))
-  evidence=dict(targetSeconds=target,tolerance=TOLERANCE,attempts=attempt,scoreSeconds=seconds,accepted=problem is None,withinTarget=seconds is not None and within_target(seconds,target),plans=attempts)
+  evidence=dict(targetSeconds=target,tolerance=TOLERANCE,attempts=attempt,scoreSeconds=seconds,accepted=problem is None,withinTarget=seconds is not None and within_target(seconds,target),plans=attempts,**score_details)
   (out_dir/'duration.json').write_text(json.dumps(evidence,ensure_ascii=False,indent=2))
   if problem is None:return accept(plan,seconds,attempt)
   if native.abc:raise ValueError(f'自定义乐谱无法检查（{problem}），请检查乐谱。')
@@ -112,6 +122,7 @@ def install():
  base_params=jobs.CreateParams
  class DurationCreateParams(base_params):
   target_duration_seconds:Literal[60,120,180,240,300]|None=None
+  omit_vocal_rests:bool=False
  jobs.CreateParams=DurationCreateParams
  jobs._PARAM_MODELS['create']=DurationCreateParams
  original_params=jobs._create_params_dict
@@ -119,16 +130,19 @@ def install():
   result=original_params(p,seed)
   target=getattr(p,'target_duration_seconds',None)
   if target is not None:result['target_duration_seconds']=target
+  if getattr(p,'omit_vocal_rests',False):result['omit_vocal_rests']=True
   return result
  jobs._create_params_dict=params
  original_request=jobs.engine_request
  def engine_request(job):
   result=original_request(job)
   if job.params.get('target_duration_seconds') is not None:result['target_duration_seconds']=job.params['target_duration_seconds']
+  if job.params.get('omit_vocal_rests'):result['omit_vocal_rests']=True
   return result
  jobs.engine_request=worker.engine_request=engine_request
  def create_song(self,request,out_dir,*,options,on_event=None,cancelled=None):
   fields=dict(request);target=fields.pop('target_duration_seconds',None)
+  omit_vocal_rests=fields.pop('omit_vocal_rests',False)
   if target is not None and (type(target) is not int or target not in TARGETS):raise ValueError('目标时长请选择约 1–5 分钟')
   fields,generation,abc_sampling,semantic_sampling=self._split_request(fields)
   SongRequest(**fields)
@@ -139,8 +153,10 @@ def install():
   with self._busy(pipe):
    pipe.set_loras(loras)
    def planner(pipe,native,sampling,cancelled,observer):
-    return plan_for_duration(pipe,native,sampling,cancelled,observer,target,out_dir)
-   summary=self._run_create(pipe,fields,generation,abc_sampling,semantic_sampling,out_dir,options=options,cancelled=cancelled,planner=planner,config_extra={'music_room_duration':{'targetSeconds':target,'tolerance':TOLERANCE,'maxAttempts':MAX_ATTEMPTS,'retrySampling':RETRY_SAMPLING,'feedbackTokens':FEEDBACK_TOKENS,'version':6}})
+    return plan_for_duration(pipe,native,sampling,cancelled,observer,target,out_dir,omit_vocal_rests=omit_vocal_rests)
+   duration_config={'targetSeconds':target,'tolerance':TOLERANCE,'maxAttempts':MAX_ATTEMPTS,'retrySampling':RETRY_SAMPLING,'feedbackTokens':FEEDBACK_TOKENS,'version':6}
+   if omit_vocal_rests:duration_config['vocalRestsOmitted']=True
+   summary=self._run_create(pipe,fields,generation,abc_sampling,semantic_sampling,out_dir,options=options,cancelled=cancelled,planner=planner,config_extra={'music_room_duration':duration_config})
    return validate_audio_duration(summary,target,out_dir)
  Engine.create_song=create_song
  Engine._music_room_duration=True

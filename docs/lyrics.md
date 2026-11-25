@@ -19,7 +19,7 @@
 开发工具接受实验生成的 `alignment.json`，通过正在运行的本地服务核验真实音频 SHA-256 后，写入工作目录的 `lyrics/<versionId>.json`。不会改写原始歌词或音频，也不依赖实验页面运行。
 
 ```sh
-node scripts/import-lyrics.mjs /Users/liu_y/Music/MusicRoom test-results/lyrics-asr-v9-2026-10-12/alignment.json
+node scripts/build/import-lyrics.mjs /Users/liu_y/Music/MusicRoom test-results/lyrics-asr-v9-2026-10-12/alignment.json
 ```
 
 相同内容可重复导入；存在不同修订时拒绝覆盖。导入后重新打开版本或刷新页面。当前 V9 使用已局部校正的约 2:28.3 起唱时间，仍按校正草稿标识。
@@ -35,7 +35,7 @@ node scripts/import-lyrics.mjs /Users/liu_y/Music/MusicRoom test-results/lyrics-
 本机已安装可选歌词引擎。其他 Apple Silicon Mac 需先准备兼容的 Python 环境、Qwen3-ASR-0.6B 和 Qwen3-ForcedAligner-0.6B 模型，再执行：
 
 ```sh
-node scripts/prepare-lyrics-engine.mjs WORKSPACE VENV ASR_MODEL ALIGNER_MODEL
+node scripts/build/prepare-lyrics-engine.mjs WORKSPACE VENV ASR_MODEL ALIGNER_MODEL
 ```
 
 脚本复制本地依赖到工作目录的 engines/lyrics，不自动联网下载；Python 环境仍需兼容本机解释器。未安装时按钮禁用并说明原因。单曲最长 10 分钟；任务进入统一资源队列，以 4 GiB 启动预约申请资源，模型按任务加载并释放。运行保护最高 8 GiB，并受应用剩余额度约束；该保护值不预占内存，也不作为启动所需额度。系统内存压力检查仍独立生效。
@@ -73,7 +73,7 @@ Cloudflare 的本机每日核对预算上限为 9,500 Neurons，北京时间早�
 
 无法定位的内容记录在结果中，并在页面提示数量；无有效时间或未定位内容多于有效行时任务失败。取消、失败或服务重启不会覆盖旧时间轴。成功重新生成前保留旧稿到 lyrics/history；任务状态保存在 lyrics/jobs.json，重启后未完成任务标为中断，可重新生成。
 
-生成流程测试：`node --test src/service/studio/lyrics-generation.test.ts`；分段与参考上下文测试：`python3 scripts/test-lyrics-worker.py`。播放器端到端测试同时覆盖按钮启动、排队、自动刷新和不打断当前播放。
+生成流程测试：`node --test src/service/studio/lyrics-generation.test.ts`；分段与参考上下文测试：`python3 scripts/verify/test-lyrics-worker.py`。播放器端到端测试同时覆盖按钮启动、排队、自动刷新和不打断当前播放。
 
 2026-10-12 用《方向盘》V2 验证整段召回：原先误识别为“不凭了”的句子输出“铺平了”，没有续写窗口之后的下一句；尾段识别的四次重复保留。已更新本机程序并重新生成该版本，验证了播放器高亮、跳转和 LRC 下载，旧稿保存在历史目录。该版本仍有 4 处未定位，不代表整首识别无误。详见[整段召回回归](evidence/lyrics-passage-recall-2026-10-12.json)和[最初错字对照](evidence/lyrics-reference-context-2026-10-12.json)。
 

@@ -36,7 +36,7 @@ Music Room 是静态试听工作台。Agent 用任意语言运行作曲代码，
 | `src/music/import/library.ts` | 本机存储、项目与版本身份、事务保存、移除和坏数据恢复 |
 | `src/music/import/midi.ts` | GM 音色/鼓音的确定性映射、固定速度和 4/4 检查、转换到同一契约 |
 | `src/workbench/app.ts` | 文件选择、导入状态、作品库更新、文件下载及提示词步骤 |
-| `scripts/build-authoring-kit.mjs` | 从唯一源目录生成可下载创作包和 ZIP；生成文件不进 Git |
+| `scripts/build/build-authoring-kit.mjs` | 从唯一源目录生成可下载创作包和 ZIP；生成文件不进 Git |
 
 契约限制：单文件 4 MiB、20,000 音符、最多 256 个同时持续音符、最多 512 小节/600 秒、固定 4/4、40—240 BPM、现有 11 音轨。校验包括字段与数值、连续段落、小节归属、曲内音符边界、共同段落索引以及未知字段。导入排序音符，以满足播放调度要求。外部文本显示为文本，不作为 HTML 或样式执行。
 
@@ -48,7 +48,7 @@ MIDI 格式 0/1 可用，独立序列格式 2 和 SMPTE 时间不支持。JSON �
 
 单元测试 `tests/import.test.ts` 覆盖契约边界、音轨契约与引擎一致、存储事务、身份与分组、MIDI 音符往返、原作品 MIDI/JSON 可交换、短乐句与扩写提示词。原作品 JSON 深比较与 WAV 哈希继续由原测试保护。
 
-真实 Chrome 脚本 `scripts/verify-imports.mjs` 验证：
+历史 Chrome 验收脚本 `scripts/legacy/verify-imports.mjs` 覆盖了以下场景：
 
 - ZIP 解压到独立临时目录，不依赖源码或 npm 包运行校验；错误文件返回失败。
 - JSON 实际播放通过 AudioWorklet 录音测得非零声音，20 秒完整双声道 WAV 有波形，MIDI 与 JSON 下载可再导入。

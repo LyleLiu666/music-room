@@ -230,7 +230,7 @@ function drawLanes() {
     const all = score.notes.filter(n => n.track === track.id), { low, high } = pitchExtent(all);
     if (selection) {
       const start = Math.max(range.startBeat, selection.startBeat), end = Math.min(range.endBeat, selection.endBeat);
-      if (end > start) { context.fillStyle = '#cce7a418'; context.fillRect((start - range.startBeat) / span * rect.width, 0, (end - start) / span * rect.width, rect.height); }
+      if (end > start) { context.fillStyle = '#ebe6db18'; context.fillRect((start - range.startBeat) / span * rect.width, 0, (end - start) / span * rect.width, rect.height); }
     }
     context.strokeStyle = '#ffffff0b';
     for (let beat = 0; beat <= span; beat++) {
@@ -336,7 +336,7 @@ function frame() {
   bins.fill(0); engine.graph?.analyser.getByteFrequencyData(bins);
   for (let i = 0; i < 46; i++) {
     const height = Math.max(2, bins[i * 2] / 255 * 52);
-    spectrumContext.fillStyle = engine.playing ? '#cce7a4' : '#414a39';
+    spectrumContext.fillStyle = engine.playing ? '#ebe6db' : '#44403a';
     spectrumContext.fillRect(i * 6, 58 - height, 3, height);
   }
   frameId = requestAnimationFrame(frame);

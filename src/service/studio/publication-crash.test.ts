@@ -57,3 +57,13 @@ for(const phase of phases)test(`SIGKILL recovery: ${phase}`,{timeout:20000},asyn
   assert.deepEqual(await service.store.revision('crash',source.id),original);
  }finally{await service.close();await rm(root,{recursive:true,force:true});}
 });
+
+for(const phase of ['effect-trim-before-index','effect-trim-after-index'])test(`SIGKILL recovery: ${phase}`,{timeout:20000},async()=>{
+ const root=await mkdtemp(join(tmpdir(),'effect-trim-crash-')),open=()=>MusicService.open(root,renderer,async()=>new Uint8Array(),false,unused,undefined,undefined,testResources());let service=await open();
+ try{
+  await service.store.createProject('crash','崩溃恢复');const bytes=Buffer.from(encodeWav([new Float32Array(24000).fill(.2)],8000));const item=await service.soundLibrary.import({name:'source.wav',requestId:'crash-source',bytes});const source=await service.studio.attachSound({itemId:item.id,projectId:'crash',title:'水声',requestId:'crash-attach'});await service.close();
+  const child=spawn(process.execPath,[fileURLToPath(new URL('./fixtures/publication-crash.ts',import.meta.url)),root,phase,source.soundId,source.id],{stdio:['ignore','pipe','pipe']});let log='';child.stdout.on('data',x=>log+=x);child.stderr.on('data',x=>log+=x);const timer=setTimeout(()=>child.kill('SIGKILL'),10000);const exit=await new Promise<{code:number|null;signal:NodeJS.Signals|null}>((resolve,reject)=>{child.once('error',reject);child.once('exit',(code,signal)=>resolve({code,signal}));}).finally(()=>clearTimeout(timer));assert.equal(await readFile(join(root,'fault-reached'),'utf8'),phase,log);assert.equal(exit.signal,'SIGKILL',log);
+  service=await open();let snapshot=await service.studio.snapshot();assert.equal(snapshot.versions.filter(v=>v.soundId===source.soundId).length,phase==='effect-trim-after-index'?2:1);assert.deepEqual(await service.soundLibrary.audio(item.id),bytes);
+  const trimmed=await service.studio.trim({versionId:source.id,startSeconds:1,endSeconds:3,fadeInMs:30,fadeOutMs:30,requestId:'crash-trim'});snapshot=await service.studio.snapshot();assert.equal(snapshot.versions.filter(v=>v.soundId===source.soundId).length,2);assert.equal(trimmed.duration,2);assert.equal((await readdir(join(root,'studio-audio'))).filter(x=>x.startsWith('trim-')).length,1);
+ }finally{await service.close();await rm(root,{recursive:true,force:true});}
+});

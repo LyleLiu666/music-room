@@ -1,3 +1,6 @@
+import {LivePlay} from './studio/live-play.ts';
+import {createLiveDriver,type LiveDriver} from './studio/live-runtime.ts';
+import {CoverEngine,createCoverDriver,type CoverDriver} from './studio/ace-cover-runtime.ts';
 import {musicCreationGuide} from './yue2/authoring-guide.ts';
 import {createMachineMonitor} from './resources/monitor.ts';
 import {LyricsGeneration,localLyricsProcessor} from './studio/lyrics-generation.ts';
@@ -24,25 +27,29 @@ import type {Renderer} from './render/process.ts';
 import {YuE2Engine,type YuE2Driver} from './yue2/engine.ts';
 import {createYuE2Driver} from './yue2/runtime.ts';
 import {YuE2Client} from './yue2/client.ts';
+import {openMusicObjectAudio} from './yue2/object-audio.ts';
+import {readMusicObjectAudioConfig} from './yue2/object-audio-config.ts';
 import {parseOperation,type Operation,type OperationInput,type OperationArgs,type OperationResults,type OperationHandlers,type ServiceCaller} from './operations.ts';
 import {createResources} from './resources/runtime.ts';
 import type {ResourceCoordinator} from './resources/coordinator.ts';
 export type {ServiceCaller} from './operations.ts';
+type StudioDrivers={effects?:EffectDriver;cover?:CoverDriver;live?:LiveDriver};
 export class MusicService {
   lyricsGeneration:LyricsGeneration;
-  resources!:ResourceCoordinator;speedProcessor:SpeedProcessor=processSpeed();soundLibrary:SoundLibrary;soundCatalog:SoundCatalog;effects:SoundEffects;
+  resources!:ResourceCoordinator;speedProcessor:SpeedProcessor=processSpeed();soundLibrary:SoundLibrary;soundCatalog:SoundCatalog;effects:SoundEffects;cover:CoverEngine;live:LivePlay;
+  readonly allowMusicRelease: boolean;
   private monitor:ReturnType<typeof createMachineMonitor>;
   private closing?:Promise<void>;
   store:ProjectStore; jobs:JobManager; read:AssetReader;yue2:YuE2Engine;yue2Client:YuE2Client;speech:SpeechService;studio:StudioService;conversion:ConversionService;
-  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator,effectDriver?:EffectDriver) {this.monitor=createMachineMonitor(read,resources);this.resources=resources;resources.register('import',{resident:()=>undefined,unload:async()=>{}});this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources);this.soundLibrary=new SoundLibrary(store);this.effects=new SoundEffects(store,resources,this.soundLibrary,effectDriver??createEffectDriver(join(homedir(),'Music','MusicRoom-SoundEffects')));this.studio=new StudioService(this);this.soundCatalog=new SoundCatalog(store,()=>this.studio.soundItems());this.lyricsGeneration=new LyricsGeneration(store.path('lyrics'),resources,id=>this.studio.lyricSource(id),localLyricsProcessor(store.path('engines','lyrics'),read));}
-  static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver,resources:ResourceCoordinator=createResources(),speedProcessor:SpeedProcessor=processSpeed(),effectDriver?:EffectDriver) {
+  private constructor(store:ProjectStore,jobs:JobManager,read:AssetReader,yue2:YuE2Engine,speech:SpeechService,conversion:ConversionService,resources:ResourceCoordinator,studioDrivers:StudioDrivers) {const config=readMusicObjectAudioConfig(store.root);this.allowMusicRelease=config?.allowRelease===true;const objectAudio=openMusicObjectAudio(config);this.monitor=createMachineMonitor(read,resources);this.resources=resources;resources.register('import',{resident:()=>undefined,unload:async()=>{}});this.conversion=conversion;this.speech=speech;this.store=store;this.jobs=jobs;this.read=read;this.yue2=yue2;this.yue2Client=new YuE2Client(yue2,store,resources,objectAudio);this.soundLibrary=new SoundLibrary(store);this.effects=new SoundEffects(store,resources,this.soundLibrary,studioDrivers.effects??createEffectDriver(join(homedir(),'Music','MusicRoom-SoundEffects')));const aceDirectory=store.path('engines','ace-cover');this.cover=new CoverEngine(resources,aceDirectory,studioDrivers.cover??createCoverDriver(aceDirectory));const liveDirectory=store.path('engines','magenta-live');this.live=new LivePlay(resources,this.soundLibrary,studioDrivers.live??createLiveDriver(liveDirectory),liveDirectory);this.studio=new StudioService(this);this.soundCatalog=new SoundCatalog(store,()=>this.studio.soundItems());this.lyricsGeneration=new LyricsGeneration(store.path('lyrics'),resources,id=>this.studio.lyricSource(id),localLyricsProcessor(store.path('engines','lyrics'),read));}
+  static async open(root:string,renderer:Renderer,read:AssetReader,seed=true,driver:YuE2Driver=createYuE2Driver(read),speechDriver:SpeechDriver=createSpeechDriver(),conversionDriver?:ConversionDriver,resources:ResourceCoordinator=createResources(),speedProcessor:SpeedProcessor=processSpeed(),studioDrivers:StudioDrivers={}) {
     const store=await ProjectStore.open(root);
     let jobs:JobManager|undefined,yue2:YuE2Engine|undefined,speech:SpeechService|undefined,conversion:ConversionService|undefined;
     try {
     const settings=store.path('engines','resources.json');if(existsSync(settings)){try{if(lstatSync(settings).isSymbolicLink())throw Error('设置文件不能是符号链接');const config=JSON.parse(readFileSync(settings,'utf8'));if(config.version!==1||config.memoryBytes!==null&&(!Number.isSafeInteger(config.memoryBytes)||config.memoryBytes<0))throw Error('设置格式无效');resources.setLimits(config.memoryBytes===null?undefined:{memory:config.memoryBytes});}catch{resources.setConfigurationError('内存设置损坏，重型任务已阻止；请在设置中恢复自动管理');}}
 
       jobs=await JobManager.open(store,renderer,resources);yue2=await YuE2Engine.open(store,driver,resources);
-      speech=await SpeechService.open(store,speechDriver,()=>false,resources);conversion=ConversionService.open(store,conversionDriver??createNativeConversionDriver(store.path('engines','voice-conversion')),()=>false,resources);const service=new MusicService(store,jobs,read,yue2,speech,conversion,resources,effectDriver);service.resources=resources;service.speedProcessor=speedProcessor;
+      speech=await SpeechService.open(store,speechDriver,()=>false,resources);conversion=ConversionService.open(store,conversionDriver??createNativeConversionDriver(store.path('engines','voice-conversion')),()=>false,resources);const service=new MusicService(store,jobs,read,yue2,speech,conversion,resources,studioDrivers);service.resources=resources;service.speedProcessor=speedProcessor;
       if(seed) {
         const existing=await store.documents(),records=await store.projects(true);
         for(const song of SONGS) if(!existing.some(d=>d.revision.id===song.id)&&!records.some(p=>p.id===song.workId&&(p.deleted||p.purged||p.removedRevisionIds?.includes(song.id)))) {
@@ -53,11 +60,11 @@ export class MusicService {
     } catch(error){await Promise.allSettled([resources.close(),conversion?.close(),speech?.close(),yue2?.close(),jobs?.close()]);await store.close();throw error;}
   }
   private async cancelResource(taskId:string){const snapshot=this.resources.snapshot(),task=[...(snapshot.active?[snapshot.active]:[]),...snapshot.queued].find(t=>t.id===taskId);if(!task){await this.resources.cancel(taskId);return this.resources.status();}
-    switch(task.engine){case 'sound-effects':await this.effects.cancel(taskId);break;case 'tts':await this.speech.cancel(taskId);break;case 'reference':await this.speech.cancelReference(taskId);break;case 'conversion':await this.conversion.cancel(taskId);break;case 'yue2':await this.yue2Client.cancel(taskId);break;case 'render':await this.jobs.cancel(taskId);break;case 'speed':await this.studio.cancelSpeed(taskId);break;case 'installation':if(taskId==='install-tts')await this.speech.cancelPreparation();else if(taskId==='install-yue2')await this.yue2.stop();else if(taskId==='install-sound-effects')await this.effects.cancelPreparation();else await this.resources.cancel(taskId);break;default:await this.resources.cancel(taskId);}
+    switch(task.engine){case 'magenta-live':await this.live.stop(taskId);break;case 'ace-cover':await this.studio.cancelCover(taskId);break;case 'sound-effects':await this.effects.cancel(taskId);break;case 'tts':await this.speech.cancel(taskId);break;case 'reference':await this.speech.cancelReference(taskId);break;case 'conversion':await this.conversion.cancel(taskId);break;case 'yue2':await this.yue2Client.cancel(taskId);break;case 'render':await this.jobs.cancel(taskId);break;case 'speed':await this.studio.cancelSpeed(taskId);break;case 'installation':if(taskId==='install-magenta-live')await this.live.cancelPreparation();else if(taskId==='install-ace-cover')await this.cover.cancelPreparation();else if(taskId==='install-tts')await this.speech.cancelPreparation();else if(taskId==='install-yue2')await this.yue2.stop();else if(taskId==='install-sound-effects')await this.effects.cancelPreparation();else await this.resources.cancel(taskId);break;default:await this.resources.cancel(taskId);}
     return this.resources.status();
   }
   private handlers:OperationHandlers = {
-    sound_effect_status:async()=>this.effects.status(),sound_effect_prepare:async()=>this.effects.prepare(),sound_effect_cancel_preparation:async()=>this.effects.cancelPreparation(),sound_effect_generate:async args=>this.effects.start(args),sound_effect_job:async args=>this.effects.get(args.jobId),sound_effect_cancel:async args=>this.effects.cancel(args.jobId),
+    sound_effect_status:async()=>this.effects.status(),sound_effect_prepare:async()=>this.effects.prepare(),sound_effect_cancel_preparation:async()=>this.effects.cancelPreparation(),sound_effect_generate:async args=>args.soundId?this.studio.generateEffect(args):this.effects.start(args),sound_effect_job:async args=>this.effects.get(args.jobId),sound_effect_cancel:async args=>this.effects.cancel(args.jobId),
     get_music_creation_guide:async()=>musicCreationGuide(),
     monitor_status:async()=>this.monitor.status(),
     resource_status:async()=>this.resources.status(),resource_pause:async()=>this.resources.pause(),resource_resume:async()=>this.resources.resume(),resource_cancel:async args=>this.cancelResource(args.taskId),resource_release:async()=>{await this.resources.releaseIdle();return this.resources.status();},resource_set_limit:async args=>{this.resources.setLimits(args.memoryBytes===null?undefined:{memory:args.memoryBytes},()=>{mkdirSync(this.store.path('engines'),{recursive:true});this.store.atomicJSON(this.store.path('engines','resources.json'),{version:1,memoryBytes:args.memoryBytes});});return this.resources.status();},
@@ -66,10 +73,23 @@ export class MusicService {
     studio_update_project:async args=>this.studio.updateProject(args),studio_update_sound:async args=>this.studio.updateSound(args),studio_purge:async args=>this.studio.purge(args),
     studio_music_edit_open:async args=>this.studio.openMusicEdit(args),studio_music_edit_prepare:async args=>this.studio.prepareMusicEdit(args),studio_music_edit_brief:async args=>this.studio.musicEditBrief(args),studio_music_edit_generate:async args=>this.studio.generateMusicEdit(args),
     studio_save_speed:async args=>this.studio.saveSpeed(args),
+    live_play_status:async()=>this.live.status(),
+    live_play_prepare:async()=>this.live.prepare(),
+    live_play_cancel_preparation:async()=>this.live.cancelPreparation(),
+    live_play_start:async args=>this.live.start(args.sessionId),
+    live_play_next:async args=>this.live.next(args),
+    live_play_save:async args=>this.live.save(args),
+    live_play_stop:async args=>this.live.stop(args.sessionId),
+    ace_cover_status:async()=>this.cover.status(),
+    ace_cover_prepare:async()=>this.cover.prepare(),
+    ace_cover_cancel_preparation:async()=>this.cover.cancelPreparation(),
+    studio_cover_selection:async args=>this.studio.coverSelection(args),
+    studio_cover_generate:async args=>this.studio.startCover(args),
+    studio_trim_audio:async args=>this.studio.trim(args),
     studio_save_mix:async args=>this.studio.saveMix(args),
     studio_import_score:async args=>this.studio.importScore(args),
-    sound_library_page:async args=>this.soundCatalog.page(args),sound_library_queue:async args=>this.soundCatalog.queue(args),sound_library_items:async args=>this.soundCatalog.items(args.ids),sound_playlist_save:async args=>this.soundCatalog.save(args),sound_playlist_remove:async args=>this.soundCatalog.remove(args),
-    studio_library:async args=>this.studio.snapshot(args),studio_create_sound:async args=>this.studio.createSound(args),studio_retry_music:async args=>this.studio.retryMusic(args),studio_generate:async args=>this.studio.generate(args),studio_update_version:async args=>this.studio.update(args),studio_cancel:async args=>this.studio.cancel(args.versionId),studio_render:async args=>this.studio.render(args.versionId),
+    sound_library_page:async args=>this.soundCatalog.page(args),sound_library_queue:async args=>this.soundCatalog.queue(args),sound_library_items:async args=>this.soundCatalog.items(args.ids),sound_library_trim:async args=>this.studio.trimLibrary(args),sound_playlist_save:async args=>this.soundCatalog.save(args),sound_playlist_remove:async args=>this.soundCatalog.remove(args),
+    studio_library:async args=>this.studio.snapshot(args),studio_create_sound:async args=>this.studio.createSound(args),studio_attach_sound:async args=>this.studio.attachSound(args),studio_retry_music:async args=>this.studio.retryMusic(args),studio_generate:async args=>this.studio.generate(args),studio_update_version:async args=>this.studio.update(args),studio_cancel:async args=>this.studio.cancel(args.versionId),studio_render:async args=>this.studio.render(args.versionId),
     tts_status:async()=>this.speech.status(),tts_prepare:async args=>this.speech.prepare(args.directory),tts_cancel_preparation:async()=>this.speech.cancelPreparation(),
     tts_library:async()=>this.speech.snapshot(),tts_add_voice:async args=>this.speech.addVoice(args.name,Buffer.from(args.audioBase64,'base64'),args.cleanup),
     tts_clean_voice:async args=>this.speech.cleanVoice(args.voiceId),tts_update_voice:async args=>this.speech.updateVoice(args.voiceId,args),
@@ -112,6 +132,6 @@ export class MusicService {
   };
   close():Promise<void> {
     if(this.closing)return this.closing;
-    this.closing=(async()=>{const results=await Promise.allSettled([this.monitor.close(),this.lyricsGeneration.close(),this.effects.close(),this.resources.close(),this.yue2Client.close(),this.conversion.close(),this.studio.close(),this.soundLibrary.close(),this.soundCatalog.close(),this.speech.close(),this.yue2.close(),this.jobs.close()]);await this.store.close();const errors=results.filter(r=>r.status==='rejected').map(r=>r.reason);if(errors.length)throw new AggregateError(errors,'关闭服务时部分资源未释放');})();return this.closing;
+    this.closing=(async()=>{const results=await Promise.allSettled([this.monitor.close(),this.lyricsGeneration.close(),this.effects.close(),this.cover.cancelPreparation(),this.live.close(),this.resources.close(),this.yue2Client.close(),this.conversion.close(),this.studio.close(),this.soundLibrary.close(),this.soundCatalog.close(),this.speech.close(),this.yue2.close(),this.jobs.close()]);await this.store.close();const errors=results.filter(r=>r.status==='rejected').map(r=>r.reason);if(errors.length)throw new AggregateError(errors,'关闭服务时部分资源未释放');})();return this.closing;
   }
 }

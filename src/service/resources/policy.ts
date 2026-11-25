@@ -13,6 +13,17 @@ export function validPolicy(p: ResourcePolicy) {
     Number.isSafeInteger(p.retryMs) && p.retryMs > 0 && Number.isSafeInteger(p.maxQueue) && p.maxQueue > 0 &&
     Object.values(p.limits ?? {}).every(bytes);
 }
+export function hardwareSnapshotIssue(snapshot: HardwareSnapshot, policy: ResourcePolicy, now: number) {
+  if (snapshot.topology === 'unknown' || !Number.isFinite(now) || !Number.isFinite(snapshot.sampledAt) ||
+    now < snapshot.sampledAt || now - snapshot.sampledAt > policy.maxSnapshotAgeMs ||
+    snapshot.pressure === 'unknown' || !snapshot.pools.length ||
+    new Set(snapshot.pools.map(p => p.id)).size !== snapshot.pools.length ||
+    snapshot.pools.some(p => !p.id || ![p.capacity, p.available, p.owned].every(bytes) ||
+      p.available > p.capacity || p.owned > p.capacity || p.platformLimit !== undefined && !bytes(p.platformLimit)))
+    return {message:'当前资源数据不可靠，等待重新读取',retry:true};
+  if (snapshot.topology === 'unified' && snapshot.pools.length !== 1)
+    return {message:'统一内存不能重复记为内存和显存',retry:false};
+}
 export function admit(snapshot: HardwareSnapshot, demand: ResourceDemand, policy: ResourcePolicy,
   now: number, resident: Record<string, number> = {}): Admission {
   if (!validPolicy(policy)) throw new Error('资源策略参数无效');
@@ -21,17 +32,10 @@ export function admit(snapshot: HardwareSnapshot, demand: ResourceDemand, policy
   if (!demand.verified || !Object.keys(demand.peak).length || !Object.values(demand.peak).every(bytes) ||
     Object.keys(startup).length!==Object.keys(demand.peak).length || Object.entries(startup).some(([id,value])=>!bytes(value)||!bytes(demand.peak[id])||value>demand.peak[id]))
     return no('RESOURCE_PROFILE_UNVERIFIED', '此模型配置的资源需求尚未验证');
-  if (snapshot.topology === 'unknown' || !Number.isFinite(now) || !Number.isFinite(snapshot.sampledAt) ||
-    now < snapshot.sampledAt || now - snapshot.sampledAt > policy.maxSnapshotAgeMs ||
-    snapshot.pressure === 'unknown' || !snapshot.pools.length ||
-    new Set(snapshot.pools.map(p => p.id)).size !== snapshot.pools.length ||
-    snapshot.pools.some(p => !p.id || ![p.capacity, p.available, p.owned].every(bytes) ||
-      p.available > p.capacity || p.owned > p.capacity || p.platformLimit !== undefined && !bytes(p.platformLimit)) ||
-    !Object.values(resident).every(bytes))
+  if (!Object.values(resident).every(bytes))
     return no('RESOURCE_TELEMETRY_UNAVAILABLE', '当前资源数据不可靠，等待重新读取', true);
-  // Unified devices must be represented by one shared pool; reject accidental CPU+GPU accounting.
-  if (snapshot.topology === 'unified' && snapshot.pools.length !== 1)
-    return no('RESOURCE_TELEMETRY_UNAVAILABLE', '统一内存不能重复记为内存和显存');
+  const issue = hardwareSnapshotIssue(snapshot, policy, now);
+  if (issue) return no('RESOURCE_TELEMETRY_UNAVAILABLE', issue.message, issue.retry);
   const budgets: Record<string, number> = {},details:AdmissionDetail[]=[];
   let permanent=false;
   for (const [id, ceiling] of Object.entries(demand.peak)) {
@@ -54,6 +58,8 @@ export function admit(snapshot: HardwareSnapshot, demand: ResourceDemand, policy
   const failed=details.find(d=>d.startup>d.applicationLimit)??details.find(d=>d.limiting==='pressure'||d.shortfall>0);
   if(!failed)return {allowed:true,budgets,details};
   const source={user_limit:'用户设置的应用上限',capacity:'扣除系统保留后的容量',platform_limit:'平台上限',application_usage:'本程序已有占用',system_memory:'当前系统资源',pressure:'系统内存压力偏高'}[failed.limiting];
-  const message=`任务启动预约 ${gib(failed.startup)}，当前启动预算约 ${gib(failed.startupBudget)}${failed.resident?`，可复用驻留 ${gib(failed.resident)}`:''}，尚差约 ${gib(failed.shortfall)}；限制来自${source}`;
+  const message=failed.limiting==='pressure'&&failed.shortfall===0
+    ?`任务启动预约 ${gib(failed.startup)}；虽然含系统缓存的启动预算约 ${gib(failed.startupBudget)}${failed.resident?`（另有可复用驻留 ${gib(failed.resident)}）`:''}，但当前系统内存压力偏高（已有较多内存被压缩或使用交换空间），正在等待压力恢复正常`
+    :`任务启动预约 ${gib(failed.startup)}，当前启动预算约 ${gib(failed.startupBudget)}${failed.resident?`，可复用驻留 ${gib(failed.resident)}`:''}，尚差约 ${gib(failed.shortfall)}；${failed.limiting==='pressure'?'同时系统内存压力偏高':`限制来自${source}`}`;
   return {...no(permanent?'INSUFFICIENT_CAPACITY':'WAITING_FOR_MEMORY',message,!permanent),details};
 }

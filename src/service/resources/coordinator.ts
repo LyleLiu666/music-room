@@ -28,6 +28,7 @@ export class ResourceCoordinator {
   private adapters = new Map<string, ResourceAdapter>();
   private history: ResourceTaskState[] = [];
   private fault?: ResourceError;
+  private failedLeaseTaskId?: string;
   private closed = false;
   private paused=false;private hardwareError?:string;private configurationError?:string;
   private closing?: Promise<void>;
@@ -94,6 +95,14 @@ export class ResourceCoordinator {
   pause(){this.paused=true;return this.snapshot();}
   resume(){if(this.closed)throw new ResourceError('CLOSED','服务正在退出');this.paused=false;queueMicrotask(()=>this.pump());return this.snapshot();}
   async cancel(id:string){const entry=[...this.queue,...(this.active?[this.active]:[])].find(e=>e.state.id===id);if(!entry){if(this.history.some(e=>e.id===id))return this.snapshot();throw Error('资源任务不存在');}entry.cancel();await entry.done;return this.snapshot();}
+  retryLeaseRelease(taskId:string){
+    if(this.closed||this.active||this.failedLeaseTaskId!==taskId||!this.options.lease)return false;
+    // The lease itself checks ownership and verifies that its workers have exited.
+    try{this.options.lease.release();}catch{return false;}
+    this.failedLeaseTaskId=undefined;this.fault=undefined;
+    queueMicrotask(()=>this.pump());
+    return true;
+  }
   setConfigurationError(message:string){this.configurationError=message;}
   setLimits(limits:Record<string,number>|undefined,persist:()=>void=()=>{}){if(this.closed||this.active||this.queue.length||this.pumping)throw Error('请等任务结束或先取消，再修改内存上限');const policy={...this.options.policy,limits};if(!validPolicy(policy)||limits&&Object.keys(limits).some(k=>k!=='memory'))throw Error('内存上限无效');persist();this.options.policy=structuredClone(policy);this.configurationError=undefined;return this.snapshot();}
   private emit(entry: Entry, stage: ResourceStage, error?: ResourceError) {
@@ -173,7 +182,7 @@ export class ResourceCoordinator {
         entry.controller.signal.throwIfAborted();
         this.emit(entry, 'loading');
         entry.controller.signal.throwIfAborted();
-        executed = true;this.observation=undefined;stopMonitor=this.monitor(entry,pids,admittedHardware);
+        executed = true;stopMonitor=this.monitor(entry,pids,admittedHardware);
         const value = await entry.request.execute({signal: entry.controller.signal, budgets: {...this.reservations},
           running: () => {entry.controller.signal.throwIfAborted(); this.emit(entry, 'running');},
           trackProcess: pid => {this.options.lease?.track(pid);if(!pids.includes(pid))pids.push(pid);},
@@ -192,14 +201,14 @@ export class ResourceCoordinator {
         }
         if (leased && !this.fault) {
           try {this.options.lease!.release(); leased = false;}
-          catch (cleanup) {this.fault = new ResourceError('UNLOAD_FAILED', `所属进程未释放：${String(cleanup)}`); error = this.fault;}
+          catch (cleanup) {this.failedLeaseTaskId=entry.state.id;this.fault = new ResourceError('UNLOAD_FAILED', `所属进程未释放：${String(cleanup)}`); error = this.fault;}
         }
         const cause = error instanceof ResourceError ? error : undefined;
         const stage = this.fault ? 'failed' : entry.controller.signal.aborted&&cause?.code==='CANCELLED' ? 'cancelled' : cause ? 'blocked' : 'failed';
         try {this.emit(entry, stage, cause);} catch {/* Persistence failure must not prevent cleanup. */}
         entry.reject(error);
       } finally {
-        this.reservations = {}; entry.detach(); this.remember(entry); this.active = undefined;
+        this.reservations = {}; this.observation = undefined; entry.detach(); this.remember(entry); this.active = undefined;
       }
     }
   }

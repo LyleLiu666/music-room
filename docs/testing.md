@@ -37,6 +37,13 @@ TTS 候选横向比较见[本机 TTS 模型选型](tts-model-selection.md)，模
 | [执行指南](testing/running.md) | 命令怎么运行，怎样准备隔离环境、保存证据和清理 |
 | [固定语料与听评](testing/quality.md) | 输入、种子、模型效果评分和歌词真值如何验收 |
 | [维护规则](testing/maintenance.md) | 新增 / 修改 / 删除用例，处理失败与维护基线时遵循什么规则 |
+| [2026-11-25 即兴会话超时与租约重试](testing/verification-live-recovery-2026-11-25.md) | 悬挂响应、请求去重、租约释放重试及独立包验证 |
+| [2026-11-25 翻唱与即兴故障恢复](testing/verification-entropy-fixes-2026-11-25.md) | 彻底删除、回留重试、停止确认及失败状态一致性 |
+| [2026-11-24 翻唱与即兴交付](testing/verification-cover-live-release-2026-11-24.md) | 浏览器复验、本机样本、真实资源互斥、独立包结果 |
+| [2026-11-24 ACE-Step 翻唱后端](testing/verification-ace-cover-backend-2026-11-24.md) | 真实模型安装、资源采样、选段与新版本保存 |
+| [2026-11-24 同步歌词人工校对](testing/verification-lyrics-manual-review-2026-11-24.md) | 待定位句、歌词时间轴、保存冲突及浏览器验证 |
+| [2026-11-24 全休止人声轨生成](testing/verification-vocal-abc-omission-2026-11-24.md) | 真实试听样本、伴奏与歌词输入检查、回归与安装结果 |
+| [2026-11-08 项目音效工作流](testing/verification-effect-workflow-2026-11-08.md) | 项目内音效版本、独立录音加入项目、平滑截取与本轮未完成验收 |
 | [2026-11-08 音效接入与复验](testing/verification-sound-effects-integration-2026-11-08.md) | 固定模型、MCP 与声音库、内存保护、取消、备份和已知待验收项 |
 | [2026-11-07 语音工作区 UX](testing/verification-voicestudio-ux-2026-11-07.md) | 正文/参考音色双栏、TXT 导入、草稿恢复与浏览器回归 |
 | [2026-10-29 目标时长重规划反馈](testing/verification-duration-feedback-2026-10-29.md) | 实测谱长偏差反馈、上下文预算保护、规则回归与真实模型内存压力阻塞 |

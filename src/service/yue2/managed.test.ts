@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {mkdtemp,rm,mkdir,writeFile} from 'node:fs/promises';
+import {mkdtemp,rm,mkdir,writeFile,readFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -8,9 +8,12 @@ import {createServer} from 'node:http';
 import {ProjectStore} from '../projects/store.ts';
 import {YuE2Engine} from './engine.ts';
 import {YuE2Client} from './client.ts';
+import {inspectMusicContext} from './context.ts';
+import type {YuE2Generate} from './contracts.ts';
+import type {MusicObjectAudio} from './object-audio.ts';
 import {testResources} from '../resources/testing.ts';
 const delay=()=>new Promise(r=>setTimeout(r,5));
-async function fixture(t:any){
+async function fixture(t:any,objects?:MusicObjectAudio){
  const root=await mkdtemp(join(tmpdir(),'managed-yue-')),directory=join(root,'engine');
  let launches=0,stops=0,submits=0,done=false,progress:Record<string,unknown>|undefined,apiTruncation:unknown;const bodies:any[]=[];
  const upstream='a'.repeat(32),resources=testResources(),store=await ProjectStore.open(join(root,'workspace'));
@@ -18,7 +21,7 @@ async function fixture(t:any){
  await new Promise<void>(r=>server.listen(0,'127.0.0.1',r));
  const driver={unsupported:()=>undefined,installed:()=>true,modelsReady:()=>true,chooseDirectory:async()=>directory,prepare:async()=>{},launch:async()=>{launches++;let end!:(n:number)=>void;return {url:`http://127.0.0.1:${(server.address() as any).port}`,exited:new Promise<number>(r=>end=r),status:async()=>({modelsPresent:true,fake:false}),stop:async()=>{stops++;end(0);}};}};
  const engine=await YuE2Engine.open(store,driver,resources);await engine.prepare(directory,true);for(let i=0;i<100&&(await engine.status()).phase==='preparing';i++)await delay();
- const client=new YuE2Client(engine,store,resources);
+ const client=new YuE2Client(engine,store,resources,objects);
  t.after(async()=>{await client.close();await resources.close();await engine.close();await store.close();await new Promise<void>(r=>server.close(()=>r()));await rm(root,{recursive:true,force:true});});
  return {root,directory,engine,client,resources,store,bodies,setTruncation:(value:unknown)=>{apiTruncation=value;},setProgress:(value:Record<string,unknown>)=>{progress=value;},counts:()=>({launches,stops,submits}),complete:async(truncated?:{abc:boolean;semantic:boolean})=>{await mkdir(join(directory,'data/songs',upstream,'song'),{recursive:true});await writeFile(join(directory,'data/songs',upstream,'song/audio.flac'),'fLaC test');if(truncated)await writeFile(join(directory,'data/songs',upstream,'summary.json'),JSON.stringify({truncated}));done=true;}};
 }
@@ -28,6 +31,36 @@ test('managed music is lazy, serialized, and reads completed audio after unloadi
  for(let i=0;i<100&&f.counts().submits<1;i++)await delay();assert.equal(f.counts().submits,1);assert.equal((await f.client.job(b.job.id)).job.status,'queued');
  await f.client.cancel(b.job.id);await f.complete();for(let i=0;i<200&&(await f.client.job(a.job.id)).job.status!=='done';i++)await delay();
  assert.equal((await f.client.job(a.job.id)).job.status,'done');assert.equal(f.counts().submits,1);await f.engine.stop();assert.equal((await f.client.audio(a.job.id)).length,9);assert.equal(f.counts().launches,1);
+});
+test('completed music stays available during a MinIO outage and retries the pending upload after restart',async t=>{
+ const uploaded=new Map<string,Uint8Array>();let uploads=0,online=false;
+ const storage:MusicObjectAudio={
+  namespace:'isolated/music',playbackOrigin:'https://music.example',
+  async upload(key,path){uploads++;if(!online)throw Error('offline');uploaded.set(key,await readFile(path));},
+  async read(key){return uploaded.get(key)!;},
+  async verify(key){assert.ok(uploaded.has(key));},
+  async playback(key){return this.playbackOrigin+'/'+key;},
+  async remove(key){uploaded.delete(key);},
+ };
+ const f=await fixture(t,storage);
+ const {job:{id}}=await f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true});
+ await f.complete();
+ for(let i=0;i<200&&uploads===0;i++)await delay();
+ assert.equal(uploads,1);
+ assert.equal((await f.client.job(id)).archiveState,'pending');
+ assert.equal(Buffer.from(await f.client.audio(id)).toString(),'fLaC test');
+
+ await f.client.close();online=true;
+ const restored=new YuE2Client(f.engine,f.store,f.resources,storage);
+ try{
+  for(let i=0;i<200&&(await restored.job(id)).archiveState!=='ready';i++)await delay();
+  const job=await restored.job(id);
+  assert.equal(job.job.status,'done');
+  assert.equal(job.archiveState,'ready');
+  assert.ok(job.audioPath,'automatic retry keeps the local original');
+  assert.equal(uploads,2);
+  assert.equal(uploaded.size,1);
+ }finally{await restored.close();}
 });
 test('queued music cancellation never launches a model',async t=>{
  const f=await fixture(t);const block=new AbortController();f.resources.register('block',{resident:()=>undefined,unload:async()=>{}});const held=f.resources.run({id:'block',engine:'block',demand:{verified:true,peak:{memory:1}},signal:block.signal,execute:async ctx=>new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}))}).catch(()=>{});
@@ -81,6 +114,78 @@ test('model context overflow is rejected before loading or creating an upstream 
  f.engine.inspectInput=async()=>({prefixTokens:12000,planningTokens:4098,semanticTokens:9000,contextTokens:24576,requiredTokens:25098,remainingTokens:-522,issue:'创作内容超过模型上下文容量'});
  await assert.rejects(f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true}),/上下文/);
  assert.equal(f.counts().launches,0);assert.equal(f.counts().submits,0);
+});
+
+test('a vocal ABC with only rests uses the accompaniment and original lyrics without changing the editable score',async t=>{
+ const f=await fixture(t);
+ const bin=join(f.directory,'.venv','bin');
+ await mkdir(bin,{recursive:true});
+ // Keep the real ABC parser and use score length as a deterministic substitute for the tokenizer.
+ await writeFile(join(bin,'python'),`#!/bin/sh
+if [ "$1" = "-c" ]; then
+ exec python3 -c 'import json,sys; print(json.dumps(dict(prefixTokens=len(json.load(sys.stdin).get("abc") or ""),planningTokens=0,semanticTokens=9000,contextTokens=24576)))'
+else
+ exec python3 "$@"
+fi
+`,{mode:0o755});
+ const inspect=(input:YuE2Generate)=>inspectMusicContext(f.directory,input);
+ f.engine.inspectInput=inspect;
+ const abc=[
+  'X:1','T:','M:4/4','L:1/32','Q:1/4=120',
+  'V: Vocal clef=treble name="Vocal Melody" snm="Vocal"',
+  'V: Ins clef=treble name="Ins Melody" snm="Inst."','K:C',
+  'V: Vocal','"C"z32|','V: Ins','C8D8E8F8|',
+ ].join('\n');
+ const effective=abc.split('\n').filter(line=>!line.startsWith('V: Vocal')&&line!=='"C"z32|').join('\n');
+ const input={style:'piano',lyrics:'[Verse]\n晚风吹过窗边',preset:'fast' as const,instrumental:false,abc};
+ const prepared=await inspect(input);
+ assert.equal(prepared.issue,undefined);
+ assert.equal(prepared.vocalRestsOmitted,true);
+ assert.equal(prepared.prefixTokens,effective.length);
+ const exact=await inspectMusicContext(f.directory,input,undefined,'exact-score');
+ assert.match(exact.issue??'',/固定乐谱试听/);
+ assert.equal(exact.prefixTokens,abc.length);
+ await assert.rejects(f.client.generate({...input,targetDuration:60}),/不符合目标时长/);
+ const silent={...input,abc:abc.replace('C8D8E8F8|','Z|')};
+ await assert.rejects(f.client.generate(silent),/伴奏轨都没有音符/);
+ const unreadable={...input,abc:abc.replace('T:','T:歌名')};
+ const unreadableIssue=/无法检查演唱 ABC 乐谱的人声轨.*检查谱面格式.*清空 ABC/;
+ for(const targetDuration of [undefined,60]){
+  const request={...unreadable,targetDuration};
+  await assert.rejects(f.client.generate(request),unreadableIssue);
+  assert.match((await inspect(request)).issue??'',unreadableIssue);
+ }
+ assert.deepEqual((await f.client.list()).jobs,[]);
+ assert.equal(f.resources.snapshot().active,undefined);
+ assert.deepEqual(f.resources.snapshot().queued,[]);
+ assert.deepEqual(f.counts(),{launches:0,stops:0,submits:0});
+
+ for(const request of [
+  {...input,abc:abc.replace('z32','C8z24')},
+  {...input,abc:undefined},
+  {...input,lyrics:'[instrumental]',instrumental:true},
+ ]){
+  const context=await inspect(request);
+  assert.equal(context.issue,undefined);
+  assert.equal(context.vocalRestsOmitted,undefined);
+ }
+ const labelsOnly=await inspect({...input,lyrics:'[Intro]\n[Verse]'});
+ assert.match(labelsOnly.issue??'',/填写歌词/);
+ assert.equal(labelsOnly.vocalRestsOmitted,undefined);
+ assert.match((await inspect({...input,instrumental:true,lyrics:'[instrumental]',targetDuration:60})).issue??'',/不符合目标时长/);
+ const {job}=await f.client.generate(input);
+ for(let i=0;i<100&&f.bodies.length<1;i++)await delay();
+ assert.equal(f.bodies[0].params.abc,abc);
+ assert.equal(f.bodies[0].params.lyrics,input.lyrics);
+ assert.equal(f.bodies[0].params.omit_vocal_rests,true);
+ assert.deepEqual(f.bodies[0].loras,[]);
+ await f.complete();
+ await writeFile(join(f.directory,'data/songs','a'.repeat(32),'song/score.abc'),effective);
+ for(let i=0;i<200&&(await f.client.job(job.id)).job.status!=='done';i++)await delay();
+ assert.equal(await f.client.score(job.id),abc);
+ await f.client.close();
+ const reopened=new YuE2Client(f.engine,f.store,f.resources);
+ try{assert.equal(await reopened.score(job.id),abc);}finally{await reopened.close();}
 });
 
 test('saved ABC is read as a copy and rejects symbolic-link artifacts',async t=>{

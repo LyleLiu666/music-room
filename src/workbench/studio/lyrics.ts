@@ -1,5 +1,6 @@
 import {backend} from '../service.ts';
 import type {LyricsResult} from '../../service/studio/lyrics.ts';
+import {createLyricsEditor} from './lyrics-editor.ts';
 import './lyrics.css';
 const mounted=new WeakSet<HTMLAudioElement>();
 /** The panel follows its audio element, including background playback. */
@@ -9,11 +10,11 @@ export function mountLyrics(audio:HTMLAudioElement|null){
  const section=document.createElement('section');section.className='player-lyrics';section.hidden=true;section.setAttribute('aria-label','歌词');audio.closest('.player-space')!.append(section);
  const header=document.createElement('div');header.className='lyrics-toolbar';
  function button(text:string){const b=document.createElement('button');b.className='quiet';b.textContent=text;return b;}
- const toggle=button('显示歌词'),follow=button('恢复跟随'),download=button('下载 LRC'),generate=button('生成同步歌词'),cancel=button('取消生成'),retry=button('重试读取');
- toggle.setAttribute('aria-expanded','false');follow.hidden=cancel.hidden=retry.hidden=true;
+ const toggle=button('显示歌词'),follow=button('恢复跟随'),download=button('下载 LRC'),generate=button('生成同步歌词'),cancel=button('取消生成'),retry=button('重试读取'),edit=button('校对歌词');
+ toggle.setAttribute('aria-expanded','false');follow.hidden=cancel.hidden=retry.hidden=edit.hidden=true;
  const note=document.createElement('span');note.className='muted';note.setAttribute('role','status');
  const body=document.createElement('div');body.className='lyrics-scroll';body.hidden=true;body.tabIndex=0;body.setAttribute('aria-label','歌词内容');
- header.append(toggle,note,generate,cancel,follow,download,retry);section.append(header,body);
+ header.append(toggle,note,edit,generate,cancel,follow,download,retry);section.append(header,body);
  let following=true,last=-2,result:LyricsResult|undefined,signature='',timer:ReturnType<typeof setTimeout>|undefined,requestId:string|undefined;
  const busy=()=>result?.job?.state==='queued'||result?.job?.state==='running';
  function update(){
@@ -28,6 +29,17 @@ export function mountLyrics(audio:HTMLAudioElement|null){
  for(const event of ['timeupdate','seeked','loadedmetadata','play','ended'])audio.addEventListener(event,update);
  const path='/api/studio-lyrics?'+new URLSearchParams({versionId:version});
  async function request(url:string,init:RequestInit={}){const response=await backend!.request(url,{signal:AbortSignal.timeout(15000),...init});if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.message??'歌词请求失败');}return response;}
+ edit.onclick=()=>{
+  if(result?.kind!=='synced'||busy())return;
+  const wasHidden=body.hidden;
+  const close=()=>{editor.remove();body.hidden=wasHidden;toggle.disabled=edit.hidden=false;generate.disabled=!result?.available;last=-2;update();};
+  const editor=createLyricsEditor(audio,result,async corrected=>{
+   await request(path,{method:'PUT',headers:{'content-type':'application/json'},body:JSON.stringify(corrected)});
+   close();await load();
+  },close);
+  section.append(editor);body.hidden=true;edit.hidden=toggle.disabled=generate.disabled=true;
+  editor.querySelector('input')?.focus();
+ };
  download.onclick=async()=>{download.disabled=true;try{const response=await request(path+'&format=lrc');const url=URL.createObjectURL(await response.blob()),a=document.createElement('a');a.href=url;a.download=`${version}.lrc`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){note.textContent=(e as Error).message;}finally{download.disabled=false;}};
  generate.onclick=async()=>{
   generate.disabled=true;requestId??=crypto.randomUUID();
@@ -42,9 +54,14 @@ export function mountLyrics(audio:HTMLAudioElement|null){
    const value=await(await request(path)).json() as LyricsResult;if(!audio!.isConnected)return;
    result=value;retry.hidden=true;section.hidden=value.kind==='none'&&!value.canGenerate;if(section.hidden)return;
    generate.hidden=!value.canGenerate;generate.disabled=busy()||!value.available;generate.title=value.available?'':value.unavailableReason??'本机尚未准备歌词引擎';generate.textContent=busy()?'生成中…':value.kind==='synced'?'重新生成歌词':'生成同步歌词';cancel.hidden=!busy();
-   download.hidden=value.kind!=='synced';note.textContent=busy()?`${value.job!.message} · ${value.job!.progress}%`:value.job&&value.job.state!=='succeeded'?value.job.message:value.kind==='plain'?'参考歌词 · 暂无同步时间':value.draft?'同步歌词 · 自动草稿，请试听核对':'同步歌词';
-   if(value.job?.state==='succeeded')note.textContent=value.job.message;
-   if(value.canGenerate&&!value.available&&value.unavailableReason)note.textContent=value.unavailableReason;
+   download.hidden=edit.hidden=value.kind!=='synced';edit.disabled=busy();
+   if(busy())note.textContent=`${value.job!.message} · ${value.job!.progress}%`;
+   else if(value.job&&value.job.state!=='succeeded')note.textContent=value.job.message;
+   else if(value.kind==='synced'&&value.unresolved?.length)note.textContent=`有 ${value.unresolved.length} 句待定位，可打开校对歌词`;
+   else if(value.kind==='synced'&&value.manuallyEdited)note.textContent='已保存人工校对';
+   else if(value.job)note.textContent=value.job.message;
+   else if(value.canGenerate&&!value.available&&value.unavailableReason)note.textContent=value.unavailableReason;
+   else note.textContent=value.kind==='plain'?'参考歌词 · 暂无同步时间':value.draft?'同步歌词 · 自动草稿，请试听核对':'同步歌词';
    const next=JSON.stringify([value.kind,value.reference,value.lines]);
    if(next!==signature){
     signature=next;body.replaceChildren();last=-2;

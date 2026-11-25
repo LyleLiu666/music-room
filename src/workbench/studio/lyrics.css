@@ -1,1 +1,17 @@
-.player-lyrics{margin-top:16px;border-top:1px solid var(--border,#394538);padding-top:10px}.lyrics-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.lyrics-toolbar .muted{flex:1;font-size:12px}.lyrics-scroll{max-height:240px;overflow:auto;overscroll-behavior:contain;margin-top:8px;scroll-behavior:auto}.lyric-line{display:block;width:100%;border:0;background:transparent;color:inherit;opacity:.65;font:inherit;line-height:1.7;padding:9px 12px;text-align:center;border-radius:6px;cursor:pointer}.lyric-line.current-lyric{opacity:1;color:var(--accent,#a2d1af);background:color-mix(in srgb,currentColor 8%,transparent);font-weight:650}.plain-lyrics{white-space:pre-wrap;line-height:1.9;margin:8px 12px}.player-lyrics [hidden]{display:none!important}#background-player .lyrics-scroll{max-height:160px}
+.player-lyrics{margin-top:16px;border-top:1px solid var(--border);padding-top:10px}.lyrics-toolbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.lyrics-toolbar .muted{flex:1;font-size:var(--t-12)}.lyrics-scroll{max-height:240px;overflow:auto;overscroll-behavior:contain;margin-top:8px;scroll-behavior:auto}.lyric-line{display:block;width:100%;border:0;background:transparent;color:inherit;opacity:.65;font:inherit;line-height:1.7;padding:9px 12px;text-align:center;border-radius:var(--r-2);cursor:pointer}.lyric-line.current-lyric{opacity:1;color:var(--accent);background:color-mix(in srgb,currentColor 8%,transparent);font-weight:650}.plain-lyrics{white-space:pre-wrap;line-height:1.9;margin:8px 12px}.player-lyrics [hidden]{display:none!important}#background-player .lyrics-scroll{max-height:160px}
+
+.lyrics-editor{margin-top:12px}
+.lyrics-editor h3{margin:0 0 4px;font-size:var(--t-14)}
+.lyrics-review-list{display:grid;gap:8px;max-height:min(48vh,430px);overflow:auto;overscroll-behavior:contain;padding:2px}
+.lyrics-review-row{display:grid;grid-template-columns:minmax(0,2fr) repeat(2,minmax(70px,.65fr));gap:8px;margin:0;padding:8px 10px;min-width:0;border:1px solid var(--border);border-radius:var(--r-2)}
+.lyrics-review-row legend,.lyrics-review-row label{font-size:var(--t-12)}
+.lyrics-review-row label{display:grid;gap:4px;min-width:0}
+.lyrics-review-row input{width:100%;min-width:0}
+.lyrics-review-row .field-note,.lyrics-review-row-actions{grid-column:1/-1;margin:0}
+.lyrics-review-row-actions,.lyrics-review-actions{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px}
+.lyrics-review-actions{justify-content:flex-end}
+#background-player .lyrics-review-list{max-height:160px}
+@media(max-width:540px){
+ .lyrics-review-row{grid-template-columns:repeat(2,minmax(0,1fr))}
+ .lyrics-review-row label:first-of-type{grid-column:1/-1}
+}

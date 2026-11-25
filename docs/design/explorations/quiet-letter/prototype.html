@@ -1,0 +1,681 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Music Room · 安静信笺 · 视觉稿</title>
+<!--
+  视觉稿，不是正式页面。
+  方向：安静信笺（原研哉「空」的设计）。内容取自演示工作区，时长、进度等为示意。
+  屏幕：#workspace #menu #compose #library #tasks；?theme=dark 切换夜间；?shot 隐藏切换条。
+-->
+<style>
+:root{
+  color-scheme:light;
+  --paper:#f5f2ea;
+  --paper-raised:#fbf9f4;
+  --paper-sunk:#eeeae0;
+  --paper-hover:#ebe6da;
+  --paper-select:#e6e0d3;
+  --ink:#24221e;
+  --ink-2:#5c574e;
+  --ink-3:#8c867a;
+  --hair:#e2dccf;
+  --hair-strong:#d2cab9;
+  --seal:#b5402f;
+  --seal-soft:#f2e2da;
+  --danger:#9b3b2e;
+  --warn:#9a6a1e;
+  --on-ink:#fbf9f4;
+  --wave:#cfc7b6;
+  --wave-played:#24221e;
+  --focus:0 0 0 2px var(--paper),0 0 0 4px #24221e55;
+
+  --serif:"Iowan Old Style","Songti SC","Noto Serif SC","Source Han Serif SC",serif;
+  --sans:-apple-system,BlinkMacSystemFont,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+
+  --t-12:12px;--t-13:13px;--t-14:14px;--t-16:16px;--t-20:20px;--t-28:28px;
+  --s-1:4px;--s-2:8px;--s-3:12px;--s-4:16px;--s-5:24px;--s-6:32px;--s-7:48px;--s-8:64px;
+  --r-1:4px;--r-2:6px;
+}
+:root[data-theme="dark"]{
+  color-scheme:dark;
+  --paper:#1b1a17;
+  --paper-raised:#22211d;
+  --paper-sunk:#171613;
+  --paper-hover:#262420;
+  --paper-select:#2c2a25;
+  --ink:#ebe6db;
+  --ink-2:#b4ad9f;
+  --ink-3:#847e72;
+  --hair:#2f2c27;
+  --hair-strong:#3d3a33;
+  --seal:#d6634e;
+  --seal-soft:#3a2520;
+  --danger:#d9705f;
+  --warn:#d4a24c;
+  --on-ink:#1b1a17;
+  --wave:#44403a;
+  --wave-played:#ebe6db;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{font:400 var(--t-14)/22px var(--sans);color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:none;box-shadow:var(--focus)}
+svg{display:block}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---------- frame ---------- */
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);height:100vh;overflow:hidden}
+.app.with-panel{grid-template-columns:232px minmax(0,1fr) 452px}
+.main{display:flex;flex-direction:column;min-width:0;overflow:hidden}
+.scroll{flex:1;overflow:auto}
+.page{max-width:920px;margin:0 auto;padding:var(--s-7) var(--s-7) var(--s-8)}
+
+/* ---------- rail ---------- */
+.rail{background:var(--paper-sunk);border-right:1px solid var(--hair);display:flex;flex-direction:column;padding:var(--s-5) var(--s-3) var(--s-4)}
+.wordmark{font:500 19px/24px var(--serif);letter-spacing:.01em;padding:0 var(--s-3);margin-bottom:var(--s-6)}
+.rail-label{display:flex;align-items:center;justify-content:space-between;padding:0 var(--s-2) 0 var(--s-3);margin-bottom:var(--s-1);font-size:var(--t-12);line-height:18px;color:var(--ink-3);letter-spacing:.08em}
+.icon-btn{width:28px;height:28px;display:grid;place-items:center;border-radius:var(--r-2);color:var(--ink-2)}
+.icon-btn:hover{background:var(--paper-hover);color:var(--ink)}
+.rail-item{display:flex;align-items:center;gap:10px;width:100%;height:34px;padding:0 var(--s-3);border-radius:var(--r-2);font-size:var(--t-14);color:var(--ink-2);text-align:left}
+.rail-item:hover{background:var(--paper-hover);color:var(--ink)}
+.rail-item.active{background:var(--paper-select);color:var(--ink);font-weight:500}
+.rail-item .count{margin-left:auto;font-size:var(--t-12);color:var(--ink-3)}
+.rail-item svg{color:var(--ink-3);flex:none}
+.rail-item.active svg{color:var(--ink)}
+.rail-gap{height:var(--s-6)}
+.rail-foot{margin-top:auto;display:flex;flex-direction:column;gap:var(--s-2)}
+.rail-foot-row{display:flex;align-items:center;gap:var(--s-1)}
+.rail-foot-row .rail-item{flex:1}
+.memory{display:block;width:100%;text-align:left;border-radius:var(--r-2)}
+.memory:hover{background:var(--paper-hover)}
+.live{display:inline-flex;align-items:center;gap:6px;margin-left:auto;font-size:var(--t-12);color:var(--ink-2)}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--ink);animation:breathe 1.2s ease-in-out infinite}
+@keyframes breathe{50%{opacity:.35}}
+.shot .live i,.shot .status.run i{animation:none}
+.memory{padding:var(--s-2) var(--s-3);font-size:var(--t-12);line-height:18px;color:var(--ink-3)}
+.memory b{font-weight:500;color:var(--ink-2)}
+.meter{display:flex;gap:2px;margin-top:6px}
+.meter span{flex:1;height:3px;border-radius:2px;background:var(--hair-strong)}
+.meter span.on{background:var(--ink-2)}
+
+/* ---------- headers ---------- */
+.head{display:flex;align-items:flex-end;gap:var(--s-4);margin-bottom:var(--s-6)}
+.head h1{font:500 var(--t-28)/36px var(--serif);letter-spacing:.02em}
+.head .meta{margin-top:6px;font-size:var(--t-13);line-height:20px;color:var(--ink-3)}
+.head .actions{margin-left:auto;display:flex;align-items:center;gap:var(--s-2)}
+
+/* ---------- buttons ---------- */
+.btn{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 12px;border-radius:var(--r-2);font-size:var(--t-13);font-weight:500;color:var(--ink-2);white-space:nowrap}
+.btn:hover{background:var(--paper-hover);color:var(--ink)}
+.btn.line{border:1px solid var(--hair-strong);color:var(--ink)}
+.btn.line:hover{border-color:var(--ink-3);background:transparent}
+.btn.ink{background:var(--ink);color:var(--on-ink);padding:0 16px}
+.btn.ink:hover{background:var(--ink);opacity:.88}
+.btn.big{height:40px;padding:0 20px;font-size:var(--t-14)}
+.btn.pressed{background:var(--paper-select);color:var(--ink);border:1px solid var(--hair-strong)}
+.btn.sealed{color:var(--seal);border-color:color-mix(in oklab,var(--seal) 45%,transparent)}
+.btn.sealed:hover{border-color:var(--seal)}
+.btn.danger{color:var(--danger)}
+.btn svg{flex:none}
+.link{color:var(--ink-2);text-decoration:underline;text-decoration-color:var(--hair-strong);text-underline-offset:4px}
+.link:hover{color:var(--ink);text-decoration-color:var(--ink-3)}
+
+/* ---------- marks: 成品印章 / 灵感 ---------- */
+.seal{display:inline-grid;place-items:center;height:20px;padding:0 6px;border-radius:2px;background:var(--seal);color:var(--paper-raised);font:500 11px/1 var(--serif);letter-spacing:.18em;padding-left:calc(6px + .18em);box-shadow:inset 0 0 0 1px color-mix(in oklab,var(--seal) 80%,#000)}
+:root[data-theme="dark"] .seal{color:#1b1a17}
+.mark{display:inline-grid;place-items:center;height:20px;padding:0 6px 0 calc(6px + .18em);border-radius:2px;border:1px solid color-mix(in oklab,var(--seal) 55%,transparent);color:var(--seal);font:500 11px/1 var(--serif);letter-spacing:.18em}
+
+/* ---------- sound tabs ---------- */
+.tabs{display:flex;align-items:flex-end;gap:var(--s-5);border-bottom:1px solid var(--hair);margin-bottom:var(--s-6)}
+.tab{position:relative;display:flex;align-items:baseline;gap:8px;height:44px;padding-top:12px;color:var(--ink-3);font-size:15px;white-space:nowrap;flex:none}
+.tab:hover{color:var(--ink)}
+.tab small{font-size:var(--t-12);color:var(--ink-3)}
+.tab.active{color:var(--ink);font-weight:500}
+.tab.active::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink)}
+.tab-add{display:flex;align-items:center;gap:4px;height:44px;padding-top:10px;white-space:nowrap;flex:none;color:var(--ink-3);font-size:var(--t-13)}
+.tab-add:hover{color:var(--ink)}
+.tabs .push{margin-left:auto;padding-bottom:6px}
+
+/* ---------- now playing ---------- */
+.now{margin-bottom:var(--s-7)}
+.now-top{display:flex;align-items:center;gap:var(--s-3)}
+.vno{font:500 24px/30px var(--serif)}
+.now-meta{margin-left:auto;font-size:var(--t-12);color:var(--ink-3)}
+.brief{margin:10px 0 var(--s-5);font:400 17px/28px var(--serif);color:var(--ink-2)}
+.player{display:grid;grid-template-columns:48px minmax(0,1fr);gap:var(--s-4);align-items:center}
+.play{width:48px;height:48px;border-radius:50%;background:var(--ink);color:var(--on-ink);display:grid;place-items:center}
+.play.sm{width:28px;height:28px;background:transparent;color:var(--ink);border:1px solid var(--hair-strong)}
+.play.sm:hover{border-color:var(--ink)}
+.play.sm.on{background:var(--ink);color:var(--on-ink);border-color:var(--ink)}
+.play.sm[disabled]{color:var(--ink-3);border-style:dashed;cursor:default}
+.wave{width:100%;height:56px}
+.wave-time{display:flex;justify-content:space-between;margin-top:4px;font-size:var(--t-12);color:var(--ink-3)}
+.now-actions{display:flex;flex-wrap:wrap;align-items:center;gap:var(--s-2);margin-top:var(--s-5);padding-left:64px}
+.now-actions .sep{width:1px;height:16px;background:var(--hair-strong);margin:0 var(--s-1)}
+.now-actions .push{margin-left:auto}
+.menu-anchor{position:relative}
+.menu{position:absolute;right:0;top:38px;z-index:5;width:232px;padding:6px;background:var(--paper-raised);border:1px solid var(--hair);border-radius:var(--r-2);box-shadow:0 12px 32px -12px rgba(36,34,30,.25)}
+.menu button{display:flex;align-items:center;justify-content:space-between;width:100%;height:34px;padding:0 10px;border-radius:var(--r-1);font-size:var(--t-13);color:var(--ink);text-align:left}
+.menu button:hover{background:var(--paper-hover)}
+.menu button small{font-size:var(--t-12);color:var(--ink-3)}
+.menu hr{border:0;border-top:1px solid var(--hair);margin:6px 4px}
+.menu .danger{color:var(--danger)}
+.menu-label{padding:6px 10px 2px;font-size:var(--t-12);color:var(--ink-3)}
+
+/* ---------- version list ---------- */
+.sec-head{display:flex;align-items:baseline;gap:8px;margin-bottom:var(--s-2)}
+.sec-head h2{font:500 var(--t-16)/24px var(--serif)}
+.sec-head .n{font-size:var(--t-12);color:var(--ink-3)}
+.sec-head .push{margin-left:auto;display:flex;gap:var(--s-1)}
+.rows{border-top:1px solid var(--hair)}
+.row{display:grid;grid-template-columns:28px 36px minmax(0,1fr) 120px 72px 44px 28px;align-items:center;gap:var(--s-3);min-height:56px;padding:0 var(--s-3);border-bottom:1px solid var(--hair)}
+.row:hover{background:color-mix(in oklab,var(--paper-hover) 60%,transparent)}
+.row.current{background:var(--paper-select)}
+.row .v{font:500 var(--t-14)/20px var(--serif);color:var(--ink-2)}
+.row.current .v{color:var(--ink)}
+.row .desc{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row .sub{display:block;font-size:var(--t-12);line-height:18px;color:var(--ink-3)}
+.row .marks{display:flex;gap:6px;justify-content:flex-end}
+.row .dur{font-size:var(--t-12);color:var(--ink-3);text-align:right}
+.row .more{opacity:0}
+.row:hover .more,.row.current .more{opacity:1}
+.mini{width:120px;height:20px}
+.row.busy{grid-template-columns:28px 36px minmax(0,1fr) 236px 28px}
+.stages{display:flex;gap:3px;margin-bottom:5px}
+.stages span{flex:1;height:3px;border-radius:2px;background:var(--hair-strong)}
+.stages span.done{background:var(--ink-3)}
+.stages span.cur{background:var(--ink)}
+.progress-text{font-size:var(--t-12);line-height:16px;color:var(--ink-3);white-space:nowrap}
+.progress-text b{font-weight:500;color:var(--ink-2)}
+.ring{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--hair-strong);border-top-color:var(--ink)}
+.after{margin-top:var(--s-5);font-size:var(--t-13);color:var(--ink-3)}
+.after .link{margin:0 4px}
+
+/* ---------- compose panel ---------- */
+.panel{display:flex;flex-direction:column;background:var(--paper-raised);border-left:1px solid var(--hair);min-width:0}
+.panel-head{display:flex;align-items:flex-start;gap:var(--s-3);padding:var(--s-5) var(--s-5) var(--s-4)}
+.panel-head h2{font:500 var(--t-20)/28px var(--serif)}
+.panel-head p{margin-top:2px;font-size:var(--t-12);line-height:18px;color:var(--ink-3)}
+.panel-head .icon-btn{margin-left:auto}
+.panel-body{flex:1;overflow:auto;padding:0 var(--s-5)}
+.field{padding:var(--s-4) 0 var(--s-5);border-top:1px solid var(--hair)}
+.field:first-child{border-top:0;padding-top:var(--s-2)}
+.field-label{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:var(--s-2);font-size:var(--t-13);font-weight:500;color:var(--ink)}
+.field-label .link{font-weight:400;font-size:var(--t-12)}
+.hint{margin-top:6px;font-size:var(--t-12);line-height:18px;color:var(--ink-3)}
+.seg{display:inline-flex;padding:2px;border-radius:var(--r-2);background:var(--paper-sunk);border:1px solid var(--hair)}
+.seg button{height:28px;padding:0 12px;border-radius:var(--r-1);font-size:var(--t-13);color:var(--ink-2)}
+.seg button.on{background:var(--paper-raised);color:var(--ink);font-weight:500;box-shadow:0 1px 2px rgba(36,34,30,.12)}
+:root[data-theme="dark"] .seg button.on{background:var(--paper-select)}
+.textarea{width:100%;min-height:112px;padding:10px 12px;border:1px solid var(--hair-strong);border-radius:var(--r-2);background:var(--paper);font:400 var(--t-14)/24px var(--sans);color:var(--ink);resize:vertical}
+.fold{display:flex;align-items:center;gap:var(--s-3);width:100%;min-height:48px;border-top:1px solid var(--hair);font-size:var(--t-13);color:var(--ink);text-align:left}
+.fold small{margin-left:auto;font-size:var(--t-12);color:var(--ink-3)}
+.fold svg{color:var(--ink-3)}
+.panel-foot{display:flex;align-items:center;gap:var(--s-3);padding:var(--s-4) var(--s-5);border-top:1px solid var(--hair)}
+.panel-foot .state{font-size:var(--t-12);line-height:18px;color:var(--ink-3)}
+.panel-foot .btn{margin-left:auto}
+
+/* ---------- list pages ---------- */
+.toolbar{display:flex;align-items:center;gap:var(--s-3);margin-bottom:var(--s-3)}
+.search{display:flex;align-items:center;gap:8px;flex:1;max-width:320px;height:34px;padding:0 2px;border-bottom:1px solid var(--hair-strong);color:var(--ink-3);font-size:var(--t-13)}
+.select{display:inline-flex;align-items:center;gap:4px;height:32px;padding:0 8px;font-size:var(--t-13);color:var(--ink-2);border-radius:var(--r-2)}
+.select:hover{background:var(--paper-hover)}
+.toolbar .push{margin-left:auto;display:flex;gap:var(--s-2)}
+.subtabs{display:flex;gap:var(--s-5);border-bottom:1px solid var(--hair);margin-bottom:var(--s-4)}
+.subtabs button{position:relative;height:38px;font-size:var(--t-14);color:var(--ink-3)}
+.subtabs button small{margin-left:6px;font-size:var(--t-12)}
+.subtabs button.on{color:var(--ink);font-weight:500}
+.subtabs button.on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;background:var(--ink)}
+.lrow{display:grid;grid-template-columns:28px minmax(0,1fr) 160px 100px 52px 28px;align-items:center;gap:var(--s-3);min-height:52px;padding:0 var(--s-3);border-bottom:1px solid var(--hair)}
+.lrow:hover{background:color-mix(in oklab,var(--paper-hover) 60%,transparent)}
+.lrow.current{background:var(--paper-select)}
+.lrow .t{font-weight:500}
+.lrow .t span{font:500 var(--t-13) var(--serif);color:var(--ink-3);margin-left:6px}
+.lrow .src{font-size:var(--t-13);color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.lrow .marks{display:flex;gap:6px}
+.lrow .dur{font-size:var(--t-12);color:var(--ink-3);text-align:right}
+.pager{display:flex;align-items:center;justify-content:space-between;margin-top:var(--s-4);font-size:var(--t-12);color:var(--ink-3)}
+
+.trow{display:grid;grid-template-columns:minmax(0,1.3fr) 96px minmax(0,1.4fr) 92px 112px;align-items:center;gap:var(--s-4);min-height:52px;padding:0 var(--s-3);border-bottom:1px solid var(--hair)}
+.trow.headrow{min-height:36px;font-size:var(--t-12);color:var(--ink-3)}
+.trow .t{font-weight:500}
+.trow .t small{margin-left:8px;font-weight:400;font-size:var(--t-12);color:var(--ink-3)}
+.trow .when{font-size:var(--t-12);color:var(--ink-3)}
+.trow .ops{display:flex;justify-content:flex-end;gap:2px}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:var(--t-13)}
+.status i{width:6px;height:6px;border-radius:50%;background:var(--ink-3)}
+.status.run{color:var(--ink)}.status.run i{background:var(--ink);animation:breathe 1.2s ease-in-out infinite}
+.status.queue{color:var(--ink-2)}.status.queue i{background:transparent;box-shadow:inset 0 0 0 1.5px var(--ink-3)}
+.status.wait{color:var(--warn)}.status.wait i{background:var(--warn)}
+.status.fail{color:var(--danger)}.status.fail i{background:var(--danger)}
+.status.ok{color:var(--ink-2)}
+
+/* ---------- bottom player (声音库队列) ---------- */
+.dock{display:grid;grid-template-columns:auto minmax(0,260px) minmax(0,1fr) auto;align-items:center;gap:var(--s-5);height:64px;padding:0 var(--s-6);border-top:1px solid var(--hair);background:var(--paper-raised)}
+.dock .ctrl{display:flex;align-items:center;gap:var(--s-2)}
+.dock .play{width:36px;height:36px}
+.dock .title{min-width:0}
+.dock .title b{display:block;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock .title small{display:block;font-size:var(--t-12);line-height:18px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.dock .bar{display:flex;align-items:center;gap:var(--s-3);font-size:var(--t-12);color:var(--ink-3)}
+.dock .bar .track{flex:1;height:3px;border-radius:2px;background:var(--hair-strong);position:relative}
+.dock .bar .track span{position:absolute;inset:0 62% 0 0;border-radius:2px;background:var(--ink)}
+.dock .right{display:flex;gap:var(--s-1)}
+
+
+/* ---------- 新声音：类型选择 ---------- */
+.kinds{display:grid;grid-template-columns:1fr 1fr;gap:var(--s-2)}
+.kind{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border:1px solid var(--hair-strong);border-radius:var(--r-2);text-align:left}
+.kind b{font-weight:500;font-size:var(--t-14)}
+.kind small{font-size:var(--t-12);line-height:18px;color:var(--ink-3)}
+.kind:hover{border-color:var(--ink-3)}
+.kind.on{border-color:var(--ink);box-shadow:inset 0 0 0 1px var(--ink)}
+.input{width:100%;height:36px;padding:0 12px;border:1px solid var(--hair-strong);border-radius:var(--r-2);background:var(--paper);font:400 var(--t-14)/22px var(--sans);color:var(--ink)}
+.steps{display:flex;gap:6px;margin-top:6px;font-size:var(--t-12);color:var(--ink-3)}
+.steps b{font-weight:500;color:var(--ink)}
+
+/* ---------- 任务与资源 ---------- */
+.block{padding:var(--s-4) 0 var(--s-5);border-top:1px solid var(--hair);margin-bottom:var(--s-5)}
+.block-head{display:flex;align-items:baseline;gap:var(--s-3);margin-bottom:var(--s-3)}
+.block-head h2{font:500 var(--t-16)/24px var(--serif)}
+.block-head .meta{font-size:var(--t-12);color:var(--ink-3)}
+.block-head .push{margin-left:auto;display:flex;gap:var(--s-2)}
+.dist{display:flex;height:10px;border-radius:3px;overflow:hidden;gap:2px}
+.dist span{display:block;height:100%}
+.legend{display:flex;flex-wrap:wrap;gap:var(--s-2) var(--s-5);margin-top:var(--s-3);font-size:var(--t-12);color:var(--ink-3)}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:6px;vertical-align:0}
+.legend b{font-weight:500;color:var(--ink-2)}
+.kv{display:flex;flex-wrap:wrap;gap:var(--s-2) var(--s-5);margin-top:var(--s-4);font-size:var(--t-13);color:var(--ink-2)}
+.kv span b{font-weight:500;color:var(--ink)}
+.resident{display:flex;align-items:center;gap:var(--s-3);margin-top:var(--s-4);padding-top:var(--s-3);border-top:1px dashed var(--hair);font-size:var(--t-13)}
+.resident .push{margin-left:auto;display:flex;align-items:center;gap:var(--s-2);font-size:var(--t-12);color:var(--ink-3)}
+.btn[disabled]{opacity:.45;cursor:default}
+
+/* ---------- 设置 ---------- */
+.settings{display:grid;grid-template-columns:168px minmax(0,1fr);gap:var(--s-6)}
+.subnav{position:sticky;top:0;display:flex;flex-direction:column;gap:2px;align-self:start}
+.subnav button{height:32px;padding:0 12px;text-align:left;font-size:var(--t-13);color:var(--ink-3);border-left:2px solid transparent}
+.subnav button.on{color:var(--ink);font-weight:500;border-left-color:var(--ink)}
+.subnav button:hover{color:var(--ink)}
+.srow{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:var(--s-4);align-items:center;padding:var(--s-3) 0;border-bottom:1px solid var(--hair)}
+.srow b{font-weight:500}
+.srow p{font-size:var(--t-12);line-height:18px;color:var(--ink-3)}
+.srow .ok{color:var(--ink-2)}
+.srow .acts{display:flex;gap:var(--s-2)}
+
+/* ---------- empty ---------- */
+.empty{padding:var(--s-8) 0;text-align:center}
+.empty h2{font:500 var(--t-20)/30px var(--serif)}
+.empty p{margin:8px 0 var(--s-5);color:var(--ink-3)}
+
+/* ---------- 面板打开且窗口不够宽：侧栏收为图标条 ---------- */
+.rail-mark{display:none}
+@media (min-width:721px) and (max-width:1360px){
+  .app.with-panel{grid-template-columns:64px minmax(0,1fr) 420px}
+  .app.with-panel .rail{padding:var(--s-5) 10px var(--s-4);align-items:center}
+  .app.with-panel .wordmark{font-size:15px;padding:0;margin-bottom:var(--s-5)}
+  .app.with-panel .wordmark span{display:none}
+  .app.with-panel .rail-label{padding:0;justify-content:center}
+  .app.with-panel .rail-label span{display:none}
+  .app.with-panel .rail-item{width:40px;justify-content:center;padding:0}
+  .app.with-panel .rail-item > span:not(.rail-mark):not(.live),.app.with-panel .rail-item .count{display:none}
+  .app.with-panel .rail-mark{display:grid;place-items:center;width:26px;height:26px;border:1px solid var(--hair-strong);border-radius:var(--r-1);font:500 13px/1 var(--serif)}
+  .app.with-panel .rail-item.active .rail-mark{border-color:var(--ink);background:var(--ink);color:var(--on-ink)}
+  .app.with-panel .live{position:absolute;margin:0;transform:translate(10px,-9px);font-size:0;gap:0}
+  .app.with-panel .rail-item{position:relative}
+  .app.with-panel .memory{display:none}
+  .app.with-panel .rail-foot-row{flex-direction:column}
+  .app.with-panel .page{padding-left:var(--s-6);padding-right:var(--s-6)}
+}
+
+/* ---------- mobile ---------- */
+.mbar{display:none}
+@media (max-width:720px){
+  .app,.app.with-panel{grid-template-columns:minmax(0,1fr)}
+  .rail,.panel{display:none}
+  .mbar{display:flex;align-items:center;gap:var(--s-2);height:52px;padding:0 var(--s-2);border-bottom:1px solid var(--hair);background:var(--paper)}
+  .mbar .title{font:500 17px/24px var(--serif)}
+  .mbar .icon-btn:last-child{margin-left:auto}
+  .page{padding:var(--s-5) var(--s-4) 120px}
+  .head{margin-bottom:var(--s-4)}
+  .head h1{font-size:24px;line-height:32px}
+  .head .actions{display:none}
+  .tabs{gap:var(--s-4);overflow-x:auto;margin:0 calc(var(--s-4) * -1) var(--s-5);padding:0 var(--s-4)}
+  .tabs .push,.tab-add{display:none}
+  .tab{flex:none}
+  .now-meta{display:none}
+  .brief{font-size:16px;line-height:26px}
+  .player{grid-template-columns:44px minmax(0,1fr);gap:var(--s-3)}
+  .play{width:44px;height:44px}
+  .now-actions{padding-left:0;flex-wrap:wrap}
+  .now-actions .sep,.now-actions .dl{display:none}
+  .row{grid-template-columns:28px 30px minmax(0,1fr) auto 28px;padding:0 var(--s-1)}
+  .row .mini,.row .dur{display:none}
+  .row.busy{grid-template-columns:28px 30px minmax(0,1fr)}
+  .row.busy .busy-progress{grid-column:3}
+  .row.busy .busy-cancel{display:none}
+  .mcta{position:fixed;left:0;right:0;bottom:0;display:flex;gap:var(--s-2);padding:var(--s-3) var(--s-4) calc(var(--s-3) + env(safe-area-inset-bottom));background:var(--paper);border-top:1px solid var(--hair)}
+  .mcta .btn.ink{flex:1;justify-content:center}
+}
+@media (min-width:721px){.mcta{display:none}}
+
+/* ---------- prototype switcher (not part of design) ---------- */
+.switcher{position:fixed;left:16px;bottom:16px;z-index:50;display:flex;gap:4px;padding:4px;border-radius:8px;background:#24221e;color:#fbf9f4;font-size:12px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.switcher a{padding:4px 8px;border-radius:5px;color:inherit;text-decoration:none;opacity:.7}
+.switcher a.on{opacity:1;background:#ffffff22}
+.switcher span{padding:4px 8px;opacity:.5}
+.shot .switcher{display:none}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const params=new URLSearchParams(location.search);
+if(params.get('theme')==='dark')document.documentElement.dataset.theme='dark';
+if(params.has('shot'))document.body.classList.add('shot');
+
+/* ---------- icons: 16px, 1.5 stroke ---------- */
+const I={
+  play:'<svg width="16" height="16" viewBox="0 0 16 16"><path d="M5 3.2v9.6c0 .4.4.6.7.4l7.4-4.8c.3-.2.3-.6 0-.8L5.7 2.8c-.3-.2-.7 0-.7.4Z" fill="currentColor"/></svg>',
+  playSm:'<svg width="12" height="12" viewBox="0 0 16 16"><path d="M5 3.2v9.6c0 .4.4.6.7.4l7.4-4.8c.3-.2.3-.6 0-.8L5.7 2.8c-.3-.2-.7 0-.7.4Z" fill="currentColor"/></svg>',
+  pause:'<svg width="16" height="16" viewBox="0 0 16 16"><rect x="4" y="3" width="2.6" height="10" rx="1" fill="currentColor"/><rect x="9.4" y="3" width="2.6" height="10" rx="1" fill="currentColor"/></svg>',
+  pauseSm:'<svg width="12" height="12" viewBox="0 0 16 16"><rect x="4" y="3" width="2.6" height="10" rx="1" fill="currentColor"/><rect x="9.4" y="3" width="2.6" height="10" rx="1" fill="currentColor"/></svg>',
+  prev:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3v10"/><path d="M12.5 3.5 6.5 8l6 4.5Z" fill="currentColor"/></svg>',
+  next:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v10"/><path d="M3.5 3.5 9.5 8l-6 4.5Z" fill="currentColor"/></svg>',
+  plus:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 3v10M3 8h10"/></svg>',
+  more:'<svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><circle cx="3.5" cy="8" r="1.2"/><circle cx="8" cy="8" r="1.2"/><circle cx="12.5" cy="8" r="1.2"/></svg>',
+  close:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="m4 4 8 8M12 4l-8 8"/></svg>',
+  down:'<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m4 6 4 4 4-4"/></svg>',
+  right:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="m6 4 4 4-4 4"/></svg>',
+  check:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-7"/></svg>',
+  download:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10"/></svg>',
+  search:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"/><path d="m10.5 10.5 3 3"/></svg>',
+  note:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12V3.5l7-1.5v8.5"/><circle cx="4.2" cy="12" r="1.8"/><circle cx="11.2" cy="10.5" r="1.8"/></svg>',
+  wave:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2 7v2M5 4.5v7M8 2.5v11M11 5v6M14 7v2"/></svg>',
+  list:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M6 4h8M6 8h8M6 12h8M2.5 4h.5M2.5 8h.5M2.5 12h.5"/></svg>',
+  gear:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="2.2"/><path d="M8 1.8v1.6M8 12.6v1.6M1.8 8h1.6M12.6 8h1.6M3.6 3.6l1.1 1.1M11.3 11.3l1.1 1.1M3.6 12.4l1.1-1.1M11.3 4.7l1.1-1.1"/></svg>',
+  menu:'<svg width="18" height="18" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg>',
+  sun:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><circle cx="8" cy="8" r="3"/><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1"/></svg>',
+  moon:'<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13.5 9.5A5.5 5.5 0 0 1 6.5 2.5a5.5 5.5 0 1 0 7 7Z"/></svg>',
+  mic:'<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"><rect x="5.5" y="1.8" width="5" height="8" rx="2.5"/><path d="M3.5 8a4.5 4.5 0 0 0 9 0M8 12.5v2"/></svg>',
+};
+
+/* ---------- deterministic waveform ---------- */
+function rand(seed){let s=seed>>>0;return()=>{s=(s*1664525+1013904223)>>>0;return s/4294967296;};}
+function bars(seed,n){const r=rand(seed);const out=[];let v=.4;for(let i=0;i<n;i++){const t=i/n;const env=.35+.65*Math.sin(Math.PI*Math.min(1,t*1.15))*(.75+.25*Math.sin(t*9));v=v*.55+r()*.45;out.push(Math.max(.08,Math.min(1,env*(.35+v*.8))));}return out;}
+function wave(seed,{n=160,h=56,played=0,cls='wave',gap=2}={}){
+  const b=bars(seed,n),w=1000,bw=w/n;
+  return `<svg class="${cls}" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true">${b.map((x,i)=>{const bh=Math.max(2,x*h);return `<rect x="${(i*bw+gap/2).toFixed(1)}" y="${((h-bh)/2).toFixed(1)}" width="${(bw-gap).toFixed(1)}" height="${bh.toFixed(1)}" rx="1" fill="var(${i/n<played?'--wave-played':'--wave'})"/>`;}).join('')}</svg>`;
+}
+
+/* ---------- content (取自演示工作区；时长与进度为示意) ---------- */
+const projects=[{t:'雨巷来信',n:3,on:true},{t:'短片《夏至》',n:0},{t:'播客片头',n:0}];
+const sounds=[{t:'主题曲',k:'完整音乐',n:4,on:true},{t:'钢琴 riff',k:'片段',n:1},{t:'开场旁白',k:'语音',n:2}];
+const versions=[
+  {v:'V4',d:'副歌加入大提琴，尾声放慢',busy:true},
+  {v:'V3',d:'节奏更舒缓，尾声留白',dur:'3:02',seed:31},
+  {v:'V2',d:'加入弦乐与长笛，副歌抬高',dur:'2:58',seed:22,final:true,current:true},
+  {v:'V1',d:'钢琴器乐，雨夜，D 小调，温柔克制',dur:'3:05',seed:11,kept:true},
+];
+
+function rail(active){
+  return `<aside class="rail">
+    <div class="wordmark">M<span>usic </span>R<span>oom</span></div>
+    <div class="rail-label"><span>项目</span><button class="icon-btn" aria-label="新建项目">${I.plus}</button></div>
+    ${projects.map(p=>`<button class="rail-item ${active==='project'&&p.on?'active':''}" title="${p.t}"><span class="rail-mark">${[...p.t.replace(/[《》]/g,'')][0]}</span><span>${p.t}</span><span class="count num">${p.n||''}</span></button>`).join('')}
+    <div class="rail-gap"></div>
+    <button class="rail-item ${active==='library'?'active':''}">${I.note}<span>声音库</span></button>
+    <button class="rail-item">${I.wave}<span>音色库</span></button>
+    <button class="rail-item ${active==='tasks'?'active':''}">${I.list}<span>任务与资源</span><span class="live"><i></i>1 生成中</span></button>
+    <div class="rail-foot">
+      <button class="memory" title="查看任务与资源">内存 <b>正常</b> · 可用约 <b class="num">11.0 GiB</b><div class="meter"><span class="on"></span><span class="on"></span><span></span><span></span><span></span></div></button>
+      <div class="rail-foot-row"><button class="rail-item ${active==='settings'?'active':''}">${I.gear}<span>设置</span></button><button class="icon-btn" aria-label="切换到${document.documentElement.dataset.theme==='dark'?'日间':'夜间'}">${document.documentElement.dataset.theme==='dark'?I.sun:I.moon}</button></div>
+    </div>
+  </aside>`;
+}
+
+function mobileBar(){return `<div class="mbar"><button class="icon-btn" aria-label="项目与导航">${I.menu}</button><span class="title">Music Room</span><button class="icon-btn" aria-label="更多">${I.more}</button></div>`;}
+
+function projectHead(){
+  return `<div class="head"><div><h1>雨巷来信</h1><div class="meta">3 个声音 · 2 个已选成品 · 保存在本机</div></div>
+    <div class="actions"><button class="btn">查看成品 <span class="num">2</span></button><button class="icon-btn" aria-label="项目更多操作">${I.more}</button></div></div>`;
+}
+
+function soundTabs(panel){
+  return `<nav class="tabs" aria-label="项目中的声音">
+    ${sounds.map(s=>`<button class="tab ${s.on?'active':''}">${s.t}<small>${s.k} · ${s.n}</small></button>`).join('')}
+    <button class="tab-add">${I.plus}新声音</button>
+    <div class="push">${panel?'<button class="btn pressed" aria-pressed="true">正在创作…</button>':`<button class="btn ink">${I.plus}再创作一版</button>`}</div>
+  </nav>`;
+}
+
+function nowPlaying(menuOpen){
+  return `<section class="now" aria-label="正在试听">
+    <div class="now-top"><span class="vno">V2</span><span class="seal">成品</span><span class="now-meta num">完整音乐 · 纯音乐 · 目标 3 分钟 · 11/19 18:04</span></div>
+    <p class="brief">「加入弦乐与长笛，副歌抬高」</p>
+    <div class="player">
+      <button class="play" aria-label="暂停">${I.pause}</button>
+      <div>${wave(22,{played:.4})}<div class="wave-time num"><span>1:11</span><span>2:58</span></div></div>
+    </div>
+    <div class="now-actions">
+      <button class="btn line sealed">${I.check}已选为成品</button>
+      <button class="btn line">留作灵感</button>
+      <span class="sep"></span>
+      <button class="btn">修改这版</button>
+      <button class="btn dl">${I.download}下载</button>
+      <div class="push menu-anchor">
+        <button class="btn" aria-expanded="${!!menuOpen}">更多 ${I.down}</button>
+        ${menuOpen?`<div class="menu" role="menu">
+          <div class="menu-label">试听</div>
+          <button>调速试听…<small>0.5–2.0 倍</small></button>
+          <button>试听结尾<small>最后 15 秒</small></button>
+          <button>生成同步歌词</button>
+          <hr>
+          <div class="menu-label">加工</div>
+          <button>截取音频…</button>
+          <button>转为器乐演奏…</button>
+          <button>下载 WAV</button>
+          <hr>
+          <button>查看创作要求</button>
+          <button class="danger">删除这版</button>
+        </div>`:''}
+      </div>
+    </div>
+  </section>`;
+}
+
+function versionRows(){
+  return `<section aria-label="版本">
+    <div class="sec-head"><h2>全部版本</h2><span class="n num">4</span><div class="push"><button class="btn">对比两版</button><button class="btn">选择</button></div></div>
+    <div class="rows">
+    ${versions.map(x=>x.busy?`
+      <div class="row busy">
+        <span class="play sm" aria-hidden="true" style="border:0;display:grid;place-items:center"><span class="ring"></span></span>
+        <span class="v">${x.v}</span>
+        <div style="min-width:0"><span class="desc" style="display:block">${x.d}</span><span class="sub">已运行 3:20 · 预计还需约 4 分钟</span></div>
+        <div class="busy-progress"><div class="stages"><span class="done"></span><span class="cur"></span><span></span><span></span><span></span></div><div class="progress-text"><b>2 / 5 生成音乐内容</b> · <span class="num">12 / 32</span></div></div>
+        <button class="icon-btn busy-cancel" aria-label="取消生成" title="取消生成">${I.close}</button>
+      </div>`:`
+      <div class="row ${x.current?'current':''}">
+        <button class="play sm ${x.current?'on':''}" aria-label="${x.current?'暂停':'播放'} ${x.v}">${x.current?I.pauseSm:I.playSm}</button>
+        <span class="v">${x.v}</span>
+        <span class="desc">${x.d}</span>
+        ${wave(x.seed,{n:48,h:20,cls:'mini',played:x.current?.4:0,gap:3})}
+        <span class="marks">${x.final?'<span class="seal">成品</span>':''}${x.kept?'<span class="mark">灵感</span>':''}</span>
+        <span class="dur num">${x.dur}</span>
+        <button class="icon-btn more" aria-label="${x.v} 更多操作">${I.more}</button>
+      </div>`).join('')}
+    </div>
+    <p class="after">也可以<button class="link">复制给 AI 的编曲要求</button>交给已连接的 Agent，或<button class="link">导入 MIDI / JSON</button>作为新版本。</p>
+  </section>`;
+}
+
+function workspace({menuOpen=false,panel=false}={}){
+  return `<div class="app ${panel?'with-panel':''}">
+    ${rail('project')}
+    <main class="main">${mobileBar()}<div class="scroll"><div class="page">
+      ${projectHead()}${soundTabs(panel)}${nowPlaying(menuOpen)}${versionRows()}
+    </div></div>
+    <div class="mcta"><button class="btn ink big">${I.plus}再创作一版</button></div>
+    </main>
+    ${panel==='new'?newSoundPanel():panel?composePanel():''}
+  </div>`;
+}
+
+function composePanel(){
+  return `<aside class="panel" aria-label="再创作一版">
+    <div class="panel-head"><div><h2>再创作一版</h2><p>主题曲 · 基于 V2「加入弦乐与长笛，副歌抬高」</p></div><button class="icon-btn" aria-label="收起">${I.close}</button></div>
+    <div class="panel-body">
+      <div class="field">
+        <div class="field-label">作品形式</div>
+        <div class="seg"><button class="on">纯音乐</button><button>带歌词演唱</button></div>
+      </div>
+      <div class="field">
+        <div class="field-label">音乐风格<button class="link">怎么写？看示例</button></div>
+        <textarea class="textarea">钢琴与弦乐，雨夜，D 小调，温柔克制。副歌加入大提琴，抬高旋律；尾声放慢，留出长音与空白。</textarea>
+        <p class="hint">写清曲风、乐器、速度和段落变化；歌词另填。</p>
+      </div>
+      <div class="field">
+        <div class="field-label">目标时长</div>
+        <div class="seg"><button>1 分</button><button>2 分</button><button class="on">3 分</button><button>4 分</button><button>5 分</button><button>由模型决定</button></div>
+        <p class="hint">乐谱和成品都需落在目标的 ±15% 以内。</p>
+      </div>
+      <button class="fold">乐谱与段落结构<small>未填写</small>${I.right}</button>
+      <button class="fold">生成设置<small>随机种子</small>${I.right}</button>
+      <button class="fold" style="border-bottom:1px solid var(--hair)">交给 AI 编曲<small>复制要求给已连接的 Agent</small>${I.right}</button>
+    </div>
+    <div class="panel-foot"><div class="state">草稿已保存 · 18:06<br>YuE2 已就绪</div><button class="btn ink big">生成新版本</button></div>
+  </aside>`;
+}
+
+function library(){
+  const items=[
+    {t:'主题曲',v:'V2',src:'雨巷来信',m:['seal'],d:'2:58',current:true},
+    {t:'开场旁白',v:'V1',src:'雨巷来信',m:['seal'],d:'0:12'},
+    {t:'主题曲',v:'V1',src:'雨巷来信',m:['mark'],d:'3:05'},
+    {t:'钢琴 riff',v:'V1',src:'雨巷来信',m:['mark'],d:'0:58'},
+    {t:'雨夜环境声',v:'',src:'外部导入 · WAV',m:[],d:'1:40'},
+  ];
+  return `<div class="app">
+    ${rail('library')}
+    <main class="main">${mobileBar()}<div class="scroll"><div class="page">
+      <div class="head"><div><h1>声音库</h1><div class="meta">选为成品或留作灵感的声音自动收录 · 5 个声音</div></div>
+        <div class="actions"><button class="btn line">生成音效</button><button class="btn line">${I.plus}导入音频</button></div></div>
+      <div class="subtabs"><button class="on">全部声音<small class="num">5</small></button><button>播放列表<small class="num">0</small></button></div>
+      <div class="toolbar">
+        <div class="search">${I.search}<span>搜索声音或来源项目</span></div>
+        <div class="seg"><button class="on">全部</button><button>成品</button><button>灵感</button><button>外部导入</button></div>
+        <button class="select">最新创建 ${I.down}</button>
+        <div class="push"><button class="btn ink">${I.playSm}播放全部</button><button class="select" aria-label="播放方式">顺序 ${I.down}</button></div>
+      </div>
+      <div class="rows">
+        ${items.map(x=>`<div class="lrow ${x.current?'current':''}">
+          <button class="play sm ${x.current?'on':''}">${x.current?I.pauseSm:I.playSm}</button>
+          <div class="t">${x.t}${x.v?`<span>${x.v}</span>`:''}</div>
+          <div class="src">${x.src}</div>
+          <div class="marks">${x.m.map(m=>m==='seal'?'<span class="seal">成品</span>':'<span class="mark">灵感</span>').join('')}</div>
+          <div class="dur num">${x.d}</div>
+          <button class="icon-btn" aria-label="更多">${I.more}</button>
+        </div>`).join('')}
+      </div>
+      <div class="pager"><span>共 5 项</span><span>每页 20 项</span></div>
+    </div></div>
+    <div class="dock">
+      <div class="ctrl"><button class="icon-btn" aria-label="上一首">${I.prev}</button><button class="play" aria-label="暂停">${I.pause}</button><button class="icon-btn" aria-label="下一首">${I.next}</button></div>
+      <div class="title"><b>主题曲 · V2</b><small>雨巷来信 · 队列 1 / 5</small></div>
+      <div class="bar num"><span>1:08</span><div class="track"><span></span></div><span>2:58</span></div>
+      <div class="right"><button class="select">顺序播放 ${I.down}</button><button class="btn">队列</button></div>
+    </div>
+    </main>
+  </div>`;
+}
+
+function newSoundPanel(){
+  const kinds=[['音乐片段','riff、间奏、短旋律'],['完整音乐','歌曲或纯音乐'],['语音','旁白、朗读、开场白'],['音效','水声、打字等 1–5 秒短声'],['音色转换','替换人声音色，保留伴奏']];
+  return `<aside class="panel" aria-label="新声音">
+    <div class="panel-head"><div><h2>新声音</h2><p>雨巷来信 · 选好类型后直接填写第一版</p><div class="steps"><b>1 类型与名称</b><span>·</span><span>2 第一版要求</span></div></div><button class="icon-btn" aria-label="收起">${I.close}</button></div>
+    <div class="panel-body">
+      <div class="field"><div class="field-label">类型</div><div class="kinds">${kinds.map(([t,h],i)=>`<button class="kind ${i===2?'on':''}" aria-pressed="${i===2}"><b>${t}</b><small>${h}</small></button>`).join('')}</div></div>
+      <div class="field"><div class="field-label">名称</div><input class="input" value="片尾旁白"><p class="hint">在页签和声音库中显示，之后可以改。</p></div>
+    </div>
+    <div class="panel-foot"><div class="state">语音模型已就绪</div><button class="btn ink big">下一步</button></div>
+  </aside>`;
+}
+function resources(){
+  const seg=[['系统保留',4.0,'var(--hair-strong)'],['其他应用',0.9,'var(--ink-3)'],['本程序',0.1,'var(--ink)'],['现在可用',11.0,'free']];
+  const total=16;
+  const queue=[
+    {t:'雨巷来信 / 主题曲 · V4',s:'run',r:'<div class="stages" style="max-width:220px"><span class="done"></span><span class="cur"></span><span></span><span></span><span></span></div><div class="progress-text"><b>生成音乐内容</b> · <span class="num">12 / 32</span> · 已运行 3:20</div>',a:'取消'},
+    {t:'雨巷来信 / 开场旁白 · V3',s:'queue',r:'<span class="progress-text">前面 1 项 · 需约 5 GB</span>',a:'取消'},
+  ];
+  const label={run:'生成中',queue:'排队中',wait:'等待内存',ok:'已完成'};
+  return `<div class="app">
+    ${rail('tasks')}
+    <main class="main">${mobileBar()}<div class="scroll"><div class="page">
+      <div class="head"><div><h1>任务与资源</h1><div class="meta">生成在本机后台逐项进行，关闭网页不会中断</div></div>
+        <div class="actions"><button class="btn line">暂停后续任务</button></div></div>
+      <section class="block" aria-label="本机资源">
+        <div class="block-head"><h2>本机资源</h2><span class="meta num">内存压力 正常 · 采样 18:05:55</span><div class="push"><button class="link">调整内存上限</button></div></div>
+        <div class="dist" role="img" aria-label="内存分布">${seg.map(([n,v,c])=>`<span style="width:${v/total*100}%;${c==='free'?'box-shadow:inset 0 0 0 1px var(--ink-3)':'background:'+c}" title="${n} ${v} GiB"></span>`).join('')}</div>
+        <div class="legend num">${seg.map(([n,v,c])=>`<span><i style="${c==='free'?'box-shadow:inset 0 0 0 1px var(--ink-3)':'background:'+c}"></i>${n} <b>${v.toFixed(1)} GiB</b></span>`).join('')}</div>
+        <div class="kv num"><span>总内存 <b>16.0 GiB</b></span><span>应用上限 <b>12.0 GiB</b>（自动）</span><span>启动新任务最多可用 <b>11.0 GiB</b></span></div>
+        <div class="resident"><span>模型驻留</span><b>音乐 · YuE2</b><span style="color:var(--ink-3)">运行中</span><div class="push">有任务运行时不能释放<button class="btn line" disabled>释放空闲模型</button></div></div>
+        <button class="fold" style="margin-top:var(--s-3);border-bottom:1px solid var(--hair)">详细数据<small>CPU、压缩、交换、预算明细</small>${I.right}</button>
+      </section>
+      <section class="block" aria-label="进行中与排队">
+        <div class="block-head"><h2>进行中与排队</h2><span class="meta">2 项</span></div>
+        <div class="rows">${queue.map(x=>`<div class="trow"><div class="t">${x.t}</div><span class="status ${x.s}"><i></i>${label[x.s]}</span><div>${x.r}</div><span class="when num">18:06</span><div class="ops"><button class="btn">${x.a}</button><span style="width:28px"></span></div></div>`).join('')}</div>
+      </section>
+      <section class="block" aria-label="历史">
+        <div class="block-head"><h2>历史</h2><div class="push"><div class="seg"><button class="on">全部 <span class="num">6</span></button><button>已完成 <span class="num">6</span></button></div><button class="select">其他状态 ${I.down}</button><div class="search" style="width:200px">${I.search}<span>搜索</span></div></div></div>
+        <div class="rows">${[['开场旁白 · V2','0:12'],['开场旁白 · V1','0:12'],['钢琴 riff · V1','0:58'],['主题曲 · V3','3:02']].map(([t,d])=>`<div class="trow"><div class="t">${t}<small>雨巷来信</small></div><span class="status ok"><i></i>已完成</span><div><span class="num" style="color:var(--ink-3)">${d} · 已保存</span></div><span class="when num">11/19 18:04</span><div class="ops"><button class="btn">试听</button><button class="icon-btn" aria-label="更多">${I.more}</button></div></div>`).join('')}</div>
+      </section>
+    </div></div></main>
+  </div>`;
+}
+function settingsPage(){
+  const engines=[
+    ['音乐 · YuE2','已启用，生成时加载','停止'],
+    ['语音 · Breeze / IndexTTS','已准备，生成时加载',''],
+    ['音色转换 · Seed-VC','已准备',''],
+    ['音效 · Stable Audio','尚未准备 · 首次使用时下载','准备模型'],
+    ['同步歌词 · Qwen3-ASR','尚未准备','准备模型'],
+  ];
+  return `<div class="app">
+    ${rail('settings')}
+    <main class="main">${mobileBar()}<div class="scroll"><div class="page" style="max-width:1000px">
+      <div class="head"><div><h1>设置</h1><div class="meta num">工作目录 ~/Music/MusicRoom</div></div></div>
+      <div class="settings">
+        <nav class="subnav" aria-label="设置小节">${['模型','内存与资源','回收站','备份与恢复','Agent 连接','外观','关于'].map((n,i)=>`<button class="${i===0?'on':''}">${n}</button>`).join('')}</nav>
+        <div>
+          <section class="block" style="border-top:0;padding-top:0">
+            <div class="block-head"><h2>模型</h2><span class="meta">只在生成时加载，结束后释放</span></div>
+            ${engines.map(([n,st,a])=>`<div class="srow"><div><b>${n}</b><p class="${a==='准备模型'?'':'ok'}">${st}</p></div><div class="acts">${a?`<button class="btn line">${a}</button>`:''}<button class="btn">目录与日志</button></div></div>`).join('')}
+          </section>
+          <section class="block">
+            <div class="block-head"><h2>内存与资源</h2></div>
+            <div class="srow"><div><b>应用内存上限</b><p>实际额度取所填上限与默认安全额度的较小值；有任务时不能修改。</p></div><div class="acts"><div class="seg"><button class="on">自动</button><button>手动</button></div></div></div>
+          </section>
+          <section class="block">
+            <div class="block-head"><h2>外观</h2></div>
+            <div class="srow"><div><b>主题</b><p>夜间模式使用同一套纸墨配色的深色版本。</p></div><div class="acts"><div class="seg"><button>日间</button><button>夜间</button><button class="on">跟随系统</button></div></div></div>
+          </section>
+        </div>
+      </div>
+    </div></div></main>
+  </div>`;
+}
+
+const screens={workspace:()=>workspace(),menu:()=>workspace({menuOpen:true}),compose:()=>workspace({panel:true}),newsound:()=>workspace({panel:'new'}),library,tasks:resources,settings:settingsPage};
+function render(){
+  const key=(location.hash.slice(1)||'workspace');
+  document.getElementById('root').innerHTML=(screens[key]||screens.workspace)()+
+    `<nav class="switcher"><span>视觉稿</span>${Object.keys(screens).map(k=>`<a href="#${k}" class="${k===key?'on':''}">${{workspace:'工作区',menu:'更多菜单',compose:'创作面板',newsound:'新声音',library:'声音库',tasks:'任务与资源',settings:'设置'}[k]}</a>`).join('')}<a href="?${params.get('theme')==='dark'?'':'theme=dark'}${location.hash}">${params.get('theme')==='dark'?'日间':'夜间'}</a></nav>`;
+}
+addEventListener('hashchange',render);render();
+</script>
+</body>
+</html>

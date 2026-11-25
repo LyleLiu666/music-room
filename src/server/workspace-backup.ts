@@ -1,7 +1,7 @@
 import {acquireWorkspace,incompleteRestoreFile,assertWorkspaceComplete} from '../service/projects/workspace-ownership.ts';
 import {createHash,randomUUID} from 'node:crypto';
 import {constants} from 'node:fs';
-import {lstat,readFile,readdir,realpath,mkdir,open,writeFile,copyFile,rm,chmod} from 'node:fs/promises';
+import {lstat,readFile,readdir,realpath,mkdir,open,writeFile,copyFile,rm,chmod,rename} from 'node:fs/promises';
 import {dirname,join,resolve,relative,sep} from 'node:path';
 
 export class WorkspaceBackupError extends Error {
@@ -51,6 +51,22 @@ async function copyEntries(source:string,target:string,entries:Entry[],exists=fa
  for(const entry of [...entries].reverse())if(entry.type==='directory')await chmod(join(target,entry.path),entry.mode);
 }
 function result(root:string,entries:Entry[]){return {backupDirectory:root,workspaceDirectory:join(root,'workspace'),manifestPath:join(root,'manifest.json'),fileCount:entries.filter(e=>e.type==='file').length,totalBytes:entries.reduce((n,e)=>n+(e.type==='file'?e.bytes:0),0)};}
+async function protectRestoredMusic(root:string){
+ const index=join(root,'engines','yue2-jobs.json'),existing=await stat(index);
+ if(!existing&&!await stat(join(root,'engines','yue2.json')))return;
+ const data=existing?JSON.parse(await readFile(index,'utf8')):{version:1,jobs:[]};
+ if(data?.version!==1||!Array.isArray(data.jobs)||data.jobs.some((job:unknown)=>!job||typeof job!=='object'||Array.isArray(job)))
+  fail('INVALID_BACKUP','备份中的 YuE2 任务索引格式无效');
+ // The verified copy still points to the source engine directory and object keys.
+ // Write the references before publishing the restored workspace.
+ const temp=index+'.'+randomUUID()+'.tmp';
+ const file=await open(temp,'wx',0o600);
+ try{
+  await file.writeFile(JSON.stringify({...data,restored:true,jobs:data.jobs.map((job:Record<string,unknown>)=>({...job,sharedArtifacts:true}))},null,2));
+  await file.sync();
+ }finally{await file.close();}
+ await rename(temp,index);
+}
 export async function verifyWorkspaceBackup(directoryPath:string){
  const root=resolve(directoryPath);await directory(root);await directory(join(root,'workspace'));
  const manifestPath=join(root,'manifest.json');const s=await stat(manifestPath);if(!s?.isFile()||s.isSymbolicLink()||s.size>64*1024*1024)fail('INVALID_BACKUP','备份缺少有效清单');
@@ -89,6 +105,7 @@ export async function restoreWorkspaceBackup(options:{backupDirectory:string;des
   await copyEntries(verified.workspaceDirectory,target,entries,true);
   if(JSON.stringify(await inventory(target,[incompleteRestoreFile]))!==JSON.stringify(entries))fail('BACKUP_CHANGED','恢复校验失败');
   await verifyWorkspaceBackup(verified.backupDirectory);
+  await protectRestoredMusic(target);
   await rm(marker);
   return {workspaceDirectory:target,fileCount:verified.fileCount,totalBytes:verified.totalBytes};
  }catch(e){if(created)await rm(target,{recursive:true,force:true});throw e;}
