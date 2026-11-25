@@ -89,7 +89,7 @@ test('MCP onboarding discovers one music creation guide through instructions, to
 test('MCP sound effect jobs preserve inputs, queue independently of client, and expose the saved WAV',async t=>{
  const {encodeWav}=await import('../wav.ts');const root=await mkdtemp(join(tmpdir(),'music-sfx-mcp-'));const resources=testResources();
  const driver={profile:{id:'fixture'},installed:()=>true,prepare:async()=>{},generate:async(req:any)=>Buffer.from(encodeWav([Float32Array.from({length:req.seconds*24000},(_,i)=>Math.sin(i*.1)*.1)],24000))};
- const service=await MusicService.open(root,processRenderer(),assets.read,false,undefined,undefined,undefined,resources,undefined,driver),http=await serveHttp(service,assets),client=new Client({name:'sfx-test',version:'1'});
+ const service=await MusicService.open(root,processRenderer(),assets.read,false,undefined,undefined,undefined,resources,undefined,{effects:driver}),http=await serveHttp(service,assets),client=new Client({name:'sfx-test',version:'1'});
  t.after(async()=>{await client.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});});
  await client.connect(new StreamableHTTPClientTransport(new URL(http.runtime.url+'/mcp'),{requestInit:{headers:{authorization:`Bearer ${http.runtime.token}`}}}));
  for(const name of ['sound_effect_status','sound_effect_prepare','sound_effect_generate','sound_effect_job','sound_effect_cancel','studio_attach_sound','studio_trim_audio','sound_library_trim'])assert.ok((await client.listTools()).tools.some(x=>x.name===name),name);

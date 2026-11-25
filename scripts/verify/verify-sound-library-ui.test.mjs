@@ -42,7 +42,7 @@ test('sound library collects decisions, imports and downloads audio, preserves p
 test('sound effects can be created as separate recordings from the library and keep their source',async()=>{
  const root=await mkdtemp(join(tmpdir(),'sound-effects-ui-')),assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
  const effectDriver={profile:{id:'fixture'},installed:()=>true,prepare:async()=>{},generate:async req=>Buffer.from(encodeWav([Float32Array.from({length:req.seconds*24000},(_,i)=>Math.sin(i*.1)*.1)],24000))};
- const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,effectDriver);
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,{effects:effectDriver});
  const http=await serveHttp(service,assets),browser=await launch(),page=await browser.newPage({viewport:{width:1200,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  try{await page.goto(http.runtime.url);await page.click('[data-action="sound-library"]');await page.click('#generate-library-effect');
   await page.fill('#effect-title','我的碎纸机');await page.fill('#effect-prompt','   ');await page.locator('#effect-submit:enabled').waitFor();await page.click('#effect-submit');assert.equal(await page.locator('#effect-prompt').evaluate(e=>e.validity.customError),true);await page.fill('#effect-prompt','A paper shredder shredding paper');await page.selectOption('#effect-seconds','3');await page.click('#effect-submit');
@@ -57,7 +57,7 @@ test('sound effects can be created as separate recordings from the library and k
 test('sound effect model preparation is explicit, cancellable and does not generate audio',async()=>{
  const root=await mkdtemp(join(tmpdir(),'sound-effects-setup-ui-')),assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};let installs=0,stopped=0;
  const driver={profile:{id:'fixture'},installed:()=>false,prepare:async(execution)=>{installs++;await new Promise((_,reject)=>execution.signal.addEventListener('abort',()=>{stopped++;reject(execution.signal.reason);},{once:true}));},generate:async()=>{throw Error('must not generate');}};
- const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,driver),http=await serveHttp(service,assets),browser=await launch(),page=await browser.newPage();
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,{effects:driver}),http=await serveHttp(service,assets),browser=await launch(),page=await browser.newPage();
  try{await page.goto(http.runtime.url);await page.click('[data-action="sound-library"]');await page.click('#generate-library-effect');await page.locator('#effect-prepare').waitFor({state:'visible'});assert.equal(installs,0);assert.equal(await page.locator('#effect-submit').isDisabled(),true);
   await page.click('#effect-prepare');await page.locator('#effect-cancel-prepare').waitFor({state:'visible'});await page.click('#effect-cancel-prepare');await page.waitForFunction(()=>document.querySelector('#effect-status')?.textContent.includes('已取消'));assert.equal(installs,1);assert.equal(stopped,1);assert.equal(service.soundLibrary.list().length,0);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
@@ -66,7 +66,7 @@ test('sound effect model preparation is explicit, cancellable and does not gener
 test('reopening sound effect creation shows a background failure rather than hiding it',async()=>{
  const root=await mkdtemp(join(tmpdir(),'sound-effects-failure-ui-')),assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};let rejectRun,started=false;
  const driver={profile:{id:'fixture'},installed:()=>true,prepare:async()=>{},generate:async()=>{started=true;return new Promise((_,reject)=>{rejectRun=reject;});}};
- const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,driver),http=await serveHttp(service,assets),browser=await launch(),page=await browser.newPage();
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,{effects:driver}),http=await serveHttp(service,assets),browser=await launch(),page=await browser.newPage();
  try{await page.goto(http.runtime.url);await page.click('[data-action="sound-library"]');await page.click('#generate-library-effect');await page.fill('#effect-title','雨声');await page.fill('#effect-prompt','rain falling');await page.locator('#effect-submit:enabled').waitFor();await page.click('#effect-submit');
   for(let i=0;i<100&&!started;i++)await new Promise(r=>setTimeout(r,20));assert.equal(started,true);await page.click('[data-action="close"]');rejectRun(Error('模型发生故障'));
   for(let i=0;i<100&&service.effects.status().jobs[0].state!=='failed';i++)await new Promise(r=>setTimeout(r,20));assert.equal(service.effects.status().jobs[0].state,'failed');await page.click('#generate-library-effect');await page.locator('#effect-status').filter({hasText:'模型发生故障'}).waitFor({timeout:3000});
@@ -76,7 +76,7 @@ test('reopening sound effect creation shows a background failure rather than hid
 test('the standalone generator does not display or control a project-owned job',async()=>{
  const root=await mkdtemp(join(tmpdir(),'project-effect-status-ui-')),assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
  const driver={profile:{id:'fixture'},installed:()=>true,prepare:async()=>{},generate:async()=>{throw Error('项目音效失败');}};
- const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,driver),http=await serveHttp(service,assets),browser=await launch(),page=await browser.newPage();
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,{effects:driver}),http=await serveHttp(service,assets),browser=await launch(),page=await browser.newPage();
  try{await service.call('create_project',{projectId:'office',title:'办公室'});const sound=await service.call('studio_create_sound',{projectId:'office',title:'水声',kind:'effect'});const job=await service.call('sound_effect_generate',{soundId:sound.id,requestId:'project-failed',title:'水声',prompt:'running water',seconds:3});for(let i=0;i<200&&['queued','running'].includes(service.effects.get(job.id).state);i++)await new Promise(r=>setTimeout(r,10));assert.equal(service.effects.get(job.id).state,'failed');
   await page.goto(http.runtime.url);await page.click('[data-action="sound-library"]');await page.click('#generate-library-effect');await page.locator('#effect-status').filter({hasText:'模型已就绪'}).waitFor({timeout:3000});assert.equal(await page.locator('#effect-cancel').isVisible(),false);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
@@ -85,7 +85,7 @@ test('the standalone generator does not display or control a project-owned job',
 test('a project sound effect creates comparable versions and a smoothly trimmed child from the workspace',async()=>{
  const root=await mkdtemp(join(tmpdir(),'project-effect-ui-')),assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
  const driver={profile:{id:'fixture'},installed:()=>true,prepare:async()=>{},generate:async req=>Buffer.from(encodeWav([Float32Array.from({length:req.seconds*24000},(_,i)=>.2+.05*Math.sin(i*.1))],24000))};
- const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,driver),http=await serveHttp(service,assets),browser=await launch(),page=await browser.newPage({viewport:{width:1200,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,{effects:driver}),http=await serveHttp(service,assets),browser=await launch(),page=await browser.newPage({viewport:{width:1200,height:900}}),errors=[];page.on('pageerror',e=>errors.push(e.message));
  try{
   await service.call('create_project',{projectId:'office',title:'办公室'});await page.goto(http.runtime.url);await page.locator('[data-action="project"][data-id="office"]').click();await page.click('[data-action="new-sound"]');
   await page.locator('[name="kind"][value="effect"]').check();await page.fill('#sound-title','水桶咕噜');await page.locator('#sound-form button[type="submit"]').click();
@@ -112,7 +112,7 @@ test('a standalone recording can be added to a project from the sound library',a
 test('an empty workspace offers sound effect creation through the normal first-use flow',async()=>{
  const root=await mkdtemp(join(tmpdir(),'first-effect-ui-')),assets={read:p=>readFile(resolve('dist',p)),has:p=>existsSync(resolve('dist',p)),embedded:false};
  const driver={profile:{id:'fixture'},installed:()=>true,prepare:async()=>{},generate:async req=>Buffer.from(encodeWav([new Float32Array(req.seconds*24000).fill(.1)],24000))};
- const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,driver),http=await serveHttp(service,assets),browser=await launch(),page=await browser.newPage();
+ const service=await MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,{effects:driver}),http=await serveHttp(service,assets),browser=await launch(),page=await browser.newPage();
  try{await page.goto(http.runtime.url);await page.click('[data-action="quick-start"][data-kind="effect"]');await page.fill('#project-name','办公室');await page.fill('#sound-title','键盘打字');await page.locator('#quick-start-form button[type="submit"]').click();await page.locator('#project-effect-form').waitFor();assert.equal(await page.locator('[name="effect-seconds"]:checked').inputValue(),'3');const snapshot=await service.call('studio_library',{});assert.equal(snapshot.sounds[0].kind,'effect');assert.equal(snapshot.versions.length,0);}
  finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });

@@ -65,7 +65,7 @@ test('speech sound retry recovers a committed speech record after the studio ind
 test('a committed project effect survives a lost response, concurrent retries and restart',async()=>{
  const root=await mkdtemp(join(tmpdir(),'lost-effect-'));
  const driver={profile:{id:'fixture'},installed:()=>true,prepare:async()=>{},generate:async(req:{seconds:number})=>new Uint8Array(encodeWav([new Float32Array(req.seconds*8000).fill(.2)],8000))};
- const open=()=>MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,driver);let service=await open(),http=await serveHttp(service,assets);
+ const open=()=>MusicService.open(root,()=>{throw Error('unused');},assets.read,false,unused,undefined,undefined,testResources(),undefined,{effects:driver});let service=await open(),http=await serveHttp(service,assets);
  let args:{soundId:string;requestId:string;title:string;prompt:string;seconds:number};
  const request=()=>fetch(http.runtime.url+'/api/sound_effect_generate',{method:'POST',headers:{authorization:`Bearer ${http.runtime.token}`,'content-type':'application/json'},body:JSON.stringify(args)});
  try{

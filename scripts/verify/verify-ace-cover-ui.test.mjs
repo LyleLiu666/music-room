@@ -20,7 +20,7 @@ test('cover panel selects, loops and submits; grouped comparison keeps time and 
  const speech={installed:()=>false,prepare:async()=>{},generate:async()=>{throw Error('unused');}};
  let received;
  const cover={installed:()=>true,prepare:async()=>{},generate:async(_,request)=>{received=request;return makeWave(request.endSeconds-request.startSeconds,.14);}};
- const open=()=>MusicService.open(root,()=>{throw Error('unused');},read,false,music,speech,undefined,testResources(),undefined,undefined,cover);
+ const open=()=>MusicService.open(root,()=>{throw Error('unused');},read,false,music,speech,undefined,testResources(),undefined,{cover});
  let service=await open(),http,browser;
  try{
   await service.call('create_project',{projectId:'cover-test',title:'把周末铺在湖边'});

@@ -12,7 +12,7 @@ import type {EffectDriver} from './sound-effects.ts';
 const unused={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
 const audio=(seconds:number)=>Buffer.from(encodeWav([Float32Array.from({length:seconds*8000},(_,i)=>.25+.05*Math.sin(i*.01))],8000));
 const driver:EffectDriver={profile:{id:'fixture'},installed:()=>true,prepare:async()=>{},generate:async(req,execution,peak)=>{execution.signal.throwIfAborted();peak(123456);return audio(req.seconds);}};
-const open=(root:string)=>MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,undefined,undefined,testResources(),undefined,driver);
+const open=(root:string)=>MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,undefined,undefined,testResources(),undefined,{effects:driver});
 const call=(service:MusicService,name:string,args:unknown):Promise<any>=>(service.call as any)(name,args);
 async function waitForEffect(service:MusicService,id:string){for(let i=0;i<300;i++){const job=await call(service,'sound_effect_job',{jobId:id});if(!['queued','running'].includes(job.state))return job;await new Promise(r=>setTimeout(r,10));}throw Error('音效任务没有结束');}
 
@@ -102,7 +102,7 @@ test('an attached FLAC remains FLAC when played or downloaded and can be trimmed
 test('active project effects block deletion and cancellation stops their own task',async()=>{
  const root=await mkdtemp(join(tmpdir(),'effect-project-cancel-'));let entered=false,stopped=false;
  const blocking:EffectDriver={...driver,generate:async(_req,execution)=>new Promise((_resolve,reject)=>{entered=true;execution.signal.addEventListener('abort',()=>{stopped=true;reject(execution.signal.reason);},{once:true});})};
- const service=await MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,undefined,undefined,testResources(),undefined,blocking);
+ const service=await MusicService.open(root,()=>{throw Error('unused');},p=>readFile(resolve('public',p)),false,unused,undefined,undefined,testResources(),undefined,{effects:blocking});
  try{
   await call(service,'create_project',{projectId:'office',title:'办公室'});const sound=await call(service,'studio_create_sound',{projectId:'office',title:'咕噜',kind:'effect'});
   const job=await call(service,'sound_effect_generate',{requestId:'effect-blocking',title:'咕噜',prompt:'bubbles',seconds:3,soundId:sound.id});for(let i=0;i<200&&!entered;i++)await new Promise(r=>setTimeout(r,5));assert.equal(entered,true);

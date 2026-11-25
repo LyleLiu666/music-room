@@ -1,6 +1,6 @@
 import {LiveAudio} from './live-audio.ts';
 import {icon} from './icons.ts';
-import type {WorkbenchService} from '../service.ts';
+import {WorkbenchApiError,type WorkbenchService} from '../service.ts';
 import type {OwnedSound} from '../../service/studio/sound-library.ts';
 import type {OperationResults} from '../../service/operations.ts';
 
@@ -207,7 +207,12 @@ export class LiveUI {
    if(sessionId!==this.sessionId||!this.lifetime||this.lifetime.signal.aborted)return;
    this.captures.unshift(saved);this.saving=undefined;message.textContent='已留下 15 秒 · 声音库可重听';
    this.renderCaptures();await this.h.refresh();
-  }catch(error){message.textContent=(error as Error).message;}
+  }catch(error){
+   if(error instanceof WorkbenchApiError&&error.code==='CAPTURE_EXPIRED'){
+    if(this.saving===args)this.saving=undefined;
+    message.textContent=`${error.message}，再次点击可留下现在听到的片段`;
+   }else message.textContent=(error as Error).message;
+  }
   finally{delete button.dataset.busy;}
  }
  private renderCaptures(){
@@ -250,25 +255,36 @@ export class LiveUI {
  }
  close(){
   if(this.release)return this.release;
-  if(!this.lifetime)return Promise.resolve();
-  this.lifetime.abort();this.lifetime=undefined;this.installPolling=false;
+  if(!this.active())return Promise.resolve();
+  this.lifetime?.abort();this.lifetime=undefined;this.installPolling=false;
   if(this.nextFrame!==undefined)cancelAnimationFrame(this.nextFrame);
   const source=this.audio,sessionId=this.sessionId,launch=this.launch;
   this.preview?.pause();this.preview=undefined;this.externalAudio=undefined;
-  this.audio=undefined;this.sessionId=undefined;this.launch=undefined;this.session=undefined;
+  this.audio=undefined;
   this.playing=false;
   this.showStatus('正在释放 Magenta…');
+  const stop=this.element<HTMLButtonElement>('[data-stop-live]');
   this.h.panel.querySelectorAll<HTMLButtonElement>('button').forEach(button=>{button.disabled=true;});
   this.release=(async()=>{
-   try{await source?.close();}
-   finally{if(launch&&sessionId){await launch.catch(()=>{});await this.h.api.call('live_play_stop',{sessionId});}}
-  })().finally(()=>{
-   this.release=undefined;this.h.panel.hidden=true;this.h.panel.replaceChildren();this.h.change();
+   await source?.close().catch(error=>this.h.notice(error.message));
+   if(sessionId){
+    await launch?.catch(()=>{});
+    try{
+     const result=await this.h.api.call('live_play_stop',{sessionId});
+     if(!result.released)throw Error(result.resource?.message??'后台尚未确认模型释放');
+    }catch(error){if(!(error instanceof WorkbenchApiError&&error.code==='NOT_FOUND'))throw error;}
+   }
+  })().then(()=>{
+   this.sessionId=undefined;this.launch=undefined;this.session=undefined;
+   this.h.panel.hidden=true;this.h.panel.replaceChildren();
    document.querySelector<HTMLElement>('#play-live')?.focus({preventScroll:true});
-  });
+  }).catch(error=>{
+   this.showStatus(`停止未确认 · ${error.message}`);stop.textContent='重试停止';stop.disabled=false;throw error;
+  }).finally(()=>{this.release=undefined;this.h.change();});
   this.h.change();
   return this.release;
  }
+ closeOnNavigation(){return this.lifetime?this.close():Promise.resolve();}
  pageExit(){
   const sessionId=this.sessionId;
   this.lifetime?.abort();

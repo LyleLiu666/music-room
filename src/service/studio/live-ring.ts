@@ -25,7 +25,7 @@ export class LiveRing {
   if(!Number.isSafeInteger(heardFrame)||heardFrame>this.end)throw new ServiceError('INVALID_AUDIO','播放位置还没有生成');
   const start=heardFrame-captureFrames;
   if(start<0)throw new ServiceError('INVALID_AUDIO','听满 15 秒后即可留下刚才这段');
-  if(start<this.end-this.retainedFrames)throw new ServiceError('INVALID_AUDIO','播放位置已超出回留范围');
+  if(start<this.end-this.retainedFrames)throw new ServiceError('CAPTURE_EXPIRED','播放位置已超出回留范围');
   const stereo=[new Float32Array(captureFrames),new Float32Array(captureFrames)];
   for(const block of this.blocks){
    const from=Math.max(start,block.offset),to=Math.min(heardFrame,block.offset+block.pcm.length/4);

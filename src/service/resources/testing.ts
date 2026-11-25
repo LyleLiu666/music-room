@@ -1,7 +1,7 @@
-import {ResourceCoordinator} from './coordinator.ts';
+import {ResourceCoordinator,type CoordinatorOptions} from './coordinator.ts';
 /** Explicit test fixture, never selected from an environment variable or runtime fallback. */
-export function testResources() {
-  return new ResourceCoordinator({policy: {reserveFraction: .25, reserveMinimum: 2 ** 30,
+export function testResources(options:Pick<CoordinatorOptions,'lease'>={}) {
+  return new ResourceCoordinator({...options,policy: {reserveFraction: .25, reserveMinimum: 2 ** 30,
     headroom: 2 ** 30, maxSnapshotAgeMs: 1000, maxWaitMs: 1000, retryMs: 5, maxQueue: 100},
     disk:()=>100*2**30,
     estimate: () => ({verified: true, peak: {memory: 256 * 2 ** 20}}),

@@ -30,7 +30,8 @@ export type MusicAttempt={jobId:string;input?:StudioInput;state:SpeechVersion['s
 export type StudioVersion={cover?:CoverProvenance;speechEngine?:string;musicAttempts?:MusicAttempt[];musicAttemptStartedAt?:string;musicAttemptRequestId?:string;musicRecovery?:MusicRecovery;musicResumedFrom?:MusicRecovery;musicRetryOf?:string;musicEdit?:MusicEditProvenance;musicProgress?:MusicProgress;musicTruncated?:MusicTruncation;scoreMix?:RenderMix;mixRequestId?:string;resource?:ResourceTaskState;speed?:SpeedEdit;trim?:TrimOptions&{sourceVersionId:string};attach?:{requestId:string;itemId:string;projectId:string;title:string};audioHash?:string;audioExtension?:'wav'|'flac';id:string;soundId:string;number:number;parentId?:string;createdAt:string;state:SpeechVersion['state'];stage:string;kept:boolean;deleted:boolean;purged?:boolean;purgePending?:boolean;voiceName?:string;error?:string;duration?:number;input?:StudioInput;originalAudioPath?:string;vocalsAudioPath?:string;source:{kind:'speech'|'music'|'score'|'audio'|'conversion'|'sound-effect'|'library';id:string;projectId?:string};audioPath?:string;renderJobId?:string};
 export type StudioLibraryOptions={includeSoundLibrary?:boolean;compactLibrary?:boolean;paginateConversions?:boolean;includeDeletedConversions?:boolean;conversionSoundId?:string;conversionPage?:number;conversionPageSize?:number;selectedVersionId?:string};
 export type StudioConversionPagination={soundId:string;page:number;pageSize:number;total:number;totalPages:number;versionIds:string[]};
-type Data={format:'music-room-studio';version:1;sounds:StudioSound[];versions:StudioVersion[];pendingScores?:StudioVersion[]};
+type StoredStudioVersion=StudioVersion&{coverRequestId?:string};
+type Data={format:'music-room-studio';version:1;sounds:StudioSound[];versions:StoredStudioVersion[];pendingScores?:StudioVersion[]};
 const fail=(message:string):never=>{throw new ServiceError('INVALID_STUDIO',message);};
 const clone=copyPlainData;
 const scoreRenderKey=(projectId:string|undefined,revisionId:string)=>`${projectId}/${revisionId}`;
@@ -42,7 +43,23 @@ export class StudioService{
  private coverTasks=new Map<string,{controller:AbortController;done:Promise<void>}>();
  private speedTasks=new Map<string,{sourceId:string;soundId:string;controller:AbortController;rate:number;done:Promise<StudioVersion>;resolve:(v:StudioVersion)=>void;reject:(e:unknown)=>void}>();private closing=false;
  private service:MusicService;private musicEdits:MusicEdits;
- constructor(service:MusicService){this.service=service;this.musicEdits=new MusicEdits(service.store,service.read,id=>this.musicEditSource(id),async()=>{const directory=(await service.yue2.status()).directory;const python=directory?`${directory}/.venv/bin/python`:undefined;return python&&existsSync(python)?python:'python3';});service.resources.register('speed',{resident:()=>undefined,unload:async()=>{}});const path=service.store.path('studio.json');this.data=existsSync(path)?JSON.parse(readFileSync(path,'utf8')):{format:'music-room-studio',version:1,sounds:[],versions:[]};if(this.data.format!=='music-room-studio'||this.data.version!==1)fail('声音库格式不正确');for(const v of this.data.versions)if(v.source.kind==='music'&&!v.source.id&&v.state==='queued'){v.state='interrupted';v.stage='提交中断，请重新生成';}for(const v of this.data.versions)if(v.cover&&['queued','running'].includes(v.state)){v.state='interrupted';v.stage='翻唱中断，请重新生成';v.resource=undefined;}this.discardUnpublishedStudioAudio();}
+ constructor(service:MusicService){this.service=service;this.musicEdits=new MusicEdits(service.store,service.read,id=>this.musicEditSource(id),async()=>{const directory=(await service.yue2.status()).directory;const python=directory?`${directory}/.venv/bin/python`:undefined;return python&&existsSync(python)?python:'python3';});service.resources.register('speed',{resident:()=>undefined,unload:async()=>{}});const path=service.store.path('studio.json');this.data=existsSync(path)?JSON.parse(readFileSync(path,'utf8')):{format:'music-room-studio',version:1,sounds:[],versions:[]};if(this.data.format!=='music-room-studio'||this.data.version!==1)fail('声音库格式不正确');for(const v of this.data.versions)if(v.source.kind==='music'&&!v.source.id&&v.state==='queued'){v.state='interrupted';v.stage='提交中断，请重新生成';}this.recoverCovers();this.discardUnpublishedStudioAudio();}
+ private clearCoverInput(version:StoredStudioVersion){
+  if(!version.cover)return false;
+  version.coverRequestId=version.cover.requestId;
+  delete version.cover;
+  return true;
+ }
+ private recoverCovers(){
+  let scrubbed=false;
+  for(const version of this.data.versions){
+   if(version.purged&&this.clearCoverInput(version)){scrubbed=true;continue;}
+   if(version.cover&&['queued','running'].includes(version.state)){
+    version.state='interrupted';version.stage='翻唱中断，请重新生成';version.resource=undefined;
+   }
+  }
+  if(scrubbed)this.save();
+ }
  private discardUnpublishedStudioAudio(){
   const directory=this.service.store.path('studio-audio');if(!existsSync(directory))return;
   if(lstatSync(directory).isSymbolicLink())fail('工作台音频目录不能是符号链接');
@@ -180,7 +197,7 @@ export class StudioService{
   const scope=project?this.data.sounds.filter(s=>s.projectId===project.id&&!s.purged):[sound!];if(target){if([...this.speedTasks.values()].some(t=>t.sourceId===target.id)||['queued','running'].includes(target.state)||target.renderJobId)fail('请先取消或等待生成完成');}else this.assertIdle(scope);
   if(target?.source.kind==='music')this.assertIdle(scope);
   const versions=target?[target]:this.data.versions.filter(v=>scope.some(s=>s.id===v.soundId)&&!v.purged);
-  for(const v of versions){if(v.purged)continue;v.deleted=true;v.purgePending=true;this.save();if(v.source.kind==='speech')this.service.speech.purgeVersion(v.source.id);else if(v.source.kind==='score'){this.service.jobs.purge(v.source.projectId!,v.source.id);await this.service.store.purgeRevision(v.source.projectId!,v.source.id);}else if(v.source.kind==='conversion')this.service.conversion.purge(v.source.id);else if(v.source.kind==='sound-effect')await this.service.effects.purge(v.source.id);else if(v.source.kind==='audio'){const path=this.service.store.path('studio-audio',`${identity(v.id)}.wav`);if(existsSync(path))unlinkSync(path);}else if(v.source.kind==='music'){for(const jobId of new Set([v.source.id,...(v.musicAttempts??[]).map(a=>a.jobId)].filter(Boolean)))await this.service.yue2Client.purgeAudio(jobId);}this.musicEdits.purgeSource(v.id);const lyricPath=this.service.store.path('lyrics',`${identity(v.id)}.json`);if(existsSync(lyricPath))unlinkSync(lyricPath);v.purged=true;v.purgePending=undefined;v.deleted=true;v.audioPath=undefined;v.input=undefined;v.error=undefined;for(const attempt of v.musicAttempts??[]){attempt.input=undefined;attempt.error=undefined;attempt.resource=undefined;attempt.recovery=undefined;attempt.resumedFrom=undefined;}const s=this.sound(v.soundId);if(s.finalVersionId===v.id)s.finalVersionId=undefined;this.save();}
+  for(const v of versions){if(v.purged)continue;v.deleted=true;v.purgePending=true;this.save();if(v.source.kind==='speech')this.service.speech.purgeVersion(v.source.id);else if(v.source.kind==='score'){this.service.jobs.purge(v.source.projectId!,v.source.id);await this.service.store.purgeRevision(v.source.projectId!,v.source.id);}else if(v.source.kind==='conversion')this.service.conversion.purge(v.source.id);else if(v.source.kind==='sound-effect')await this.service.effects.purge(v.source.id);else if(v.source.kind==='audio'){const path=this.service.store.path('studio-audio',`${identity(v.id)}.wav`);if(existsSync(path))unlinkSync(path);}else if(v.source.kind==='music'){for(const jobId of new Set([v.source.id,...(v.musicAttempts??[]).map(a=>a.jobId)].filter(Boolean)))await this.service.yue2Client.purgeAudio(jobId);}this.musicEdits.purgeSource(v.id);const lyricPath=this.service.store.path('lyrics',`${identity(v.id)}.json`);if(existsSync(lyricPath))unlinkSync(lyricPath);v.purged=true;v.purgePending=undefined;v.deleted=true;v.audioPath=undefined;v.input=undefined;v.error=undefined;this.clearCoverInput(v);for(const attempt of v.musicAttempts??[]){attempt.input=undefined;attempt.error=undefined;attempt.resource=undefined;attempt.recovery=undefined;attempt.resumedFrom=undefined;}const s=this.sound(v.soundId);if(s.finalVersionId===v.id)s.finalVersionId=undefined;this.save();}
   if(!target)for(const s of scope){if(s.kind==='speech')this.service.speech.purgeSound(s.id);s.purged=true;s.deleted=true;s.title='已删除片段';s.finalVersionId=undefined;}
   this.save();if(project){this.service.jobs.purge(project.id);await this.service.store.purgeProject(project.id);}return {purged:true};
  },false);}
@@ -393,10 +410,11 @@ export class StudioService{
   await this.sync();
   const {version:source,sound}=this.coverSource(args.versionId);
   const {versionId, ...input}=args;
-  const previous=this.data.versions.find(v=>v.cover?.requestId===args.requestId);
+  const previous=this.data.versions.find(v=>v.cover?.requestId===args.requestId||v.coverRequestId===args.requestId);
   if(previous){
-   const {sourceVersionId,sourceNumber,seed,bpm,...old}=previous.cover!;
-   if(sourceVersionId!==versionId||JSON.stringify(old)!==JSON.stringify(input)||previous.deleted||previous.purged)throw new ServiceError('CONFLICT','翻唱请求与上次不同或版本已删除');
+   if(previous.deleted||previous.purged||!previous.cover)throw new ServiceError('CONFLICT','翻唱版本已删除');
+   const {sourceVersionId,sourceNumber,seed,bpm,...old}=previous.cover;
+   if(sourceVersionId!==versionId||JSON.stringify(old)!==JSON.stringify(input))throw new ServiceError('CONFLICT','翻唱请求与上次不同');
    return {version:previous};
   }
   if(!this.service.cover.driver.installed())fail('请先准备本机翻唱模型');

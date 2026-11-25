@@ -177,7 +177,7 @@ async function start(){
   renderProjects();
   $('[data-action="task-list"]').setAttribute('aria-current',workspaceView==='tasks'?'page':'false');
   $('[data-action="settings"]').setAttribute('aria-current',workspaceView==='settings'?'page':'false');
-  if(workspaceView!=='sounds'&&live.active())void live.close().catch(e=>notify(e.message));
+  if(workspaceView!=='sounds')void live.closeOnNavigation().catch(e=>notify(e.message));
   if(workspaceView!=='project'){cover.attach(undefined,undefined,undefined);cover.close();}
   if(workspaceView==='tasks'){parkPlayer();renderTasksPage();return;}
   if(workspaceView==='settings'){parkPlayer();renderSettingsPage();return;}

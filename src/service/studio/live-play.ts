@@ -20,10 +20,11 @@ type Phase='queued'|'loading'|'running'|'stopping'|'stopped'|'failed';
 type Session={
  id:string;phase:Phase;message:string;ring:LiveRing;controller:AbortController;done:Promise<void>;
  stream?:LiveStream;pending?:Promise<LiveBlock>;resource?:ResourceTaskState;
+ worker?:{signal:AbortSignal;fail:(error:Error)=>void};
  leaseTimer?:ReturnType<typeof setTimeout>;mix?:number;ack:number;released:boolean;
 };
 const failed=(message:string):never=>{throw new ServiceError('CONFLICT',message);};
-const liveStage=(session:Session)=>({id:session.id,phase:session.phase,message:session.message,resource:session.resource});
+const liveStage=(session:Session)=>({id:session.id,phase:session.phase,message:session.message,resource:session.resource,released:session.released});
 const inactive=(session:Session)=>session.phase==='failed'||session.phase==='stopped';
 
 export class LivePlay {
@@ -79,20 +80,27 @@ export class LivePlay {
     if(resource.stage==='waiting_resources'||resource.stage==='queued')session.message=resource.message??'等待演奏资源';
    },
    execute:async execution=>{
-    const stream=await this.driver.open(execution,randomInt(0,2147483648));
+    // The worker can fail independently of a cancellation from the shared queue.
+    const worker=new AbortController();
+    const signal=AbortSignal.any([execution.signal,worker.signal]);
+    session.worker={signal,fail:error=>worker.abort(error)};
+    const stream=await this.driver.open({...execution,signal},randomInt(0,2147483648));
     try{
      execution.running();
      session.stream=stream;
      session.phase='running';session.message='可以开始演奏';
     }finally{
-     await stream.done;
+     try{await stream.done;}finally{worker.signal.throwIfAborted();}
     }
    },
   }).catch(error=>{
-   const cancelled=userCancelled(session.controller.signal)||error instanceof ResourceError&&error.code==='CANCELLED';
-   if(session.phase!=='failed'){session.phase=cancelled?'stopped':'failed';session.message=cancelled?'已停止演奏':error instanceof Error?error.message:String(error);}
+   const reason=error instanceof ResourceError?error.code:undefined;
+   if(session.phase==='failed'&&reason!=='UNLOAD_FAILED')return;
+   const cancelled=reason?reason==='CANCELLED':userCancelled(session.controller.signal);
+   session.phase=cancelled?'stopped':'failed';session.message=cancelled?'已停止演奏':error instanceof Error?error.message:String(error);
   }).finally(()=>{
-   clearTimeout(session.leaseTimer);session.stream=undefined;session.released=true;
+   clearTimeout(session.leaseTimer);session.stream=undefined;session.worker=undefined;
+   session.released=session.resource?.reason!=='UNLOAD_FAILED';
    if(!inactive(session)){session.phase='stopped';session.message='已停止演奏';}
   });
   this.touch(session);
@@ -123,9 +131,10 @@ export class LivePlay {
    const block=session.ring.append(pcm,session.mix??style.mix,style.mix);session.mix=style.mix;
    return block;
   }catch(error){
-   if(!session.controller.signal.aborted&&!inactive(session)){
-    session.phase='failed';session.message=error instanceof Error?error.message:String(error);
-    session.controller.abort(new ResourceError('CANCELLED',session.message));
+   if(session.worker&&!session.worker.signal.aborted&&!inactive(session)){
+    const failure=error instanceof Error?error:new Error(String(error));
+    session.phase='failed';session.message=failure.message;
+    session.worker.fail(failure);
    }
    throw error;
   }finally{session.pending=undefined;}
@@ -144,7 +153,8 @@ export class LivePlay {
    source:{kind:'live-capture',sessionId:session.id,heardFrame:args.heardFrame}});
  }
  async stop(id:string){
-  const session=this.get(id);
+  const session=this.session;
+  if(!session||session.id!==id)throw new ServiceError('NOT_FOUND','演奏会话已结束');
   if(!inactive(session)){session.phase='stopping';session.message='正在释放 Magenta';session.controller.abort();}
   await session.done;
   return liveStage(session);

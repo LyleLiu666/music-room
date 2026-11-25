@@ -111,7 +111,7 @@ export async function main(argv:string[],assets:WebAssets,selfArgs:string[],reso
     const renderer=processRenderer(process.execPath,[...selfArgs,'render-worker']);
     for(let attempt=0;attempt<30 && !runtime;attempt++) {
       let service: MusicService;
-      try {service=await MusicService.open(opt.workspace,renderer,assets.read,true,createYuE2Driver(assets.read,process.execPath,[...selfArgs,'yue2-worker']),createSpeechDriver(process.execPath,[...selfArgs,'tts-worker'],assets.read),createNativeConversionDriver(join(opt.workspace,'engines','voice-conversion'),{command:process.execPath,args:[...selfArgs,'conversion-native-worker']}),resourceFactory(assets.read),processSpeed(process.execPath,[...selfArgs,'speed-worker']),undefined,createCoverDriver(join(opt.workspace,'engines','ace-cover'),assets.has(coverProgramManifest)?assets.read:undefined));}
+      try {service=await MusicService.open(opt.workspace,renderer,assets.read,true,createYuE2Driver(assets.read,process.execPath,[...selfArgs,'yue2-worker']),createSpeechDriver(process.execPath,[...selfArgs,'tts-worker'],assets.read),createNativeConversionDriver(join(opt.workspace,'engines','voice-conversion'),{command:process.execPath,args:[...selfArgs,'conversion-native-worker']}),resourceFactory(assets.read),processSpeed(process.execPath,[...selfArgs,'speed-worker']),{cover:createCoverDriver(join(opt.workspace,'engines','ace-cover'),assets.has(coverProgramManifest)?assets.read:undefined)});}
       catch(error:any) {
         if(error.code!=='WORKSPACE_LOCKED')throw error;
         // Another agent can own the lock before it has published the HTTP descriptor.

@@ -26,6 +26,7 @@ import {MusicService} from '../service.ts';
 import {testResources} from '../resources/testing.ts';
 import {encodeWav} from '../../wav.ts';
 import type {CoverDriver} from './ace-cover-runtime.ts';
+import type {StudioVersion} from './studio.ts';
 import {hash} from '../projects/store.ts';
 
 const waveform=(seconds:number)=>new Uint8Array(encodeWav([Float32Array.from({length:Math.round(seconds*48000)},(_,i)=>Math.sin(i*.01)/4)],48000));
@@ -40,7 +41,7 @@ test('cover saves an immutable sibling, deduplicates requests, cancels without p
   if(wait)await setTimeout(30000,undefined,{signal:execution.signal});
   return waveform(10.04);
  }};
- const open=()=>MusicService.open(root,()=>{throw Error('unused');},async()=>new Uint8Array(),false,noMusic,noSpeech,undefined,testResources(),undefined,undefined,driver);
+ const open=()=>MusicService.open(root,()=>{throw Error('unused');},async()=>new Uint8Array(),false,noMusic,noSpeech,undefined,testResources(),undefined,{cover:driver});
  let svc=await open();
  try{
   await svc.call('create_project',{projectId:'demo',title:'演示'});
@@ -80,5 +81,27 @@ test('cover saves an immutable sibling, deduplicates requests, cancels without p
   const after=await svc.call('studio_library',{});
   assert.equal(after.sounds[0].finalVersionId,'original');assert.equal(after.versions.find(v=>v.id==='original')?.duration,30);
   assert.equal((await svc.call('studio_cover_generate',request)).id,a.id);
+  await svc.call('studio_update_version',{versionId:a.id,deleted:true});
+  await svc.call('studio_purge',{kind:'version',id:a.id});
+  const index=join(root,'studio.json');
+  const readIndex=async()=>JSON.parse(await readFile(index,'utf8')) as {versions:(StudioVersion&{coverRequestId?:string})[]};
+  const persisted=await readIndex();
+  const purged=persisted.versions.find(v=>v.id===a.id);
+  assert.ok(purged);
+  assert.equal(purged.purged,true);
+  assert.equal(purged.cover,undefined,'permanent deletion clears duplicate lyrics and style from provenance');
+  assert.equal(purged.input,undefined);
+  await assert.rejects(svc.call('studio_cover_generate',request),{code:'CONFLICT'});
+  await svc.close();
+  delete purged.coverRequestId;
+  purged.cover=saved.cover;
+  await writeFile(index,JSON.stringify(persisted));
+  svc=await open();
+  const migrated=(await readIndex()).versions.find(v=>v.id===a.id);
+  assert.ok(migrated);
+  assert.equal(migrated.cover,undefined,'old permanently deleted records are scrubbed on open');
+  await assert.rejects(svc.call('studio_cover_generate',request),{code:'CONFLICT'});
+  assert.equal((await svc.call('studio_library',{})).versions.find(v=>v.id===pending.id)?.cover?.lyrics,request.lyrics);
+  assert.deepEqual(svc.studio.audio('original'),original);
  }finally{await svc.close();await rm(root,{recursive:true,force:true});}
 });
