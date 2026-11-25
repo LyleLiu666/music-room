@@ -101,7 +101,8 @@ test('stop during warm-up waits for the driver to finish even if it reports read
 test('failed lease release keeps the stop unconfirmed and reports a failure',async()=>{
  const root=await mkdtemp(join(tmpdir(),'live-stop-fault-')),store=await ProjectStore.open(root);
  const lease=new ResourceLease(join(root,'lease')),release=lease.release.bind(lease),resources=testResources({lease});
- lease.release=()=>{throw Error('模拟无法确认释放');};
+ let canRelease=false;
+ lease.release=()=>{if(!canRelease)throw Error('模拟无法确认释放');release();};
  const live=new LivePlay(resources,new SoundLibrary(store),{
   installed:()=>true,prepare:async()=>{},open:async execution=>({
    next:async()=>new Uint8Array(),done:new Promise<void>(resolve=>execution.signal.addEventListener('abort',()=>resolve(),{once:true})),
@@ -116,5 +117,13 @@ test('failed lease release keeps the stop unconfirmed and reports a failure',asy
   assert.equal(stopped.phase,'failed');
   assert.equal(stopped.resource?.reason,'UNLOAD_FAILED');
   assert.match(stopped.message,/无法确认释放/);
+  assert.equal((await live.stop('live-release-fault')).released,false);
+  assert.equal(resources.snapshot().fault?.code,'UNLOAD_FAILED');
+  canRelease=true;
+  assert.equal(resources.retryLeaseRelease('unrelated-task'),false);
+  assert.equal((await live.stop('live-release-fault')).released,true);
+  assert.equal(resources.snapshot().fault,undefined);
+  live.start('live-after-recovery');
+  assert.equal((await live.stop('live-after-recovery')).phase,'stopped');
  }finally{await live.close();await resources.close();release();await store.close();await rm(root,{recursive:true,force:true});}
 });

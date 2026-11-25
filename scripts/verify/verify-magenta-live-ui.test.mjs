@@ -9,7 +9,7 @@ import {MusicService} from '../../src/service/service.ts';
 import {serveHttp} from '../../src/server/http.ts';
 import {testResources} from '../../src/service/resources/testing.ts';
 
-async function withLiveWorkbench(check){
+async function withLiveWorkbench(check,beforeStart){
  const root=await mkdtemp(join(tmpdir(),'magenta-live-ui-'));
  const read=p=>readFile(resolve('dist',p));
  const music={unsupported:()=>undefined,installed:()=>false,chooseDirectory:async()=>undefined,prepare:async()=>{},launch:async()=>{throw Error('unused');}};
@@ -30,8 +30,9 @@ async function withLiveWorkbench(check){
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
   await page.goto(http.runtime.url);
   await page.locator('[data-action=sound-library]').click();
+  await beforeStart?.(page);
   await page.locator('#play-live').click();
-  await page.waitForFunction(()=>document.querySelector('[data-live-status]')?.textContent.includes('正在演奏'));
+  if(!beforeStart)await page.waitForFunction(()=>document.querySelector('[data-live-status]')?.textContent.includes('正在演奏'));
   await check({service,page,moves,engine:process.env.MUSIC_ROOM_BROWSER==='webkit'?'webkit':'chrome',generated:()=>generated,released:()=>released});
   assert.deepEqual(errors,[]);
  }finally{await browser?.close();await http?.close();await service.close();await rm(root,{recursive:true,force:true});}
@@ -49,14 +50,17 @@ test('play live changes style while streaming, captures the heard window and joi
   await page.locator('[data-live-save]').waitFor();
   await page.waitForFunction(()=>!document.querySelector('[data-live-save]').disabled,{},{timeout:25000});
   const submissions=[];
+  let releaseCapture;
+  const heldCapture=new Promise(resolve=>{releaseCapture=resolve;});
   await page.route('**/api/live_play_save',async route=>{
    submissions.push(route.request().postDataJSON());
    if(submissions.length!==1)return route.continue();
    const response=await route.fetch();assert.ok(response.ok());
-   await route.fulfill({status:503,json:{message:'模拟保存成功但响应丢失'}});
+   await heldCapture;await route.fulfill({response}).catch(()=>{});
   });
   await page.locator('[data-live-save]').click();
-  await page.locator('[data-live-save-message]').filter({hasText:'模拟保存成功但响应丢失'}).waitFor();
+  try{await page.locator('[data-live-save-message]').filter({hasText:'回留确认超时'}).waitFor({timeout:15000});}
+  finally{releaseCapture();}
   await page.locator('[data-live-save]').click();
   const row=page.locator('.sound-library-row').filter({hasText:'片段 1'});
   await row.waitFor();
@@ -129,7 +133,7 @@ test('an unconfirmed stop leaves a retry control until the server releases the w
  assert.equal(await panel.isVisible(),true);
  assert.equal(service.resources.snapshot().active?.id,ids[0]);
  await button.click();
- await panel.locator('[data-live-status]').filter({hasText:'后台尚未确认模型释放'}).waitFor();
+ await panel.locator('[data-live-status]').filter({hasText:'模拟未确认释放'}).waitFor();
  assert.equal(service.resources.snapshot().active?.id,ids[0]);
  await button.click();
  await panel.waitFor({state:'hidden'});
@@ -137,3 +141,24 @@ test('an unconfirmed stop leaves a retry control until the server releases the w
  assert.equal(released(),true);
  assert.equal(service.resources.snapshot().active,undefined);
 }));
+
+test('stop releases an acknowledged server session while its start response is still pending',async()=>{
+ let acknowledge,allowResponse;
+ const started=new Promise(resolve=>{acknowledge=resolve;}),held=new Promise(resolve=>{allowResponse=resolve;});
+ await withLiveWorkbench(async({page,service,released})=>{
+  try{
+   await started;
+   for(let i=0;i<100&&(await service.call('live_play_status',{})).session?.phase!=='running';i++)await new Promise(resolve=>setTimeout(resolve,10));
+   assert.equal((await service.call('live_play_status',{})).session?.phase,'running');
+   await page.locator('[data-stop-live]').click();
+   await page.locator('#live-panel').waitFor({state:'hidden',timeout:4000});
+   assert.equal(released(),true);
+   assert.equal(service.resources.snapshot().active,undefined);
+  }finally{allowResponse();}
+ },async page=>{
+  await page.route('**/api/live_play_start',async route=>{
+   const response=await route.fetch();assert.ok(response.ok());acknowledge();
+   await held;await route.fulfill({response}).catch(()=>{});
+  });
+ });
+});

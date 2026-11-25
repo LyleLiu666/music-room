@@ -84,6 +84,27 @@ test('long running save operations do not inherit the status query deadline',asy
  assert.deepEqual(await new WorkbenchService({...bootstrap}).call('studio_save_speed',{versionId:'v',rate:1.2,requestId:'r'}),{id:'saved'});
 });
 
+test('live start and capture bound response waits and do not replay an uncertain request',async t=>{
+ let deadline=new AbortController();const requests:string[]=[];
+ t.mock.method(AbortSignal,'timeout',(ms:number)=>{assert.equal(ms,10000);return deadline.signal;});
+ t.mock.method(globalThis,'fetch',async(_path:string,init?:RequestInit)=>{
+  assert.ok(init?.signal);requests.push(String(init.body));
+  if(requests.length===3)return Response.json({id:'saved'});
+  return {ok:true,status:200,json:()=>new Promise((_resolve,reject)=>{
+   init.signal!.addEventListener('abort',()=>reject(init.signal!.reason),{once:true});deadline.abort(new DOMException('Timed out','TimeoutError'));
+  })} as Response;
+ });
+ const api=new WorkbenchService({...bootstrap});
+ await assert.rejects(api.call('live_play_start',{sessionId:'live-one'}),/超时/);
+ deadline=new AbortController();
+ const capture={sessionId:'live-one',requestId:'capture-one',title:'音频片段',heardFrame:720000};
+ await assert.rejects(api.call('live_play_save',capture),/超时/);
+ assert.equal(requests.length,2);
+ deadline=new AbortController();
+ assert.deepEqual(await api.call('live_play_save',capture),{id:'saved'});
+ assert.equal(requests[1],requests[2]);
+});
+
 for(const operation of ['yue2_inspect_input','yue2_score'] as const)test(`${operation} times out without replaying and permits a later retry`,async t=>{
  const deadline=new AbortController();let attempts=0;
  t.mock.method(AbortSignal,'timeout',(ms:number)=>{assert.equal(ms,10000);return deadline.signal.aborted?new AbortController().signal:deadline.signal;});

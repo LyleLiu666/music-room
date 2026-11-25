@@ -155,8 +155,14 @@ export class LivePlay {
  async stop(id:string){
   const session=this.session;
   if(!session||session.id!==id)throw new ServiceError('NOT_FOUND','演奏会话已结束');
+  const retryRelease=!session.released&&session.resource?.reason==='UNLOAD_FAILED';
   if(!inactive(session)){session.phase='stopping';session.message='正在释放 Magenta';session.controller.abort();}
   await session.done;
+  if(retryRelease&&!session.released){
+   session.released=this.resources.retryLeaseRelease(id);
+   if(!session.released)return {...liveStage(session),message:'后台仍无法确认模型释放。请在「任务与资源」查看详情，必要时重启 Music Room。'};
+   if(userCancelled(session.controller.signal)){session.phase='stopped';session.message='已停止演奏';}
+  }
   return liveStage(session);
  }
  async close(){

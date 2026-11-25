@@ -60,15 +60,15 @@ export class WorkbenchService {
     return url.href;
   }
   async call<K extends Operation>(name:K,args:OperationInput<K>):Promise<OperationResults[K]> {
-    // Bound background reads and live stop acknowledgments. Calls are never replayed after an ambiguous timeout.
-    const signal=name==='live_play_next'||name==='live_play_stop'?AbortSignal.timeout(16000):name==='live_play_status'||name==='ace_cover_status'||name==='studio_cover_selection'||name==='sound_effect_status'||name==='sound_effect_job'||name==='sound_library_page'||name==='sound_library_queue'||name==='sound_library_items'||name==='studio_library'||name==='monitor_status'||name==='resource_status'||name==='yue2_inspect_input'||name==='yue2_score'?AbortSignal.timeout(10000):undefined;
+    // Bound background reads and live acknowledgments. Calls are never replayed after an ambiguous timeout.
+    const signal=name==='live_play_next'||name==='live_play_stop'?AbortSignal.timeout(16000):name==='live_play_start'||name==='live_play_save'||name==='live_play_status'||name==='ace_cover_status'||name==='studio_cover_selection'||name==='sound_effect_status'||name==='sound_effect_job'||name==='sound_library_page'||name==='sound_library_queue'||name==='sound_library_items'||name==='studio_library'||name==='monitor_status'||name==='resource_status'||name==='yue2_inspect_input'||name==='yue2_score'?AbortSignal.timeout(10000):undefined;
     try{
       const response=await this.request(`/api/${name}`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(args),signal});
       const value:unknown=await response.json();
       if(!response.ok){const error=value as {message?:string;code?:string}|null;throw new WorkbenchApiError(error?.message??'本地服务请求失败',error?.code);}
       return value as OperationResults[K];
     }catch(error){
-      if(signal?.aborted)throw new Error(name==='live_play_stop'?'停止请求超时，请重试':name==='yue2_inspect_input'?'输入容量检查超时，请重试':name==='yue2_score'?'读取乐谱超时，请重试':'状态查询超时');
+      if(signal?.aborted)throw new Error(name==='live_play_start'?'演奏启动确认超时':name==='live_play_save'?'回留确认超时，请重试':name==='live_play_stop'?'停止请求超时，请重试':name==='yue2_inspect_input'?'输入容量检查超时，请重试':name==='yue2_score'?'读取乐谱超时，请重试':'状态查询超时');
       throw error;
     }
   }

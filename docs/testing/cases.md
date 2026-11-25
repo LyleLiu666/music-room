@@ -15,7 +15,7 @@
 | COVER-02 / P0 | 从原唱拖动选段，提交后切回原唱同位置；在日间与夜间标记成品 | 数字与波形同步，循环时两个播放按钮一致；按相对秒数切换，原曲时长及描述保留；成品状态一致 | `scripts/verify/verify-ace-cover-ui.test.mjs` |
 | COVER-01 / P0 | 用固定范围选取原唱，重复提交，完成或取消翻唱后重开工作区 | 同步歌词按时间选取，原词按顺序估算并保留段落；重复请求关联已有任务；翻唱为独立子版本，取消不发布音频，原曲和成品选择完整保留 | `src/service/studio/ace-cover.test.ts`、`scripts/verify/verify-ace-cover-real.ts` |
 | COVER-03 / P1 | 彻底删除翻唱子版本，重开含旧删除记录的工作区 | 找不到已删除子版本的音频、歌词及风格；旧请求仍拒绝重放，原曲与可恢复版本完整保留 | `src/service/studio/ace-cover.test.ts` |
-| LIVE-03 / P1 | 丢失回留响应、原回留位置过期、停止请求未确认、模型输出失败 | 已提交回留重试只保存一次；过期后可保存更新片段；确认释放前可重试停止；模型故障在演奏与队列均为失败 | `scripts/verify/verify-magenta-live-ui.test.mjs`、`src/service/studio/live-play.test.ts` |
+| LIVE-03 / P1 | 启动或回留响应悬挂、原回留位置过期、停止请求未确认、租约释放失败、模型输出失败 | 启动回应挂起时仍可停止已创建的会话；已提交回留重试只保存一次；过期后可保存更新片段；重复停止可重试释放本会话租约；模型故障在演奏与队列均为失败 | `scripts/verify/verify-magenta-live-ui.test.mjs`、`src/service/studio/live-play.test.ts`、`src/workbench/service.test.ts` |
 | SFX-05 / P0 | 截取项目音效或独立 WAV / FLAC，选择起止与淡入淡出；提交前后强制退出 | 原音不变；新 WAV 的长度与边界正确，首尾平滑，双声道及未淡化片段保留；非法时间被拒绝；重试无重复且无孤立文件 | `src/service/studio/trim-audio.test.ts`、`src/service/studio/effect-workflow.test.ts`、`src/service/studio/publication-crash.test.ts`、`scripts/verify/verify-sound-library-ui.test.mjs` |
 | DRAFT-01 / P0 | 同浏览器两窗口打开同一目录，分别编辑不同声音；旧窗口导航后刷新 | 两份草稿都保留；不能用整个旧快照覆盖新稿 | `src/workbench/studio/drafts.test.ts`、`scripts/verify/verify-drafts-ui.test.mjs` |
 | DRAFT-02 / P0 | 两窗口编辑同一声音，分别选择保留当前 / 使用已保存内容 | 冲突可见；选择前当前输入不丢失；选择后刷新符合决定；转换的升降调也适用 | 同上 |

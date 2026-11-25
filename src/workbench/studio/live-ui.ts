@@ -137,7 +137,9 @@ export class LiveUI {
   this.sessionId=sessionId;
   try{
    this.launch=this.h.api.call('live_play_start',{sessionId});
-   this.session=await this.launch;
+   const started=await this.launch;
+   if(signal.aborted)return;
+   this.session=started;
    let lastRequest=0;
    while(!signal.aborted){
     if(audio.buffered>1.05&&(audio.context.state==='running'||performance.now()-lastRequest<2500)){await delay(100);continue;}
@@ -267,12 +269,11 @@ export class LiveUI {
   this.h.panel.querySelectorAll<HTMLButtonElement>('button').forEach(button=>{button.disabled=true;});
   this.release=(async()=>{
    await source?.close().catch(error=>this.h.notice(error.message));
-   if(sessionId){
-    await launch?.catch(()=>{});
-    try{
-     const result=await this.h.api.call('live_play_stop',{sessionId});
-     if(!result.released)throw Error(result.resource?.message??'后台尚未确认模型释放');
-    }catch(error){if(!(error instanceof WorkbenchApiError&&error.code==='NOT_FOUND'))throw error;}
+   if(!sessionId)return;
+   if(!await this.stopSession(sessionId)&&launch){
+    // An initial miss can mean the server has yet to receive the start request.
+    await launch.catch(()=>{});
+    await this.stopSession(sessionId);
    }
   })().then(()=>{
    this.sessionId=undefined;this.launch=undefined;this.session=undefined;
@@ -283,6 +284,13 @@ export class LiveUI {
   }).finally(()=>{this.release=undefined;this.h.change();});
   this.h.change();
   return this.release;
+ }
+ private async stopSession(sessionId:string){
+  try{
+   const result=await this.h.api.call('live_play_stop',{sessionId});
+   if(!result.released)throw Error(result.message||'后台尚未确认模型释放');
+   return true;
+  }catch(error){if(error instanceof WorkbenchApiError&&error.code==='NOT_FOUND')return false;throw error;}
  }
  closeOnNavigation(){return this.lifetime?this.close():Promise.resolve();}
  pageExit(){
