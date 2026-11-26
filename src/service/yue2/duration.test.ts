@@ -4,10 +4,13 @@ import {generationWithEnding} from './input.ts';
 import {operations} from '../operations.ts';
 import {execFileSync} from 'node:child_process';
 import {createHash} from 'node:crypto';
-import {readFileSync} from 'node:fs';
+import {readFileSync,mkdtempSync,writeFileSync,symlinkSync,rmSync} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
 import {musicRuntimeHashes,yueServeProgramHash} from './worker.ts';
 import {yueProfile} from '../resources/profiles.ts';
-import {durationWithinTarget} from './duration.ts';
+import {durationWithinTarget,musicDurationTolerance} from './duration.ts';
+import {readDurationCheck} from './ending.ts';
 
 test('original three-failure regression keeps the historical model input and automatic duration',()=>{
  const fixture=JSON.parse(readFileSync('tests/quality/music-planning-regression.json','utf8'));
@@ -40,10 +43,29 @@ test('target duration is an explicit bounded option, with auto preserved for old
  for(const targetDuration of [60,120,180,240,300])assert.equal(operations.studio_generate.schema.parse({soundId:'s',text:'piano',targetDuration}).targetDuration,targetDuration);
 });
 test('exact tolerance boundaries match the engine without ratio-rounding rejection',()=>{
+ assert.equal(musicDurationTolerance,0.3);
  for(const target of [60,120,180,240,300]){
-  const low=target*.85,high=target*1.15;
+  const low=target*(1-musicDurationTolerance),high=target*(1+musicDurationTolerance);
   assert.equal(durationWithinTarget(low,target),true);assert.equal(durationWithinTarget(high,target),true);
   assert.equal(durationWithinTarget(low-.001,target),false);assert.equal(durationWithinTarget(high+.001,target),false);
  }
  assert.equal(durationWithinTarget(NaN,180),false);
+});
+test('readDurationCheck reads valid or off-target duration.json and rejects missing, invalid or symlinked files',()=>{
+ const dir=mkdtempSync(join(tmpdir(),'duration-check-'));
+ try{
+  const file=join(dir,'duration.json');
+  assert.equal(readDurationCheck(file),undefined);
+  writeFileSync(file,JSON.stringify({targetSeconds:240,tolerance:0.3,audioSeconds:155.8,audioWithinTarget:false}));
+  assert.deepEqual(readDurationCheck(file),{targetSeconds:240,actualSeconds:155.8,withinTarget:false,tolerance:0.3});
+  writeFileSync(file,JSON.stringify({targetSeconds:240,tolerance:0.3,audioSeconds:null,audioWithinTarget:false}));
+  assert.equal(readDurationCheck(file),undefined);
+  writeFileSync(file,'{bad json');
+  assert.equal(readDurationCheck(file),undefined);
+  const target=join(dir,'real.json');
+  writeFileSync(target,JSON.stringify({targetSeconds:240,tolerance:0.3,audioSeconds:230,audioWithinTarget:true}));
+  const link=join(dir,'link.json');
+  symlinkSync(target,link);
+  assert.equal(readDurationCheck(link),undefined);
+ }finally{rmSync(dir,{recursive:true,force:true});}
 });

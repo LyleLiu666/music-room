@@ -212,3 +212,19 @@ test('native phase/reason truncation does not fail a completed audio job',async 
  for(let i=0;i<200&&!['done','failed'].includes((await f.client.job(result.job.id)).job.status);i++)await delay();
  const done=await f.client.job(result.job.id);assert.equal(done.job.status,'done');assert.deepEqual(done.job.truncated,{abc:true,semantic:false});assert.equal((await f.client.audio(result.job.id)).length,9);
 });
+
+test('completed off-target duration check is preserved across completion and restart with playable audio',async t=>{
+ const f=await fixture(t),result=await f.client.generate({style:'piano',lyrics:'[instrumental]',preset:'fast',instrumental:true,targetDuration:240});
+ await mkdir(join(f.directory,'data/songs','a'.repeat(32)),{recursive:true});
+ await writeFile(join(f.directory,'data/songs','a'.repeat(32),'duration.json'),JSON.stringify({targetSeconds:240,tolerance:0.3,audioSeconds:155.8,audioWithinTarget:false}));
+ await f.complete();
+ for(let i=0;i<200&&(await f.client.job(result.job.id)).job.status!=='done';i++)await delay();
+ const done=await f.client.job(result.job.id);
+ assert.equal(done.job.status,'done');
+ assert.deepEqual(done.job.durationCheck,{targetSeconds:240,actualSeconds:155.8,withinTarget:false,tolerance:0.3});
+ await f.client.close();
+ const restored=new YuE2Client(f.engine,f.store,f.resources);t.after(()=>restored.close());
+ const after=await restored.job(result.job.id);
+ assert.deepEqual(after.job.durationCheck,{targetSeconds:240,actualSeconds:155.8,withinTarget:false,tolerance:0.3});
+ assert.equal((await restored.audio(result.job.id)).length,9);
+});

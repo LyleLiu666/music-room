@@ -37,6 +37,8 @@ TTS 候选横向比较见[本机 TTS 模型选型](tts-model-selection.md)，模
 | [执行指南](testing/running.md) | 命令怎么运行，怎样准备隔离环境、保存证据和清理 |
 | [固定语料与听评](testing/quality.md) | 输入、种子、模型效果评分和歌词真值如何验收 |
 | [维护规则](testing/maintenance.md) | 新增 / 修改 / 删除用例，处理失败与维护基线时遵循什么规则 |
+| [2026-11-26 集成发布](testing/verification-integrated-release-2026-11-26.md) | 内存、创作界面与时长处理的统一复核、安装包验证及日常部署 |
+| [2026-11-26 内存启动规则](testing/verification-memory-admission-2026-11-26.md) | 警告压力下按预算启动、危险压力与运行保护、界面状态一致性 |
 | [2026-11-25 即兴会话超时与租约重试](testing/verification-live-recovery-2026-11-25.md) | 悬挂响应、请求去重、租约释放重试及独立包验证 |
 | [2026-11-25 翻唱与即兴故障恢复](testing/verification-entropy-fixes-2026-11-25.md) | 彻底删除、回留重试、停止确认及失败状态一致性 |
 | [2026-11-24 翻唱与即兴交付](testing/verification-cover-live-release-2026-11-24.md) | 浏览器复验、本机样本、真实资源互斥、独立包结果 |

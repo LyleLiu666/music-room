@@ -17,6 +17,16 @@ test('recovery advertises only committed intact stages and supports legacy plan-
   await mkdir(join(cp,'plan'),{recursive:true});const indexed:Record<string,string>={};for(const n of [...Object.keys(files),'plan_manifest.json']){const value=await readFile(join(song,'plan',n));await writeFile(join(cp,'plan',n),value);indexed['plan/'+n]=createHash('sha256').update(value).digest('hex');}
   await mkdir(join(cp,'semantic'));await writeFile(join(cp,'semantic/result.json'),'{}');indexed['semantic/result.json']=createHash('sha256').update('{}').digest('hex');
   await writeFile(join(cp,'state.json'),JSON.stringify({version:1,stage:'semantic',fingerprint:'a'.repeat(64),files:indexed}));assert.equal(readMusicRecovery(root,id),'semantic');
+  // Duration-check failures or mismatched-tolerance duration reports must never advertise a poisoned checkpoint.
+  await writeFile(join(song,'duration.json'),JSON.stringify({targetSeconds:240,tolerance:0.3,audioSeconds:155.8,audioWithinTarget:false}));
+  assert.equal(readMusicRecovery(root,id),undefined);
+  await writeFile(join(song,'duration.json'),JSON.stringify({targetSeconds:240,tolerance:0.3,accepted:false}));
+  assert.equal(readMusicRecovery(root,id),undefined);
+  await writeFile(join(song,'duration.json'),JSON.stringify({targetSeconds:240,tolerance:0.15,accepted:true,withinTarget:true}));
+  assert.equal(readMusicRecovery(root,id),undefined);
+  await writeFile(join(song,'duration.json'),JSON.stringify({targetSeconds:240,tolerance:0.3,accepted:true,withinTarget:true}));
+  assert.equal(readMusicRecovery(root,id),'semantic');
+  await rm(join(song,'duration.json'));
   await writeFile(join(cp,'semantic/result.json'),'corrupt');assert.equal(readMusicRecovery(root,id),undefined);
   await rm(join(cp,'semantic/result.json'));await symlink(join(song,'plan/plan.json'),join(cp,'semantic/result.json'));assert.equal(readMusicRecovery(root,id),undefined);
  }finally{await rm(root,{recursive:true,force:true});}

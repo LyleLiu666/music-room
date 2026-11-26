@@ -1,7 +1,7 @@
 import {icon} from './icons.ts';
 const esc=(v:string)=>v.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 export function welcomeMarkup(){
- return `<section class="empty-sound welcome"><span aria-hidden="true">${icon('note')}</span><h2>从一个声音开始。</h2><p>选一种创作方式，填写内容，试听后把满意的版本选为成品。</p><div class="welcome-options">${[['music','创作音乐','歌曲、纯音乐'],['speech','创作语音','旁白、朗读'],['effect','生成音效','短音效、环境声'],['clip','创作片段','短旋律、间奏'],['conversion','转换音色','上传音频，替换人声']].map(([kind,title,hint])=>`<button class="secondary" data-action="quick-start" data-kind="${kind}"><strong>${title}</strong><small>${hint}</small></button>`).join('')}</div><p class="field-note">生成的版本自动保存，原版保留。未提交的输入是浏览器草稿。</p><button class="quiet" data-action="new-project">只创建项目</button></section>`;
+ return `<section class="empty-sound welcome"><span aria-hidden="true">${icon('note')}</span><h2>从一个声音开始。</h2><p>选一种创作方式，填写内容，试听后把满意的版本选为成品。</p><div class="welcome-options"><button class="secondary" data-action="live-create"><strong>实时即兴录制</strong><small>演奏、录制、保存第一版</small></button>${[['music','创作音乐','歌曲、纯音乐'],['speech','创作语音','旁白、朗读'],['effect','生成音效','短音效、环境声'],['clip','创作片段','短旋律、间奏'],['conversion','转换音色','上传音频，替换人声']].map(([kind,title,hint])=>`<button class="secondary" data-action="quick-start" data-kind="${kind}"><strong>${title}</strong><small>${hint}</small></button>`).join('')}</div><p class="field-note">生成的版本自动保存，原版保留。未提交的输入是浏览器草稿。</p><button class="quiet" data-action="new-project">只创建项目</button></section>`;
 }
 export function backupGuide(workspace:string,mcp:unknown){
  const config=mcp as {mcpServers?:Record<string,{command:string;args:string[]}>};

@@ -28,10 +28,26 @@ test('ongoing swap-out under warning pressure stops even when swap occupancy sta
  try{await assert.rejects(resources.run({id:'churn',engine:'x',demand:{verified:true,peak:{memory:100}},execute:async ctx=>{if(!ctx.signal.aborted)await new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}));ctx.signal.throwIfAborted();}}),/交换/);}finally{await resources.close();}
 });
 
-test('stable pre-existing swap occupancy does not stop a task under a transient warning',async()=>{
- const resources=new ResourceCoordinator({policy,probe:async()=>({...hardware(),swapUsed:4*2**30}),monitorMs:1,observe:async()=>({usage:{memory:1},pressure:'warning',swapUsed:4*2**30})});
+test('warning at admission and stable pre-existing swap allow a monitored task to complete',async()=>{
+ let samples=0;
+ const resources=new ResourceCoordinator({policy,probe:async()=>({...hardware(),pressure:'warning',swapUsed:4*2**30}),monitorMs:1,observe:async()=>{samples++;return {usage:{memory:1},pressure:'warning',swapUsed:4*2**30};}});
  resources.register('x',{resident:()=>undefined,unload:async()=>{}});
- try{await resources.run({id:'stable',engine:'x',demand:{verified:true,peak:{memory:100}},execute:async ctx=>{await new Promise(r=>setTimeout(r,15));ctx.signal.throwIfAborted();}});assert.equal(resources.snapshot().history[0].stage,'succeeded');}finally{await resources.close();}
+ try{await resources.run({id:'stable',engine:'x',demand:{verified:true,peak:{memory:100}},execute:async ctx=>{await new Promise(r=>setTimeout(r,15));ctx.signal.throwIfAborted();}});assert.ok(samples>0);assert.equal(resources.snapshot().history[0].stage,'succeeded');}finally{await resources.close();}
+});
+
+for(const mode of ['peak','critical','swap'] as const)test(`a task admitted under warning still stops for ${mode}`,async()=>{
+ const resources=new ResourceCoordinator({policy,probe:async()=>({...hardware(),pressure:'warning',swapUsed:4*2**30}),monitorMs:1,
+  observe:async()=>({usage:{memory:mode==='peak'?101:1},pressure:mode==='critical'?'critical':'warning',swapUsed:4*2**30+(mode==='swap'?512*2**20:0)})});
+ resources.register('x',{resident:()=>undefined,unload:async()=>{}});
+ let executed=false;
+ try{
+  await assert.rejects(resources.run({id:mode,engine:'x',demand:{verified:true,peak:{memory:100}},execute:async ctx=>{
+   executed=true;
+   if(!ctx.signal.aborted)await new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}));
+   ctx.signal.throwIfAborted();
+  }}),{code:mode==='peak'?'PEAK_EXCEEDED':'PRESSURE_PROTECTION'});
+  assert.equal(executed,true);assert.deepEqual(resources.snapshot().reservations,{});
+ }finally{await resources.close();}
 });
 
 test('sudden external pressure waits for the real model process to exit before granting the next task',async()=>{

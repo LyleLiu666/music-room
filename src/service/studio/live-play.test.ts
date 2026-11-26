@@ -28,7 +28,7 @@ test('live playback gates lookahead, captures exactly 15 seconds, survives resta
   for(let i=0;i<100&&live.status().session?.phase!=='running';i++)await setTimeout(5);
   assert.equal(live.status().session?.phase,'running');
   const future=resources.run({id:'following',engine:'following',demand:{verified:true,peak:{memory:1}},execute:async()=>{assert.equal(released,true);following=true;}});
-  const req={sessionId:'live-test',offset:0,heardFrame:0,style:{left:'Jazz',right:'Disco',mix:0}};
+  const req={sessionId:'live-test',offset:0,heardFrame:0,startFrame:rate/2,style:{left:'Jazz',right:'Disco',mix:0}};
   const duplicate=await Promise.all([live.next(req),live.next(req)]);
   assert.equal(duplicate[0].block?.pcm,duplicate[1].block?.pcm);
   assert.equal(mixtures.length,1);
@@ -38,6 +38,9 @@ test('live playback gates lookahead, captures exactly 15 seconds, survives resta
    const {block}=await live.next({...req,offset:i*rate,heardFrame:(i-2)*rate,style:{...req.style,mix:1}});
    assert.equal(block?.toMix,1);if(i===3)assert.equal(block?.fromMix,0);
   }
+  const preview=live.preview({sessionId:'live-test',startFrame:rate,heardFrame:16*rate});
+  assert.deepEqual(audioShape(Buffer.from(preview.wav,'base64')),{frames:15*rate,channels:2,rate});
+  assert.equal(library.list().length,0,'preview must not publish recordings');
   assert.equal(following,false);
   const capture={title:'演奏片段',requestId:'capture-test',sessionId:'live-test',heardFrame:rate*16+rate/2};
   const item=await live.save(capture);
@@ -45,6 +48,11 @@ test('live playback gates lookahead, captures exactly 15 seconds, survives resta
   assert.deepEqual(audioShape(library.audioSync(item.id)),{frames:rate*15,channels:2,rate});
   assert.equal((await live.save(capture)).id,item.id);
   await assert.rejects(()=>live.save({...capture,heardFrame:16*rate}),/不同/);
+  for(let i=18;i<42;i++)await live.next({...req,offset:i*rate,heardFrame:(i-2)*rate,startFrame:rate/2});
+  const longPreview=live.preview({sessionId:'live-test',startFrame:rate/2,heardFrame:40*rate+rate/2});
+  assert.deepEqual(audioShape(Buffer.from(longPreview.wav,'base64')),{frames:40*rate,channels:2,rate});
+  const longItem=await live.save({sessionId:'live-test',requestId:'long-recording',title:'长录音',startFrame:rate/2,heardFrame:40*rate+rate/2});
+  assert.equal(longItem.duration,40);
   const stopped=await live.stop('live-test');assert.equal(stopped.phase,'stopped');assert.equal(stopped.released,true);await future;
   assert.equal((await live.stop('live-test')).released,true);
   await assert.rejects(live.stop('live-missing'),{code:'NOT_FOUND'});

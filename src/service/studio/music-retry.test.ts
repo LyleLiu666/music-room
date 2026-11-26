@@ -82,3 +82,24 @@ test('cancelled/interrupted music can retry in place; unavailable model leaves i
   await f.reopen();const retried=await f.svc.call('studio_retry_music',{versionId:original.id,requestId:state});assert.equal(retried.id,original.id);assert.equal(retried.musicAttempts?.[0].state,state);
  }
 });
+
+test('stale recovery points on failed archived attempts are cleared on sync so retry rotates the seed',async t=>{
+ const f=await fixture(t);
+ const first=await f.svc.call('studio_generate',{soundId:f.sound.id,text:'piano',instrumental:true,seed:42,targetDuration:240});
+ const staleJobId=first.source.id;
+ f.jobs[0].recovery={jobId:staleJobId,stage:'synthesis'};
+ await f.svc.call('studio_retry_music',{versionId:first.id,requestId:'attempt-2',expectedJobId:staleJobId});
+ // Simulate the prior attempt losing its valid recovery (e.g. duration-rejected checkpoint) and list() omitting older jobs.
+ f.jobs[0].recovery=undefined;
+ f.jobs[1].recovery=undefined;
+ await f.reopen();
+ f.svc.yue2Client.list=async()=>({jobs:[f.jobs[1]]});
+ f.svc.yue2Client.job=async id=>({job:f.jobs.find(j=>j.id===id)} as any);
+ const lib=await f.svc.call('studio_library',{});
+ const version=lib.versions.find(v=>v.id===first.id)!;
+ assert.equal(version.musicRecovery,undefined);
+ assert.equal(version.musicAttempts?.[0].recovery,undefined);
+ const retried=await f.svc.call('studio_retry_music',{versionId:first.id,requestId:'attempt-3',expectedJobId:version.source.id});
+ assert.notEqual(retried.input?.seed,42);
+ assert.equal(f.submitted.at(-1).resumeFrom,undefined);
+});

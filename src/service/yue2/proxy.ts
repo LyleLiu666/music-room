@@ -1,6 +1,6 @@
 import {readMusicRecovery,sameMusicGeneration} from './recovery.ts';
 import {musicInputLimits} from './input.ts';
-import {generationWithEnding,readTruncation} from './ending.ts';
+import {generationWithEnding,readDurationCheck,readTruncation} from './ending.ts';
 import {readAudioFile} from '../projects/audio-files.ts';
 import {randomUUID,createHash} from 'node:crypto';
 import {existsSync,lstatSync,readFileSync,realpathSync,statSync,createReadStream,unlinkSync} from 'node:fs';
@@ -189,7 +189,7 @@ export class YuE2Proxy {
     await new Promise<void>((resolve,reject)=>{const abort=()=>{clearTimeout(timer);reject(execution.signal.reason);};const timer=setTimeout(()=>{execution.signal.removeEventListener('abort',abort);resolve();},250);execution.signal.addEventListener('abort',abort,{once:true});});
     upstream=await this.request('jobs/'+record.upstreamId,undefined,execution.signal);record.checkedAt=Date.now();
    }
-   if(upstream.status==='done'){await this.seal(record);const truncated=readTruncation(join(dirname(dirname(this.artifactPath(record,'audio.flac'))),'summary.json'));if(truncated)upstream.truncated=truncated;}return upstream;
+   if(upstream.status==='done'){await this.seal(record);const songRoot=dirname(dirname(this.artifactPath(record,'audio.flac')));const truncated=readTruncation(join(songRoot,'summary.json'));if(truncated)upstream.truncated=truncated;const durationCheck=readDurationCheck(join(songRoot,'duration.json'));if(durationCheck)upstream.durationCheck=durationCheck;}return upstream;
   }}).then(upstream=>{
    if(upstream.status==='done'&&this.objects)record.archive={namespace:this.objects.namespace,ready:false};
    const next={...upstream,id,resource:record.job.resource};if(JSON.stringify(next)!==JSON.stringify(record.job)){record.job=next;this.save();}

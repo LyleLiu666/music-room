@@ -40,7 +40,7 @@ export function inspectMusicContext(directory:string,input:Pick<YuE2Generate,'st
      else scoreIssue=hasLyricText?'ABC 乐谱的人声和伴奏轨都没有音符。请换一份乐谱，或清空 ABC 乐谱切换为自由规划。':'ABC 乐谱的人声轨全是休止符。填写歌词可使用伴奏轨生成演唱。';
     }else if(targetDuration!==undefined){
      if(!Number.isFinite(seconds)||seconds<=0)scoreIssue='自定义乐谱时长无效，请检查 ABC。';
-     else if(!durationWithinTarget(seconds,targetDuration))scoreIssue=`自定义乐谱预计 ${seconds.toFixed(1)} 秒，不符合目标时长 ${targetDuration} 秒（允许偏差 ±15%）。请修改乐谱或选择“由模型决定”。`;
+     else if(!durationWithinTarget(seconds,targetDuration))scoreIssue=`自定义乐谱预计 ${seconds.toFixed(1)} 秒，不符合目标时长 ${targetDuration} 秒（允许偏差 ±30%）。请修改乐谱或选择“由模型决定”。`;
     }
    }catch{
     if(checkVocal)scoreIssue='无法检查演唱 ABC 乐谱的人声轨。请检查谱面格式，或清空 ABC 乐谱切换为自由规划。';

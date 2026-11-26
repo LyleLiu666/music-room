@@ -91,5 +91,11 @@ class RecoveryTests(unittest.TestCase):
   with self.assertRaises(InterruptedError):run(Pipe(),self.a,stop='plan')
   (self.a/'checkpoints/synthesis').mkdir();(self.a/'checkpoints/synthesis/latents.npy').write_bytes(b'incomplete')
   p=Pipe();run(p,self.b,self.a);self.assertEqual(p.calls,['semantic','synthesis'])
+ def test_duration_rejected_checkpoint_cannot_be_reused(self):
+  with self.assertRaises(InterruptedError):run(Pipe(),self.a,stop='decode')
+  (self.a/'duration.json').write_text(json.dumps({'targetSeconds':240,'tolerance':0.3,'audioSeconds':155.8,'audioWithinTarget':False}))
+  p=Pipe()
+  with self.assertRaisesRegex(ValueError,'时长检查'):run(p,self.b,self.a)
+  self.assertEqual(p.calls,[])
 
 if __name__=='__main__':unittest.main()

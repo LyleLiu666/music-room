@@ -20,6 +20,8 @@ macOS 保存调速版使用 Rubber Band R3 双遍离线处理，这是实际人�
 
 ## 新 UX 提案
 
+[五款音乐模型的试玩与用户反馈（2026-11-24）](docs/design/explorations/model-listening-feedback-2026-11-24.md)记录了本机样本、用户原话与各项能力的取舍。
+
 [本机模型与资源](docs/model-resources.md)说明已实现的统一队列、动态内存预算、所属进程释放和当前支持范围。各引擎与辅助处理按实际硬件准入；不假设每台电脑都有 32 GiB。架构见[设计](docs/design/model-resource-management.md)，实施和验收见[开发计划](docs/design/model-resource-management-plan.md)及[逐轮记录](docs/design/model-resource-development.md)。
 
 正式首页已采用统一创作空间，启动本地服务即可使用。`/speech.html` 为兼容入口；`/score.html#版本ID` 仅保留为旧链接兼容入口，自动定位回对应声音版本。MIDI 与音轨从版本菜单在当前空间打开。早期 [UX 提案](docs/design/sound-first-ux.md)及 `public/prototypes/sound-first/` 仅保留为设计历史，不是正式入口。

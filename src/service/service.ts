@@ -78,6 +78,7 @@ export class MusicService {
     live_play_cancel_preparation:async()=>this.live.cancelPreparation(),
     live_play_start:async args=>this.live.start(args.sessionId),
     live_play_next:async args=>this.live.next(args),
+    live_play_preview:async args=>this.live.preview(args),
     live_play_save:async args=>this.live.save(args),
     live_play_stop:async args=>this.live.stop(args.sessionId),
     ace_cover_status:async()=>this.cover.status(),

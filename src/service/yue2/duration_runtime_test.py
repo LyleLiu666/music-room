@@ -121,9 +121,15 @@ class DurationTests(unittest.TestCase):
   self.assertEqual(result.abc,score(240));self.assertEqual(len(p.requests),3)
   report=json.loads((self.out/'duration.json').read_text());self.assertEqual(report['plans'][1]['scoreSeconds'],63.75);self.assertIsNotNone(report['plans'][1]['problem']);self.assertEqual(report['selectedAttempt'],3)
  def test_complete_off_target_plan_cannot_fall_back_when_later_attempts_truncate(self):
-  p=Pipe([(score(224),False),(score(180),True),(score(180),True)])
+  p=Pipe([(score(240),False),(score(180),True),(score(180),True)])
   with self.assertRaisesRegex(ValueError,'目标时长'):self.run_plan(p)
   report=json.loads((self.out/'duration.json').read_text());self.assertFalse(report['accepted']);self.assertEqual(report['attempts'],3)
+ def test_valid_off_target_retry_keeps_base_sampling_without_escalating_temperature(self):
+  p=Pipe([(score(60),False),(score(180),False)])
+  self.run_plan(p,Request())
+  self.assertEqual(p.samplings[0],p.generation_config.abc)
+  self.assertEqual(p.samplings[1],p.generation_config.abc)
+  report=json.loads((self.out/'duration.json').read_text());self.assertTrue(report['accepted']);self.assertEqual(report['selectedAttempt'],2)
  def test_all_short_or_long_plans_fail_after_three_attempts(self):
   for seconds in (60,240):
    p=Pipe([(score(seconds),False)]*3)
@@ -202,25 +208,40 @@ class DurationTests(unittest.TestCase):
   with self.assertRaises(InterruptedError):self.run_plan(p,cancelled=lambda:bool(p.requests))
   self.assertEqual(len(p.requests),1)
  def test_target_tolerance_accepts_only_in_range_scores(self):
-  for seconds in (156,180,204):
+  for seconds in (128,180,232):
    p=Pipe([(score(seconds),False)])
    self.assertEqual(self.run_plan(p).abc,score(seconds));self.assertEqual(len(p.requests),1)
- def test_audio_duration_rejects_early_stop_and_preserves_diagnostics(self):
-  for seconds in (59.1586667,300,None,float('nan')):
+  for seconds in (172,240,308):
+   p=Pipe([(score(seconds),False)])
+   self.assertEqual(plan_for_duration(p,Request(),None,None,None,240,self.out).abc,score(seconds));self.assertEqual(len(p.requests),1)
+ def test_audio_duration_preserves_completed_off_target_audio_with_report(self):
+  for seconds in (59.1586667,155.8,320):
    summary={'status':'complete','seconds':seconds,'audio_path':'original.flac'}
-   with self.assertRaisesRegex(ValueError,'音频实际时长.*目标时长 240'):validate_audio_duration(summary,240,self.out)
-   self.assertEqual(summary['status'],'failed');self.assertEqual(summary['audio_path'],'original.flac')
-   report=json.loads((self.out/'duration.json').read_text());self.assertFalse(report['audioWithinTarget'])
+   result=validate_audio_duration(summary,240,self.out)
+   self.assertIs(result,summary)
+   self.assertEqual(summary['status'],'complete');self.assertEqual(summary['audio_path'],'original.flac')
+   self.assertEqual(summary['duration_check'],{'targetSeconds':240,'actualSeconds':float(seconds),'withinTarget':False,'tolerance':0.3})
+   report=json.loads((self.out/'duration.json').read_text())
+   self.assertEqual(report['targetSeconds'],240);self.assertEqual(report['tolerance'],0.3)
+   self.assertEqual(report['audioSeconds'],float(seconds));self.assertFalse(report['audioWithinTarget'])
+ def test_audio_duration_rejects_missing_or_invalid_seconds(self):
+  for seconds in (None,float('nan'),0,-5,True):
+   summary={'status':'complete','seconds':seconds,'audio_path':'original.flac'}
+   with self.assertRaisesRegex(ValueError,'音频实际时长'):validate_audio_duration(summary,240,self.out)
+   self.assertEqual(summary['status'],'failed')
+   report=json.loads((self.out/'duration.json').read_text())
+   self.assertEqual(report['targetSeconds'],240);self.assertEqual(report['tolerance'],0.3);self.assertFalse(report['audioWithinTarget'])
  def test_audio_duration_accepts_tolerance_boundaries_and_auto(self):
   for target in (60,120,180,240,300):
-   for seconds in (target*.85,target,target*1.15):
+   for seconds in (target*.70,target,target*1.30):
     self.assertTrue(within_target(seconds,target))
     summary={'status':'complete','seconds':seconds}
     self.assertIs(validate_audio_duration(summary,target,self.out),summary)
-   self.assertFalse(within_target(target*.85-.001,target));self.assertFalse(within_target(target*1.15+.001,target))
+    self.assertTrue(summary['duration_check']['withinTarget'])
+   self.assertFalse(within_target(target*.70-.001,target));self.assertFalse(within_target(target*1.30+.001,target))
   summary={'status':'complete','seconds':59}
   self.assertIs(validate_audio_duration(summary,None,self.out),summary)
- def test_installed_engine_hook_cannot_return_success_for_short_audio(self):
+ def test_installed_engine_hook_preserves_completed_off_target_audio_and_rejects_invalid_seconds(self):
   from contextlib import nullcontext
   from duration import install
   class Engine:
@@ -236,11 +257,15 @@ class DurationTests(unittest.TestCase):
   modules={'yue2_studio':SimpleNamespace(jobs=jobs,worker=worker),'yue2_studio.engine':SimpleNamespace(Engine=Engine)}
   with patch.dict(sys.modules,modules),patch.object(sys.modules['yue2.protocol'],'SongRequest',lambda **kw:None,create=True):
    install();engine=Engine();engine.seconds=59
-   with self.assertRaisesRegex(ValueError,'音频实际时长'):engine.create_song({'target_duration_seconds':240},self.out,options=SimpleNamespace(loras=[]))
-   self.assertEqual(engine.policy['version'],6)
+   res=engine.create_song({'target_duration_seconds':240},self.out,options=SimpleNamespace(loras=[]))
+   self.assertEqual(res['status'],'complete');self.assertFalse(res['duration_check']['withinTarget'])
+   self.assertEqual(engine.policy['version'],7);self.assertEqual(engine.policy['tolerance'],0.3)
    self.assertEqual(engine.policy['feedbackTokens'],512)
+   engine.seconds=None
+   with self.assertRaisesRegex(ValueError,'音频实际时长'):engine.create_song({'target_duration_seconds':240},self.out,options=SimpleNamespace(loras=[]))
    engine.seconds=236.84
-   self.assertEqual(engine.create_song({'target_duration_seconds':240},self.out,options=SimpleNamespace(loras=[]))['status'],'complete')
+   ok=engine.create_song({'target_duration_seconds':240},self.out,options=SimpleNamespace(loras=[]))
+   self.assertEqual(ok['status'],'complete');self.assertTrue(ok['duration_check']['withinTarget'])
  def test_auto_duration_accepts_any_complete_score(self):
   for seconds in (60,240):
    p=Pipe([(score(seconds),False)])

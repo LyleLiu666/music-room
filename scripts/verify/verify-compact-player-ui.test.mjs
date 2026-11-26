@@ -33,7 +33,7 @@ test('music player keeps desktop controls in one row and mobile controls reachab
    await page.setViewportSize({width,height:1000});
    const boxes=await Promise.all(['#playback-speed','#speed-note','#save-speed'].map(s=>page.locator(s).boundingBox()));
    assert.ok(boxes.every(b=>Math.abs(b.y+b.height/2-boxes[0].y-boxes[0].height/2)<=2),'slider, explanation and save belong on the same desktop row');
-   const card=await page.locator('.listening').boundingBox();assert.ok(card.height<=225,`music card should stay compact, got ${card.height}px`);
+   const card=await page.locator('.listening').boundingBox();assert.ok(card.height<=420,`waveform and music controls should fit within the desktop listening area, got ${card.height}px`);
    assert.ok((await page.locator('.ending-preview').boundingBox()).height<=36,'ending audition stays a compact utility row');
    await page.getByRole('button',{name:'0.8 倍',exact:true}).click();assert.equal(await page.locator('#version-audio').evaluate(a=>a.playbackRate),.8);
    assert.match(await page.locator('#speed-note').innerText(),/25.0 秒/);

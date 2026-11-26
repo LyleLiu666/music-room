@@ -24,5 +24,22 @@ test('target duration survives drafts and iteration for vocal and instrumental m
  await mkdir('test-results/duration-ui',{recursive:true});for(const width of [1440,390]){await page.setViewportSize({width,height:1000});await page.locator('#music-duration').scrollIntoViewIfNeeded();assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:`test-results/duration-ui/form-${width}.png`});}
  await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);assert.equal(requests[1].instrumental,true);assert.equal(requests[1].targetDuration,240);assert.equal(requests[1].lyrics,'[instrumental]');
  await page.click('[data-action="iterate"]');await page.locator('.music-control-options > summary').click();await page.locator('#music-abc-settings > summary').click();await page.fill('#music-abc','existing ABC');await page.locator('#music-context-status').filter({hasText:'自定义乐谱预计'}).waitFor();await page.click('#generate');assert.equal(requests.length,2);
- await page.selectOption('#music-duration','');await page.locator('#music-context-status').filter({hasText:'14000 / 24576'}).waitFor();await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);assert.equal(requests[2].targetDuration,undefined);assert.equal(requests[2].abc,'existing ABC');assert.deepEqual(errors,[]);
+ await page.selectOption('#music-duration','');await page.locator('#music-context-status').filter({hasText:'14000 / 24576'}).waitFor();await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);assert.equal(requests[2].targetDuration,undefined);assert.equal(requests[2].abc,'existing ABC');
+ // Off-target completed music surfaces a non-blocking warning and remains playable, while in-range hides it.
+ const offTarget={id:'v4',soundId:'s',number:4,state:'succeeded',stage:'生成完成',audioPath:'/yue2-audio/v4',duration:155.8,input:{soundId:'s',text:'tango',instrumental:false,lyrics:'[Verse]\n歌词',targetDuration:240},musicDurationCheck:{targetSeconds:240,actualSeconds:155.8,withinTarget:false,tolerance:0.3},source:{kind:'music',id:'b'.repeat(32)},kept:false,deleted:false};
+ const inRange={id:'v5',soundId:'s',number:5,state:'succeeded',stage:'生成完成',audioPath:'/yue2-audio/v5',duration:236,input:{soundId:'s',text:'tango',instrumental:false,lyrics:'[Verse]\n歌词',targetDuration:240},musicDurationCheck:{targetSeconds:240,actualSeconds:236,withinTarget:true,tolerance:0.3},source:{kind:'music',id:'c'.repeat(32)},kept:false,deleted:false};
+ state.versions.push(offTarget,inRange);
+ await page.reload();
+ await page.locator('.version-row button[data-id="v4"]').click();
+ await page.locator('#music-duration-warning').waitFor();
+ assert.match(await page.locator('#music-duration-warning').innerText(),/02:36/);
+ assert.match(await page.locator('#music-duration-warning').innerText(),/约 4 分钟/);
+ await page.locator('.listening-actions .more-menu > summary').click();
+ await page.click('[data-action="requirements"]');
+ assert.match(await page.locator('dialog').innerText(),/02:36/);
+ assert.match(await page.locator('dialog').innerText(),/±30%/);
+ await page.click('[data-action="close"]');
+ await page.locator('.version-row button[data-id="v5"]').click();
+ assert.equal(await page.locator('#music-duration-warning').count(),0);
+ assert.deepEqual(errors,[]);
 });

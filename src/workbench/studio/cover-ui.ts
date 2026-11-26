@@ -68,9 +68,15 @@ export class CoverUI {
   const row=document.querySelector<HTMLButtonElement>('.version-row.selected [data-cover-row-play]');
   if(row){row.innerHTML=icon(playing?'pause':'play');row.setAttribute('aria-label',playing?'暂停当前版本':'播放当前版本');}
   const wave=host.querySelector<HTMLElement>('.cover-wave')!;
-  wave.style.setProperty('--play-position',`${this.sourceId&&this.duration?100*(start+current)/this.duration:length?100*current/length:0}%`);
+  host.style.setProperty('--play-position',`${this.sourceId&&this.duration?100*(start+current)/this.duration:length?100*current/length:0}%`);
   wave.style.setProperty('--range-start',`${this.duration?100*start/this.duration:0}%`);
   wave.style.setProperty('--range-end',`${this.duration?100*end/this.duration:100}%`);
+  const ruler=host.querySelector<HTMLElement>('.cover-ruler');
+  if(ruler){const length=this.sourceId?this.duration:end-start;ruler.innerHTML=Array.from({length:7},(_,i)=>`<span>${time(length*i/6)}</span>`).join('');}
+  const caption=host.querySelector<HTMLElement>('.cover-current-caption');
+  if(caption)caption.textContent=this.visible?.cover?(this.mode==='original'?'A 原曲同段':'B 新风格'):'';
+  const referenceCaption=host.querySelector<HTMLElement>('.cover-reference-caption');
+  if(referenceCaption)referenceCaption.textContent=this.mode==='original'?'B 新风格':'A 原曲同段';
   const cover=this.visible?.cover;
   host.querySelector<HTMLElement>('[data-cover-selection]')!.textContent=`${time(start)} – ${time(end)}`;
   host.querySelector<HTMLElement>('[data-cover-left]')!.textContent=this.sourceId?time(start+current):`${time(current)} / ${time(length)}`;
@@ -78,7 +84,7 @@ export class CoverUI {
   for(const button of document.querySelectorAll<HTMLButtonElement>('[data-cover-switch]')){
    button.setAttribute('aria-pressed',String(button.dataset.coverSwitch===this.mode));
    button.disabled=!!this.pendingSide||(button.dataset.coverSwitch==='original'&&!this.originalVersion?.audioPath);
-   const label=button.dataset.coverSwitch==='cover'?`V${this.visible?.number} 翻唱`:`V${cover?.sourceNumber} 原唱同段`;
+   const label=button.dataset.coverSwitch==='cover'?`V${this.visible?.number} 新风格`:`V${cover?.sourceNumber} 原曲同段`;
    button.textContent=(button.dataset.coverSwitch===this.mode?'✓ ':'')+label;
   }
  }
@@ -94,8 +100,8 @@ export class CoverUI {
   }
   this.update();
  }
- private async wave(path:string,start:number,end:number){
-  const generation=++this.waveDraw;
+ private async wave(path:string,start:number,end:number,reference=false){
+  const generation=reference?this.waveDraw:++this.waveDraw;
   let promise=this.bins.get(path);
   if(!promise){
    promise=(async()=>{
@@ -114,7 +120,7 @@ export class CoverUI {
   }
   try{
    const bins=await promise;
-   const wave=this.host?.querySelector<HTMLElement>('.cover-wave-bars');
+   const wave=this.host?.querySelector<HTMLElement>(reference?'.cover-reference-wave .cover-wave-bars':'.cover-wave:not(.cover-reference-wave) .cover-wave-bars');
    if(generation!==this.waveDraw||!wave)return;
    const draw=bins.slice(Math.floor(start*bins.length),Math.max(1,Math.ceil(end*bins.length)));
    const peak=Math.max(.01,...draw);
@@ -132,30 +138,36 @@ export class CoverUI {
    const duration=this.original?.duration;
    if(duration&&Number.isFinite(duration))void this.wave(path,cover.startSeconds/duration,cover.endSeconds/duration);
   }else void this.wave(path,0,1);
+  if(cover&&this.originalVersion?.audioPath){
+   const reference=this.mode==='original'?this.visible!.audioPath:this.originalVersion.audioPath;
+   const duration=this.original?.duration??this.originalVersion.duration;
+   if(reference&&duration)void this.wave(reference,this.mode==='original'?0:cover.startSeconds/duration,this.mode==='original'?1:cover.endSeconds/duration,true);
+  }
  }
  attach(audio:HTMLAudioElement|undefined,version:StudioVersion|undefined,source:StudioVersion|undefined){
-  const visible=!!audio&&!!version&&(this.editing(version.id)||!!version.cover);
-  if(this.audio===audio&&this.visible?.id===version?.id&&visible===!!this.host&&(!visible||this.host?.isConnected)){
+  const visible=!!audio&&!!version&&(!!this.sourceId||!!version.cover||['music','audio','library'].includes(version.source.kind));
+  if(this.audio===audio&&this.visible?.id===version?.id&&visible===!!this.host&&(!visible||this.host?.isConnected)&&this.host?.dataset.selecting===String(!!this.sourceId)){
    this.originalVersion=source;
    if(!source?.audioPath&&this.mode==='original'){this.original?.pause();this.mode='cover';this.draw();}
    this.update();return;
   }
-  this.controllerPlayback?.abort();if(this.host)this.audio?.pause();this.host?.remove();++this.waveDraw;this.original?.pause();this.original=undefined;this.originalLoad=undefined;
+  this.controllerPlayback?.abort();this.host?.remove();++this.waveDraw;this.original?.pause();this.original=undefined;this.originalLoad=undefined;
   if(this.audio){this.audio.hidden=false;this.audio.closest('.player-space')?.classList.remove('cover-custom-media');}
   this.host=undefined;this.audio=audio;this.visible=version;this.originalVersion=source;this.mode='cover';this.pendingSide=undefined;
   if(!visible)return;
   const lifetime=new AbortController();this.controllerPlayback=lifetime;
   const {signal}=lifetime;
   const player=audio!.closest<HTMLElement>('.player-space')!;
-  player.classList.add('cover-custom-media');audio!.hidden=true;
+  player.classList.toggle('cover-custom-media',!!version?.cover||!!this.sourceId);audio!.hidden=true;
   const host=document.createElement('div');this.host=host;
-  host.className='cover-player';
+  host.className='cover-player';host.dataset.selecting=String(!!this.sourceId);
   host.innerHTML=`<button class="cover-play" type="button" data-cover-play></button><div class="cover-player-content">
-  <div class="cover-wave ${this.sourceId?'selecting':''}" role="group" aria-label="声音波形">
+  <div class="cover-current-caption"></div><div class="cover-ruler"></div><div class="cover-wave ${this.sourceId?'selecting':''}" role="group" aria-label="声音波形">
    <div class="cover-wave-bars"></div><div class="cover-wave-position"></div>
    <div class="cover-selection" hidden><div data-cover-selection></div><button type="button" data-handle="start" aria-label="拖动选段起点"></button><button type="button" data-handle="end" aria-label="拖动选段终点"></button></div>
-  </div><div class="cover-time"><span data-cover-left></span><span data-cover-right></span></div></div>`;
-  player.prepend(host);
+  </div>${version?.cover&&!this.sourceId?'<div class="cover-reference-caption">对照波形 · 原曲与新风格同段</div><div class="cover-wave cover-reference-wave"><div class="cover-wave-bars"></div><div class="cover-wave-position"></div></div>':''}<div class="cover-time"><span data-cover-left></span><span data-cover-right></span></div><label class="cover-volume">音量<input data-cover-volume type="range" min="0" max="1" step="0.01" value="${audio!.volume}" aria-label="播放音量"></label></div>`;
+  if(this.sourceId){const target=this.h.panel.querySelector('[data-cover-wave-slot]');target?.append(host);}else player.prepend(host);
+  host.querySelector<HTMLInputElement>('[data-cover-volume]')!.oninput=e=>{const value=Number((e.currentTarget as HTMLInputElement).value);if(this.audio)this.audio.volume=value;if(this.original)this.original.volume=value;};
   host.querySelector<HTMLButtonElement>('[data-cover-play]')!.onclick=()=>void this.toggle().catch(e=>this.h.notice(e.message));
   host.querySelector<HTMLElement>('.cover-selection')!.hidden=!this.sourceId;
   const wave=host.querySelector<HTMLElement>('.cover-wave')!;
@@ -197,7 +209,7 @@ export class CoverUI {
  private loadOriginal(path:string,signal:AbortSignal){
   return this.originalLoad??=(async()=>{
    const original=new Audio();
-   original.preload='auto';original.hidden=true;
+   original.id='cover-original-audio';original.preload='auto';original.hidden=true;original.volume=this.audio?.volume??1;
    const url=await this.h.url(path);signal.throwIfAborted();
    original.src=url;
    await mediaReady(original,signal);signal.throwIfAborted();
@@ -246,13 +258,13 @@ export class CoverUI {
   const length=Math.min(30,duration),start=Math.min(15,duration-length);
   this.clip=initial?{start:initial.startSeconds,end:initial.endSeconds}:{start,end:start+length};
   const p=this.h.panel;p.hidden=false;
-  p.innerHTML=`<header class="side-panel-heading"><div><h2>翻唱这段</h2><p>基于 V${source.number}</p></div><button data-close-cover class="icon-button" type="button" aria-label="关闭翻唱面板">${icon('close')}</button></header>
+  p.innerHTML=`<header class="side-panel-heading"><div><h2>修改风格</h2><p>基于 V${source.number}</p></div><button data-close-cover class="icon-button" type="button" aria-label="关闭翻唱面板">${icon('close')}</button></header>
   <form id="cover-form" class="side-panel-body">
-   <section><h3>片段</h3><div class="cover-fields"><label>起点（秒）<input name="start" type="number" min="0" max="${duration-10}" step="any" required></label><label>时长（秒）<input name="length" type="number" min="10" max="60" step="any" required></label></div></section>
-   <section><h3>唱法与乐队</h3><div class="cover-fields"><select name="preset" aria-label="唱法与乐队">${presets.map(([label],i)=>`<option value="${i}">${label}</option>`).join('')}<option value="custom">自定义</option></select><button type="button" name="custom" class="secondary">自定义</button></div><textarea name="style" aria-label="风格描述" rows="3" required maxlength="1200"></textarea></section>
-   <section><h3>改编幅度</h3><div class="cover-strength">${[['close','保留原版'],['balanced','适中'],['bold','大幅改编']].map(([key,label])=>`<label><input type="radio" name="strength" value="${key}" ${key==='balanced'?'checked':''}><span>${label}</span></label>`).join('')}</div></section>
-   <section><h3>歌词</h3><p data-lyric-source class="field-note"></p><textarea name="lyrics" aria-label="这段歌词" rows="5" maxlength="8000"></textarea><button type="button" class="quiet" data-cover-refresh-lyrics hidden>按选段重新填词</button></section>
-  </form><footer class="side-panel-footer"><span role="status" data-cover-status>检查本机模型…</span><div><button data-cover-prepare type="button" class="secondary" hidden>准备模型</button><button data-cover-submit form="cover-form" type="submit" class="primary" disabled>生成翻唱新版本</button></div></footer>`;
+   <section class="cover-selection-section"><h3>01 选择原曲片段</h3><div data-cover-wave-slot></div><p class="field-note">拖动波形两端选取 10–60 秒，播放时循环试听选段</p><div class="cover-fields"><label>起点（秒）<input name="start" type="number" min="0" max="${duration-10}" step="any" required></label><label>时长（秒）<input name="length" type="number" min="10" max="60" step="any" required></label></div></section>
+   <section class="cover-style-section"><h3>02 设定新风格</h3><div class="cover-fields"><select name="preset" aria-label="唱法与乐队">${presets.map(([label],i)=>`<option value="${i}">${label}</option>`).join('')}<option value="custom">自定义</option></select><button type="button" name="custom" class="secondary">自定义</button></div><textarea name="style" aria-label="风格描述" rows="3" required maxlength="1200"></textarea></section>
+   <section class="cover-strength-section"><h3>改编幅度</h3><div class="cover-strength">${[['close','保留原版'],['balanced','适中'],['bold','大幅改编']].map(([key,label])=>`<label><input type="radio" name="strength" value="${key}" ${key==='balanced'?'checked':''}><span>${label}</span></label>`).join('')}</div></section>
+   <section class="cover-lyrics-section"><h3>这段歌词</h3><p data-lyric-source class="field-note"></p><textarea name="lyrics" aria-label="这段歌词" rows="5" maxlength="8000"></textarea><button type="button" class="quiet" data-cover-refresh-lyrics hidden>按选段重新填词</button></section>
+  </form><footer class="side-panel-footer"><span role="status" data-cover-status>检查本机模型…</span><div><button data-cover-prepare type="button" class="secondary" hidden>准备模型</button><button data-cover-submit form="cover-form" type="submit" class="primary" disabled>生成新版本</button></div></footer>`;
   const query=<T extends HTMLElement>(selector:string)=>p.querySelector<T>(selector)!;
   const f=query<HTMLFormElement>('#cover-form'),pos=query<HTMLInputElement>('input[name=start]'),len=query<HTMLInputElement>('input[name=length]');
   const lyrics=query<HTMLTextAreaElement>('[name=lyrics]'),note=query<HTMLElement>('[data-lyric-source]'),style=query<HTMLTextAreaElement>('[name=style]'),preset=query<HTMLSelectElement>('[name=preset]');
@@ -311,7 +323,7 @@ export class CoverUI {
    const args:Omit<CoverArgs,'requestId'>={versionId:source.id,startSeconds:this.clip.start,endSeconds:this.clip.end,
     lyrics:lyrics.value,style:description,styleLabel,strength:new FormData(f).get('strength') as CoverArgs['strength']};
    const next=JSON.stringify(args);if(signature!==next){signature=next;id=makeRequestId();}
-   busy=true;submitError='';submit.disabled=true;status.textContent='正在提交翻唱…';
+   busy=true;submitError='';submit.disabled=true;status.textContent='正在提交新版本…';
    void this.h.api.call('studio_cover_generate',{...args,requestId:id}).then(async version=>{
     if(!lifetime.signal.aborted)this.close();
     await this.h.saved(version);

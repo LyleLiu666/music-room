@@ -52,3 +52,19 @@ test('saved originals and generated results can be reused across projects withou
   await s.studio.updateProject({projectId:'source',deleted:true});assert.ok(!(await s.call('studio_conversion_sources',{})).items.some(x=>x.versionId===original.id));await assert.rejects(s.call('studio_convert_saved',{soundId:b.id,versionId:original.id,kind:'result',voiceId:voice.id,requestId:'deleted'}));
  }finally{await s.close();await rm(f.root,{recursive:true,force:true});}
 });
+
+test('changing the voice of an imported music clip creates a child in the same sound and preserves its original',async()=>{
+ const f=await fixture(),s=await f.open();
+ try{
+  await s.call('create_project',{projectId:'voice-music',title:'音乐'});
+  const item=await s.soundLibrary.import({name:'music.wav',title:'原曲',requestId:'music-import',bytes:wav});
+  const source=await s.call('studio_attach_sound',{itemId:item.id,projectId:'voice-music',title:'原曲',requestId:'music-attach',kind:'clip'});
+  const voice=s.speech.addVoice('目标音色',wav);
+  const job=await s.call('studio_convert_saved',{soundId:source.soundId,versionId:source.id,kind:'result',voiceId:voice.id,requestId:'music-voice'});
+  await wait(s,job.id);
+  const state=await s.studio.snapshot(),child=state.versions.find(v=>v.id===job.id)!;
+  assert.equal(child.soundId,source.soundId);assert.equal(child.parentId,source.id);assert.equal(child.number,2);
+  assert.deepEqual(await s.soundLibrary.audio(item.id),Buffer.from(wav));
+  assert.equal(state.sounds.find(x=>x.id===source.soundId)!.kind,'clip');
+ }finally{await s.close();await rm(f.root,{recursive:true,force:true});}
+});

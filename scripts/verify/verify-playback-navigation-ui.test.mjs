@@ -10,7 +10,7 @@ for(const mode of ['native','rejected','missing'])test(`playing music permits pa
   await page.locator('[data-action="voice-library"]').click();await page.locator('#workspace').getByRole('heading',{name:'音色库',exact:true}).waitFor();
   await page.locator('[data-action="sound-library"]').click();await page.locator('#workspace').getByRole('heading',{name:'声音库',exact:true}).waitFor();
   await page.locator('.sidebar #machine-monitor').waitFor();assert.equal(await page.locator('[data-action="monitor"]').count(),0);
-  await page.locator('[data-action="project"][data-id="p"]').click();await page.locator('#version-audio').waitFor();
+  await page.locator('[data-action="project"][data-id="p"]').click();await page.locator('#version-audio').waitFor({state:'attached'});
   assert.equal(await page.evaluate(()=>originalAudio.paused),false);assert.equal(await page.evaluate(()=>originalAudio===document.querySelector('#version-audio')),true);
  }
  await page.waitForTimeout(2300);assert.ok(samples>1);assert.equal(await page.evaluate(()=>originalAudio.paused),false);assert.ok(await page.evaluate(()=>originalAudio.currentTime>=10));if(mode==='native')assert.equal(await page.evaluate(()=>pauseEvents),0);assert.deepEqual(errors,[]);

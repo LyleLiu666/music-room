@@ -40,6 +40,10 @@ class Checkpoints:
   self.source=Path(source) if source else None;self.saved=None;self.files={};self.key=None
   if self.source:
    if self.source.is_symlink():raise ValueError('恢复点不能包含符号链接')
+   if (self.source/'duration.json').exists():
+    duration_info=json.loads(checked_file(self.source,'duration.json').read_text())
+    if duration_info.get('audioWithinTarget') is False or duration_info.get('accepted') is False or duration_info.get('withinTarget') is False:
+     raise ValueError('上次生成未通过时长检查，不能沿用旧恢复点，请重新生成')
    root=self.source/'checkpoints'
    if (root/'state.json').exists():
     state=json.loads(checked_file(root,'state.json').read_text())

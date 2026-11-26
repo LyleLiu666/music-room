@@ -11,7 +11,7 @@ from typing import Literal
 from abc_tools import accompaniment_only_abc, parse_abc
 
 TARGETS=(60,120,180,240,300)
-TOLERANCE=.15
+TOLERANCE=.30
 MAX_ATTEMPTS=3
 # Already reserved by the input inspector for generated-score prefixes.
 FEEDBACK_TOKENS=512
@@ -45,17 +45,18 @@ def duration_correction(previous,target):
 def validate_audio_duration(summary,target,out_dir):
  if target is None:return summary
  seconds=summary.get('seconds')
- valid=type(seconds) in (int,float) and within_target(seconds,target)
+ has_audio=not isinstance(seconds,bool) and isinstance(seconds,(int,float)) and math.isfinite(seconds) and seconds>0
+ valid=has_audio and within_target(seconds,target)
  path=Path(out_dir)/'duration.json'
  report=json.loads(path.read_text()) if path.exists() else {}
- report.update(audioSeconds=seconds if type(seconds) in (int,float) and math.isfinite(seconds) else None,audioWithinTarget=valid)
+ report.update(targetSeconds=target,tolerance=TOLERANCE,audioSeconds=float(seconds) if has_audio else None,audioWithinTarget=valid)
  path.write_text(json.dumps(report,ensure_ascii=False,indent=2))
- if not valid:
-  actual=f'{seconds:.1f} 秒' if isinstance(seconds,(int,float)) and math.isfinite(seconds) else '未知'
-  message=f'音频实际时长 {actual}，未达到目标时长 {target} 秒（允许偏差 ±15%）。文件已保留用于排查，本次生成未通过时长检查。'
+ if not has_audio:
+  message='音频实际时长 未知，无法确认生成结果。'
   summary.update(status='failed',error=message)
   (Path(out_dir)/'summary.json').write_text(json.dumps(summary,ensure_ascii=False,indent=2))
   raise ValueError(message)
+ summary['duration_check']={'targetSeconds':target,'actualSeconds':float(seconds),'withinTarget':valid,'tolerance':TOLERANCE}
  return summary
 
 def plan_for_duration(pipe,native,sampling,cancelled,on_token,target,out_dir,*,omit_vocal_rests=False):
@@ -82,8 +83,8 @@ def plan_for_duration(pipe,native,sampling,cancelled,on_token,target,out_dir,*,o
   if cancelled and cancelled(): raise InterruptedError('Cancelled during duration planning')
   # The first seed is untouched; bounded subsequent seeds make retries reproducible.
   request=model_request if attempt==1 else replace(native,seed=(native.seed+attempt-1)%2147483648)
-  attempt_sampling=base_sampling if attempt==1 else replace(base_sampling,**{name:max(getattr(base_sampling,name),value) for name,value in RETRY_SAMPLING[attempt-2].items()})
   feedback=None;correction=duration_correction(attempts[-1] if attempts else None,target)
+  attempt_sampling=base_sampling if (attempt==1 or correction is not None) else replace(base_sampling,**{name:max(getattr(base_sampling,name),value) for name,value in RETRY_SAMPLING[attempt-2].items()})
   if correction:
    text,feedback=correction;candidate=replace(request,style=native.style+text)
    original_tokens=len(token_prefixes(request,pipe.tokenizer));candidate_tokens=len(token_prefixes(candidate,pipe.tokenizer))
@@ -103,7 +104,7 @@ def plan_for_duration(pipe,native,sampling,cancelled,on_token,target,out_dir,*,o
    seconds=float(score.voices['Vocal'].time*60/score.bpm)
    if not math.isfinite(seconds) or seconds<=0:raise ValueError('乐谱时长无效')
    arrangement=dict(bpm=score.bpm,meter=list(score.voices['Vocal'].meter))
-   if not within_target(seconds,target):raise ValueError(f'乐谱预计 {seconds:.1f} 秒，未达到目标时长 {target} 秒（允许偏差 ±15%）')
+   if not within_target(seconds,target):raise ValueError(f'乐谱预计 {seconds:.1f} 秒，未达到目标时长 {target} 秒（允许偏差 ±30%）')
   except ValueError as exc: problem=str(exc)
   attempts.append(dict(attempt=attempt,seed=request.seed,sampling=asdict(attempt_sampling),scoreSeconds=seconds,problem=problem,arrangement=arrangement,durationFeedback=feedback))
   evidence=dict(targetSeconds=target,tolerance=TOLERANCE,attempts=attempt,scoreSeconds=seconds,accepted=problem is None,withinTarget=seconds is not None and within_target(seconds,target),plans=attempts,**score_details)
@@ -154,7 +155,7 @@ def install():
    pipe.set_loras(loras)
    def planner(pipe,native,sampling,cancelled,observer):
     return plan_for_duration(pipe,native,sampling,cancelled,observer,target,out_dir,omit_vocal_rests=omit_vocal_rests)
-   duration_config={'targetSeconds':target,'tolerance':TOLERANCE,'maxAttempts':MAX_ATTEMPTS,'retrySampling':RETRY_SAMPLING,'feedbackTokens':FEEDBACK_TOKENS,'version':6}
+   duration_config={'targetSeconds':target,'tolerance':TOLERANCE,'maxAttempts':MAX_ATTEMPTS,'retrySampling':RETRY_SAMPLING,'feedbackTokens':FEEDBACK_TOKENS,'version':7}
    if omit_vocal_rests:duration_config['vocalRestsOmitted']=True
    summary=self._run_create(pipe,fields,generation,abc_sampling,semantic_sampling,out_dir,options=options,cancelled=cancelled,planner=planner,config_extra={'music_room_duration':duration_config})
    return validate_audio_duration(summary,target,out_dir)

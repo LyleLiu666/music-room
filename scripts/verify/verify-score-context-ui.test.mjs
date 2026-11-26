@@ -70,7 +70,7 @@ test('score preview tasks show their own state and can be cancelled from history
  await row.locator('.task-state').getByText('已完成',{exact:true}).waitFor();
  assert.equal(await row.getByRole('button',{name:cancelLabel,exact:true}).count(),0);
  await row.getByRole('button',{name:'开场旋律 · V1',exact:true}).click();
- await page.locator('#version-audio').waitFor();
+ await page.locator('#version-audio').waitFor({state:'attached'});
 });
 test('MIDI tools belong to one sound; legacy links enter its version without a second library',async()=>{
  const root=await mkdtemp(join(tmpdir(),'score-context-')),read=p=>readFile(resolve('dist',p));
@@ -137,7 +137,7 @@ test('MIDI tools belong to one sound; legacy links enter its version without a s
   assert.equal(library.sounds.length,2);assert.equal(library.versions.filter(v=>v.soundId===other.id).length,1);
   const audioGate=new Promise(resolve=>releaseAudio=resolve);
   await page.route(`**/artifacts/**/${child.source.id}/*`,async route=>{await audioGate;await route.continue();});
-  await page.reload();await page.locator(`#version-audio[data-version="${child.id}"]`).waitFor();
+  await page.reload();await page.locator(`#version-audio[data-version="${child.id}"]`).waitFor({state:'attached'});
   assert.equal(await page.locator('#version-audio').getAttribute('src'),null);
   await page.locator('.more-menu summary').click();await page.click('[data-action="score-tools"]');await page.locator('#lead').waitFor({state:'attached'});
   assert.equal(await page.inputValue('#lead'),'flute','saved mix is restored when reopening its version');

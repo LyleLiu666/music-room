@@ -1,0 +1,172 @@
+/* Shared studio surface: project, recording and rearrangement stay in one workspace. */
+:root {--paper:#f4f3ef;--paper-raised:#fafaf8;--paper-sunk:#eeede9;--paper-select:#eee0d7;--hair:#deddd7;--hair-strong:#c9c7c0;--wave-played:#c97350;--seal:#c46b49;--studio-active:#c97350;--studio-record:#cc5146;--serif:var(--sans)}
+:root[data-theme=dark] {--paper:#1c1e1c;--paper-raised:#242623;--paper-sunk:#191b19;--paper-select:#42382f;--hair:#363933;--hair-strong:#53564e;--wave-played:#efa47c;--studio-active:#efa47c;--studio-record:#e5685c}
+.studio-shell {grid-template-columns:208px minmax(0,1fr)}
+.sidebar {padding-inline:20px;background:var(--paper-sunk)}
+.brand {font-family:var(--sans);font-size:23px;font-weight:650;letter-spacing:-.5px}
+#workspace {padding:32px 36px 100px}
+.sound-heading {display:flex;align-items:baseline;gap:22px;font-size:26px;margin:22px 0 18px}
+.sound-heading small {font-size:13px;font-weight:400;color:var(--ink-2)}
+.listening {padding:0 0 24px;background:transparent;border:0;border-bottom:1px solid var(--hair);border-radius:0}
+.listening-actions {gap:12px}
+.style-entry {order:-3;background:var(--studio-active);color:var(--paper-sunk);min-width:146px}
+.listening-actions [data-action=iterate] {order:-2}
+.version-list,.version-row {border-radius:4px;background:transparent}
+.version-row {border:0;border-bottom:1px solid var(--hair);min-height:54px}
+.version-row.selected {background:var(--paper-select)}
+.cover-player {margin:32px 0 18px;min-height:140px}
+.cover-wave {height:108px}
+.cover-wave-bars {gap:2px}
+.cover-wave-bars i {border-radius:1px}
+.cover-selection {border-color:var(--studio-active);background:color-mix(in srgb,var(--studio-active),transparent 86%)}
+.cover-selection button:after {border-color:var(--studio-active)}
+.cover-wave-position {background:var(--studio-active)}
+.cover-switch {margin:12px 0;display:flex;gap:0}
+.cover-switch button {min-width:190px;min-height:40px;border-radius:0}
+.cover-switch button[aria-pressed=true] {background:var(--studio-active);border-color:var(--studio-active);color:var(--paper-sunk)}
+.studio-shell:has(> .workbench-side-panel:not([hidden])) {grid-template-columns:208px minmax(0,1fr)}
+.workbench-side-panel {grid-column:2;position:relative;height:auto;min-height:calc(100dvh - 190px);border:0;z-index:2;background:transparent;margin:0 36px 50px}
+.studio-shell:has(#live-panel:not([hidden])) #workspace {display:none}
+#live-panel {grid-row:1;padding-top:32px}
+.studio-shell:has(#cover-panel:not([hidden])) #workspace {padding-bottom:0}
+.studio-shell:has(#cover-panel:not([hidden])) .sound-workspace {display:none}
+#cover-panel {margin-top:-12px}
+.side-panel-heading {padding:0 0 20px;border-bottom:1px solid var(--hair)}
+.side-panel-heading h2 {font-size:26px}
+.side-panel-body {padding:16px 0;overflow:visible}
+#cover-form {display:grid;grid-template-columns:3fr 2fr;column-gap:32px;align-content:start}
+.cover-selection-section {grid-column:1/-1}
+.cover-style-section {grid-column:1;grid-row:2}
+.cover-strength-section {grid-column:1;grid-row:3}
+.cover-lyrics-section {grid-column:2;grid-row:2/4}
+.side-panel-footer {padding:18px 0;align-items:center}
+.side-panel-footer:before {content:'保存为同一声音片段的新版本 · 原版保留';font-size:13px;color:var(--ink-2)}
+.side-panel-footer [role=status] {font-size:12px;max-width:190px}
+.creation-mode-strip {display:flex;justify-content:space-between;gap:16px;border-bottom:1px solid var(--hair);margin-bottom:24px;font-size:14px}
+.creation-mode-strip>* {padding:14px 0}
+.creation-mode-strip strong {border-bottom:2px solid var(--studio-active);color:var(--studio-active)}
+.live-status {background:transparent;border:0;padding:0;color:var(--ink-2)}
+.live-wave {height:200px;margin:28px 0 32px;background:var(--paper-sunk);border-block:1px solid var(--hair)}
+.live-wave canvas {height:100%;width:100%}
+[data-record-time] {position:absolute;right:0;top:-38px;font:500 27px ui-monospace,monospace;font-variant-numeric:tabular-nums}
+[data-record-marker] {position:absolute;top:0;bottom:0;border-left:2px solid var(--studio-record);color:var(--studio-record);font-size:12px;padding:5px;max-width:100%}
+[data-recording=true] .live-wave canvas {color:var(--studio-record)}
+.live-styles {max-width:420px}
+.live-mix-labels {font-size:22px;margin-top:24px}
+.live-mix {margin:20px 12px 6px;height:48px}
+.live-mix::before,.live-trail {height:5px}
+.live-mix input::-webkit-slider-thumb {width:16px;height:34px;border-radius:3px;border:1px solid var(--ink);background:var(--paper-raised)}
+.live-mix input::-moz-range-thumb {width:16px;height:34px;border-radius:3px;border:1px solid var(--ink);background:var(--paper-raised)}
+.live-heard-label {text-align:center;margin-bottom:24px}
+.live-advanced {display:flex;gap:24px;align-items:center;border:1px solid var(--hair);padding:12px 16px;margin:20px 0;color:var(--ink-2)}
+.live-advanced span {font-size:13px;flex:1}.live-advanced small {font-size:12px}
+.live-save {display:block;width:260px;margin:26px auto 12px;min-height:48px}
+[data-recording=true] .live-save {background:var(--studio-record);color:white}
+.live-save+.field-note {text-align:center}
+.live-decision {margin-top:22px;padding-top:18px;border-top:1px solid var(--hair)}
+.live-decision audio {width:100%;margin:12px 0}.live-decision label {display:flex;align-items:center;gap:18px}.live-decision input {flex:1;margin:10px 0;padding:10px}.live-decision button {margin:10px 12px 0 0}.live-decision p {font-size:12px;color:var(--ink-2)}
+.live-create-option {display:flex;flex-direction:column;gap:6px;padding:18px;text-align:left;width:100%;margin-bottom:12px;border:1px solid var(--studio-active);border-radius:6px;background:var(--paper-select)}
+.live-create-option small {font-size:13px;color:var(--ink-2)}
+body:has(.workbench-side-panel:not([hidden])) #global-status-bar {visibility:hidden}
+@media(max-width:1023px){.studio-shell:has(> .workbench-side-panel:not([hidden])){grid-template-columns:64px minmax(0,1fr)}.workbench-side-panel{position:relative;inset:auto;width:auto;margin-inline:24px}#cover-form{grid-template-columns:1fr}.cover-selection-section,.cover-style-section,.cover-strength-section,.cover-lyrics-section{grid-column:1;grid-row:auto}.side-panel-footer{flex-wrap:wrap}}
+@media(max-width:720px){.studio-shell:has(> .workbench-side-panel:not([hidden])){display:block}.workbench-side-panel{margin:0 18px 80px}.creation-mode-strip{overflow:auto;white-space:nowrap}.sound-heading{flex-wrap:wrap}#workspace{padding:20px 18px 100px}.live-mix-labels{font-size:17px}.side-panel-footer:before{width:100%}.cover-switch button{min-width:0;flex:1}}
+.studio-shell:has(> .workbench-side-panel:not([hidden])) {grid-template-rows:auto 1fr;align-content:start}
+.studio-shell:has(> .workbench-side-panel:not([hidden]))>.sidebar {grid-column:1;grid-row:1 / span 2}
+.studio-shell:has(#cover-panel:not([hidden]))>#workspace {grid-column:2;grid-row:1;min-height:0}
+#cover-panel {grid-row:2}
+.studio-shell:has(#live-panel:not([hidden])) {grid-template-rows:1fr}
+.studio-shell:has(#live-panel:not([hidden]))>.sidebar {grid-row:1}
+.sidebar-libraries {margin-top:26px;padding-top:18px;border-top:1px solid var(--hair)}
+#sidebar-monitor {margin-top:auto}
+.live-styles select,.live-custom input {background-color:var(--paper);background-repeat:no-repeat;background-position:right 14px center}
+.live-styles select {background-image:none;appearance:auto}
+.live-mix input {border:0;padding:0;box-shadow:none;height:44px}
+.live-body {display:flex;flex-direction:column}
+.live-body .live-wave {order:0}.live-body .live-styles {order:0}
+.live-wave {flex-shrink:0;height:160px;margin:24px 0}
+.live-mix-labels {margin-top:18px}.live-mix {margin-block:8px}.live-heard-label {margin-bottom:6px}
+.live-save {margin-block:14px 6px}
+.live-decision:not([hidden])~.live-saved {display:none}
+.live-body:has(.live-decision:not([hidden])) .live-save,.live-body:has(.live-decision:not([hidden])) [data-live-save-message] {display:none}
+.live-body:has(.live-decision:not([hidden])) .live-advanced {display:none}
+#workspace .listening {display:flex;flex-direction:column}
+#workspace .listening-top {order:0}#workspace .listening-actions {order:1}#workspace .player-space {order:2}#workspace .listening>.field-note {order:3}
+#workspace .listening-actions {margin-top:18px}
+.cover-reference-wave {height:68px;opacity:.6;margin:10px 0}
+.cover-reference-caption {font-size:12px;color:var(--ink-2);margin-top:16px}
+.cover-ruler {display:flex;justify-content:space-between;font:12px ui-monospace,monospace;color:var(--ink-2);padding-bottom:14px}
+.sidebar {gap:16px}
+.live-body .live-status {margin-bottom:0}
+#workspace>.project-header,#workspace>.sound-nav,#workspace>.sound-workspace,#workspace>.empty-sound {max-width:none}
+#cover-panel .cover-selection-section {padding-top:8px;padding-bottom:16px}
+#cover-panel .cover-player {margin:20px 0 12px;min-height:0;position:relative;display:block}
+#cover-panel .cover-play {position:absolute;bottom:-3px;left:0;width:36px;height:36px}
+#cover-panel .cover-time {padding:12px 0 0 52px;min-height:30px}
+#cover-panel .cover-wave {height:90px}
+#cover-panel .cover-fields {max-width:540px}
+#cover-panel .cover-fields label {display:flex;align-items:center;gap:12px;white-space:nowrap}
+#cover-panel .cover-fields input {width:110px}
+#cover-panel .cover-style-section .cover-fields {max-width:none}
+#cover-panel .side-panel-body section {padding-block:12px}
+#cover-panel .side-panel-body textarea {margin-top:4px}
+#cover-panel .side-panel-heading {padding-bottom:12px}
+#cover-panel .side-panel-heading h2 {font-size:23px}
+#cover-panel .side-panel-footer {padding-block:12px}
+.studio-shell:has(#cover-panel:not([hidden])) .project-actions>[data-action=compose] {background:transparent;border:1px solid var(--hair-strong);color:var(--ink)}
+@media(max-width:720px){#cover-panel .cover-fields{flex-wrap:wrap}#cover-panel .cover-fields label{flex:1}#cover-panel .cover-fields input{width:100%}}
+@media(min-width:721px){#projects{flex:0 1 auto;max-height:35vh;overflow:auto}}
+#cover-panel .cover-wave {height:70px}
+#cover-panel .cover-player {margin:12px 0 8px}
+#cover-panel .cover-selection-section>.field-note {margin-block:6px}
+#cover-panel .side-panel-body section {padding-block:8px}
+#cover-panel .side-panel-body {padding-block:8px}
+.studio-shell:has(#cover-panel:not([hidden])) .cover-project-summary {margin-bottom:6px}
+#cover-panel {min-height:0}
+/* Keep the commit action reachable while the style editor scrolls. */
+body:has(#cover-panel:not([hidden])) .side-panel-footer {position:fixed;left:244px;right:36px;bottom:0;z-index:12;background:var(--paper);min-height:64px;gap:20px}
+#cover-panel {padding-bottom:76px}
+@media(min-width:721px) and (max-width:1023px){body:has(#cover-panel:not([hidden])) .side-panel-footer{left:88px;right:24px}}
+@media(max-width:720px){body:has(#cover-panel:not([hidden])) .side-panel-footer{left:18px;right:18px;gap:8px;min-height:72px}body:has(#cover-panel:not([hidden])) .side-panel-footer:before{display:none}}
+#machine-monitor {line-height:16px;padding:8px 0}
+#machine-monitor .monitor-meter {margin-top:4px}
+.sidebar-libraries .library-entry {white-space:nowrap;padding-inline:8px}
+.sidebar .task-live {max-width:44px;overflow:hidden;font-size:11px;flex-shrink:0}
+#workspace .listening-actions [data-action=change-music-voice] {order:-1}
+body:has(#workspace .cover-player):has([data-bar-title]:is([data-audio-kind=""],[data-audio-kind=version-audio],[data-audio-kind=cover-original-audio])):not(.background-playing) #global-status-bar {visibility:hidden}
+.cover-current-caption {font-size:12px;color:var(--ink-2);margin-bottom:10px}
+.cover-current-caption:empty {display:none}
+.cover-volume {display:flex;align-items:center;justify-content:flex-end;gap:12px;font-size:12px;color:var(--ink-2);margin-top:10px}
+.cover-volume input {width:130px;height:24px;accent-color:var(--studio-active);padding:0;border:0;box-shadow:none}
+body:is([data-workspace-view=tasks],[data-workspace-view=voices],[data-workspace-view=settings]) .studio-shell:has(#live-panel:not([hidden])) #workspace {display:block;grid-column:2;grid-row:1}
+body:is([data-workspace-view=tasks],[data-workspace-view=voices],[data-workspace-view=settings]) #live-panel {display:none}
+.sidebar [data-action=return-live] {font-size:13px;border-color:var(--studio-active);color:var(--studio-active)}
+/* Comparison keeps both aligned waves and the version history in the desktop view. */
+#workspace .listening:has(.cover-switch) .cover-player {min-height:0;margin:14px 0 6px}
+#workspace .listening:has(.cover-switch) .cover-wave {height:68px}
+#workspace .listening:has(.cover-switch) .cover-reference-wave {height:44px;margin-block:6px}
+#workspace .listening:has(.cover-switch) .cover-current-caption {margin-bottom:6px}
+#workspace .listening:has(.cover-switch) .cover-reference-caption {margin-top:8px}
+#workspace .listening:has(.cover-switch) .cover-ruler {padding-bottom:8px}
+#workspace .listening:has(.cover-switch)>[data-action=cover-retry] {order:3;align-self:flex-start;margin:10px 0 0;background:var(--ink);color:var(--on-ink);padding-inline:20px}
+#workspace .listening:has(.cover-switch) .style-entry {background:transparent;color:var(--ink);border:1px solid var(--hair-strong)}
+body:has(#workspace .cover-switch) .cover-project-summary {margin-bottom:8px}
+body:has(#workspace .cover-switch) .workspace-toolbar {padding-bottom:14px}
+body:has(#workspace .cover-switch) .sound-heading {margin-block:14px 10px}
+body:has(#workspace .cover-switch) .versions {margin-top:18px}
+body:has(#workspace .cover-switch) .section-heading {margin-bottom:6px}
+body:has(#workspace .cover-switch) .section-heading h3 {margin:0}
+@media(max-width:650px){.sound-library-header{gap:4px;margin-bottom:6px}}
+@media(min-width:1100px){
+ #workspace .listening:has(.cover-switch){display:grid;grid-template-columns:auto minmax(0,1fr);column-gap:16px;padding-bottom:16px}
+ #workspace .listening:has(.cover-switch)>.listening-top,
+ #workspace .listening:has(.cover-switch)>.cover-caption,
+ #workspace .listening:has(.cover-switch)>.player-space{grid-column:1 / -1}
+ #workspace .listening:has(.cover-switch)>.cover-caption{margin:4px 0 0;font-size:12px}
+ #workspace .listening:has(.cover-switch)>[data-action=cover-retry]{grid-column:1;align-self:center;margin:8px 0 0}
+ #workspace .listening:has(.cover-switch)>.listening-actions{grid-column:2;order:4;align-self:center;margin:8px 0 0;border-top:0;padding-top:0}
+}
+/* At real browser zoom, a short sidebar must flow with the page rather than clip project buttons. */
+@media(min-width:651px) and (max-height:520px){
+ .sidebar{position:static;height:auto;align-self:start;overflow:visible;margin-bottom:80px}
+ #projects{flex:none;max-height:180px;overflow:auto}
+}

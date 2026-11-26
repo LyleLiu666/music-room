@@ -10,7 +10,7 @@ const styles=[
  ['古典弦乐','放克','Lyrical classical string quartet and gentle dynamics','Syncopated funk bass, rhythm guitar, brass and drums'],
 ] as const;
 type Session=OperationResults['live_play_start'];
-type Hooks={api:WorkbenchService;panel:HTMLElement;pauseOther:()=>void;change:()=>void;refresh:()=>Promise<void>;notice:(message:string)=>void;url:(path:string)=>Promise<string>;attach:(item:OwnedSound)=>Promise<void>};
+type Hooks={api:WorkbenchService;panel:HTMLElement;pauseOther:()=>void;change:()=>void;refresh:()=>Promise<void>;notice:(message:string)=>void;url:(path:string)=>Promise<string>;attach:(item:OwnedSound)=>Promise<void>;saveToProject?:(item:OwnedSound)=>Promise<void>};
 const delay=(ms:number)=>new Promise<void>(resolve=>setTimeout(resolve,ms));
 
 export class LiveUI {
@@ -21,10 +21,13 @@ export class LiveUI {
  private launch?:Promise<Session>;
  private lifetime?:AbortController;
  private release?:Promise<void>;
- private captures:OwnedSound[]=[];
  private style={left:styles[0][2] as string,right:styles[0][3] as string,mix:0};
  private labels:[string,string]=['爵士','迪斯科'];
- private saving?:{requestId:string;heardFrame:number;title:string};
+ private recordingStart?:number;
+ private recordingEnd?:number;
+ private take?:OwnedSound;
+ private takeUrl?:string;
+ private saving?:{requestId:string;heardFrame:number;startFrame?:number;title:string};
  private preview?:HTMLAudioElement;
  private externalAudio?:HTMLAudioElement;
  private installPolling=false;
@@ -45,17 +48,19 @@ export class LiveUI {
   const lifetime=new AbortController();
   this.lifetime=lifetime;
   const panel=this.h.panel;
-  this.captures=[];this.saving=undefined;this.session=undefined;
+  this.recordingStart=undefined;this.recordingEnd=undefined;this.take=undefined;
+this.saving=undefined;this.session=undefined;
   this.style={left:styles[0][2],right:styles[0][3],mix:0};this.labels=['爵士','迪斯科'];
   this.audio=new LiveAudio();
   // Resume directly inside the user's click before waiting for model setup.
   void this.audio.context.resume().catch(()=>{});
   this.h.pauseOther();
   panel.hidden=false;
-  panel.innerHTML=`<header class="side-panel-heading"><h2>玩一段</h2><button class="secondary" type="button" data-stop-live>停止并关闭</button></header>
+  panel.innerHTML=`<header class="side-panel-heading"><div><p>新建声音片段 · 实时即兴录制</p><h2>自由演奏</h2></div><button class="secondary" type="button" data-stop-live>停止并关闭</button></header>
   <div class="side-panel-body live-body">
-    <div class="live-status" role="status" data-live-status>检查本机模型…</div>
+    <div class="creation-mode-strip"><span>描述生成音乐</span><strong>实时即兴录制</strong><span>语音旁白</span><span>短音效</span><span>上传／改编</span></div><div class="live-status" role="status" data-live-status>检查本机模型…</div>
     <button class="secondary" data-live-prepare type="button" hidden>准备模型</button>
+    <div class="live-wave"><canvas data-live-wave width="1200" height="170"></canvas><span data-record-marker hidden>录制起点</span><output data-record-time>尚未开始录制</output></div>
     <div class="live-styles">
      <label>风格组合<select data-live-style>${styles.map(([a,b],i)=>`<option value="${i}">${a} ⇄ ${b}</option>`).join('')}<option value="custom">自定义两端</option></select></label>
      <div class="live-custom" hidden><label>左端<input data-live-left maxlength="240" value="爵士"></label><label>右端<input data-live-right maxlength="240" value="迪斯科"></label></div>
@@ -63,13 +68,15 @@ export class LiveUI {
     <div class="live-mix-labels"><span data-live-label-left>爵士</span><span data-live-label-right>迪斯科</span></div>
     <div class="live-mix"><div class="live-trail" aria-hidden="true"></div><div class="live-nodes" aria-hidden="true"><i hidden></i><i hidden></i><i hidden></i></div><div class="live-heard" aria-hidden="true"></div><input type="range" min="0" max="100" step="1" value="0" aria-label="混合风格" data-live-mix></div>
     <p class="live-heard-label" data-live-heard-label>移动滑块，改变演奏风格</p>
-    <div class="live-wave" aria-label="最近播出的实时波形"><canvas data-live-wave width="420" height="100"></canvas><span class="live-window">最近 15 秒</span></div>
-    <button class="primary live-save" data-live-save type="button" disabled>留下刚才这段</button>
-    <p class="field-note" data-live-save-message>听满 15 秒即可留下</p>
-    <section class="live-saved" hidden><h3>本次留下的片段</h3><div data-live-saved></div></section>
+    <div class="live-advanced">进阶引导 <span>参考音频 · 节奏 · 和弦</span><small>规划中</small></div>
+    <button class="primary live-save" data-live-save type="button" disabled>开始录制</button>
+    <p class="field-note" data-live-save-message>从按下录制开始保存声音，手动停止</p>
+    <section class="live-decision" hidden><h3>试听并保留这次录音</h3><audio data-take-preview controls></audio><label>片段名称<input data-take-title maxlength="120" value="即兴片段"></label><p data-take-status role="status"></p><div><button class="primary" data-take-keep>保存为当前片段版本</button><button class="secondary" data-take-discard>放弃并继续玩</button></div><p>首次保存为 V1 · 保存后可修改风格或加人声翻唱</p></section>
   </div>`;
   this.element<HTMLButtonElement>('[data-stop-live]').onclick=()=>void this.close().catch(e=>this.h.notice(e.message));
-  this.element<HTMLButtonElement>('[data-live-save]').onclick=()=>void this.save();
+  this.element<HTMLButtonElement>('[data-live-save]').onclick=()=>void this.record();
+  this.element<HTMLButtonElement>('[data-take-discard]').onclick=()=>void this.continuePlaying();
+  this.element<HTMLButtonElement>('[data-take-keep]').onclick=()=>void this.keep();
   const chooser=this.element<HTMLSelectElement>('[data-live-style]');
   const left=this.element<HTMLInputElement>('[data-live-left]'),right=this.element<HTMLInputElement>('[data-live-right]');
   chooser.onchange=()=>{
@@ -145,7 +152,7 @@ export class LiveUI {
     if(audio.buffered>1.05&&(audio.context.state==='running'||performance.now()-lastRequest<2500)){await delay(100);continue;}
     lastRequest=performance.now();
     const labels=this.labels;
-    const result=await this.h.api.call('live_play_next',{sessionId,offset:audio.end,heardFrame:audio.frame(),style:this.style});
+    const result=await this.h.api.call('live_play_next',{sessionId,offset:audio.end,heardFrame:audio.frame(),startFrame:this.recordingStart??null,style:this.style});
     if(signal.aborted)return;
     this.session=result.session;
     if(result.session.phase==='failed'||result.session.phase==='stopped')throw Error(result.session.message);
@@ -169,8 +176,8 @@ export class LiveUI {
   if(!this.audio)return;
   const audio=this.audio,{heard,mix,levels,trail,labels}=audio.visual();
   const now=heard>0&&audio.context.state==='running'&&audio.buffered>0&&this.session?.phase==='running';
-  if(now&&!this.playing)this.showStatus('● 正在演奏');
-  if(this.playing&&!now&&this.session?.phase==='running')this.showStatus(this.preview||this.externalAudio?'正在试听其他音频':'正在缓冲');
+  if(now&&!this.playing)this.showStatus(this.recordingStart===undefined?'● 正在演奏':'正在录制');
+  if(this.playing&&!now&&this.session?.phase==='running'&&this.recordingEnd===undefined)this.showStatus(this.preview||this.externalAudio?'正在试听其他音频':'正在缓冲');
   this.playingStatus(now);
   const canvas=this.element<HTMLCanvasElement>('[data-live-wave]'),ctx=canvas.getContext('2d');
   if(ctx){
@@ -194,54 +201,73 @@ export class LiveUI {
   if(heard&&labels)heardLabel.textContent=`正在听到 · ${labels[0]} ${Math.round((1-mix)*100)}% · ${labels[1]} ${Math.round(mix*100)}%`;
   const save=this.element<HTMLButtonElement>('[data-live-save]');
   const message=this.element('[data-live-save-message]');
-  if(heard>=15*48000&&message.textContent==='听满 15 秒即可留下')message.textContent='保存已听到的最近 15 秒';
-  save.disabled=heard<15*48000||save.dataset.busy==='true'||this.session?.phase!=='running';
+  save.disabled=heard===0||save.dataset.busy==='true'||this.session?.phase!=='running'||!!this.take;
+  const timer=this.element('[data-record-time]');
+  if(this.recordingStart!==undefined){
+   const seconds=((this.recordingEnd??heard)-this.recordingStart)/48000;
+   timer.textContent=`${String(Math.floor(seconds/60)).padStart(2,'0')}:${(seconds%60).toFixed(1).padStart(4,'0')}`;
+   const marker=this.element('[data-record-marker]');marker.hidden=false;
+   marker.style.left=`${Math.max(0,100*(1-(heard-this.recordingStart)/(24*48000)))}%`;
+  }
  }
+ private async record(){
+  if(!this.audio)return;
+  if(this.recordingEnd!==undefined){await this.previewRecording();return;}
+  if(this.recordingStart===undefined){
+   this.recordingStart=this.audio.frame();
+   this.element('[data-live-save]').textContent='停止录制';
+   this.h.panel.dataset.recording='true';this.showStatus('正在录制');return;
+  }
+  this.recordingEnd=this.audio.frame();
+  if(this.recordingEnd<=this.recordingStart){this.recordingEnd=undefined;this.h.notice('还没有录到声音，请稍后停止');return;}
+  await this.audio.context.suspend();
+  this.h.panel.dataset.recording='false';
+  await this.previewRecording();
+ }
+ private async previewRecording(){
+  if(!this.sessionId||this.recordingStart===undefined||this.recordingEnd===undefined)return;
+  try{const clip=await this.h.api.call('live_play_preview',{sessionId:this.sessionId,startFrame:this.recordingStart,heardFrame:this.recordingEnd});
+   if(this.takeUrl)URL.revokeObjectURL(this.takeUrl);
+   const bytes=Uint8Array.from(atob(clip.wav),c=>c.charCodeAt(0));this.takeUrl=URL.createObjectURL(new Blob([bytes],{type:'audio/wav'}));
+   this.element<HTMLAudioElement>('[data-take-preview]').src=this.takeUrl;
+   this.element('.live-decision').hidden=false;this.showStatus('录制完成 · 待保留');
+  }catch(error){this.h.notice((error as Error).message);this.element('[data-live-save]').textContent='重试试听录音';}
+ }
+ private async continuePlaying(){
+  this.preview?.pause();this.element<HTMLAudioElement>('[data-take-preview]').pause();this.preview=undefined;this.take=undefined;this.saving=undefined;
+  this.recordingStart=undefined;this.recordingEnd=undefined;
+  if(this.takeUrl)URL.revokeObjectURL(this.takeUrl);this.takeUrl=undefined;
+  this.element('.live-decision').hidden=true;this.element('[data-record-marker]').hidden=true;
+  this.element('[data-record-time]').textContent='尚未开始录制';this.element('[data-live-save]').textContent='开始录制';
+  await this.audio?.context.resume();
+ }
+ private async keep(){
+  const button=this.element<HTMLButtonElement>('[data-take-keep]');button.disabled=true;
+  try{if(!this.take)await this.save();if(!this.take)return;
+   if(this.h.saveToProject){await this.h.saveToProject(this.take);await this.close();}
+   else await this.h.attach(this.take);
+  }catch(error){this.h.notice((error as Error).message);}finally{button.disabled=false;}
+ }
+
  private async save(){
   const audio=this.audio,sessionId=this.sessionId;
   if(!audio||!sessionId)return;
   const button=this.element<HTMLButtonElement>('[data-live-save]'),message=this.element('[data-live-save-message]');
-  if(button.disabled)return;
-  const args=this.saving??={requestId:`capture-${crypto.randomUUID()}`,heardFrame:audio.frame(),title:`${this.labels[0].slice(0,28)}转${this.labels[1].slice(0,28)} · 片段 ${this.captures.length+1}`};
+
+  const args=this.saving??={requestId:`capture-${crypto.randomUUID()}`,heardFrame:this.recordingEnd??audio.frame(),startFrame:this.recordingStart,title:this.element<HTMLInputElement>('[data-take-title]').value.trim()||`${this.labels[0].slice(0,28)}转${this.labels[1].slice(0,28)} · 片段 1`};
   button.dataset.busy='true';button.disabled=true;
   try{
    const saved=await this.h.api.call('live_play_save',{...args,sessionId});
    if(sessionId!==this.sessionId||!this.lifetime||this.lifetime.signal.aborted)return;
-   this.captures.unshift(saved);this.saving=undefined;message.textContent='已留下 15 秒 · 声音库可重听';
-   this.renderCaptures();await this.h.refresh();
+   this.take=saved;message.textContent='录制完成，试听后保存到项目';
+   this.element('.live-decision').hidden=false;
+
+   this.showStatus('录制完成 · 待保留');
   }catch(error){
-   if(error instanceof WorkbenchApiError&&error.code==='CAPTURE_EXPIRED'){
-    if(this.saving===args)this.saving=undefined;
-    message.textContent=`${error.message}，再次点击可留下现在听到的片段`;
-   }else message.textContent=(error as Error).message;
+   message.textContent=(error as Error).message;
+   this.element('[data-take-status]').textContent=(error as Error).message;
   }
   finally{delete button.dataset.busy;}
- }
- private renderCaptures(){
-  const target=this.element('[data-live-saved]');
-  target.parentElement!.hidden=false;
-  target.replaceChildren();
-  for(const item of this.captures){
-   const row=document.createElement('div');row.className='live-saved-row';
-   const play=document.createElement('button');play.type='button';play.className='icon-button';play.innerHTML=icon('play');play.setAttribute('aria-label',`试听 ${item.title}`);
-   play.onclick=()=>void this.listen(item,play).catch(e=>this.h.notice(e.message));
-   const title=document.createElement('span');title.textContent=item.title;
-   const length=document.createElement('time');length.textContent='0:15';
-   const attach=document.createElement('button');attach.type='button';attach.className='secondary';attach.textContent='加入项目';
-   attach.onclick=()=>void this.h.attach(item).catch(e=>this.h.notice(e.message));
-   row.append(play,title,length,attach);target.append(row);
-  }
- }
- private async listen(item:OwnedSound,button:HTMLButtonElement){
-  if(this.preview){this.preview.pause();return;}
-  const lifetime=this.lifetime,audio=this.audio;if(!lifetime||!audio)return;
-  const player=new Audio(await this.h.url(item.audioPath));
-  if(lifetime.signal.aborted)return;
-  this.preview=player;this.h.pauseOther();
-  await audio.context.suspend();
-  const resume=()=>{if(this.preview!==player)return;this.preview=undefined;button.innerHTML=icon('play');if(!lifetime.signal.aborted&&!this.externalAudio)void audio.context.resume().catch(()=>{});};
-  player.onpause=resume;player.onended=resume;player.onerror=resume;
-  try{await player.play();button.innerHTML=icon('pause');}catch(error){resume();throw error;}
  }
  async mediaPlayback(media:HTMLAudioElement,playing:boolean){
   const audio=this.audio;
@@ -252,12 +278,13 @@ export class LiveUI {
    if(audio.context.state==='running')await audio.context.suspend();
   }else if(this.externalAudio===media){
    this.externalAudio=undefined;
-   if(!this.preview&&this.lifetime)await audio.context.resume();
+   if(!this.preview&&this.lifetime&&this.recordingEnd===undefined)await audio.context.resume();
   }
  }
  close(){
   if(this.release)return this.release;
   if(!this.active())return Promise.resolve();
+  if(this.takeUrl)URL.revokeObjectURL(this.takeUrl);this.takeUrl=undefined;
   this.lifetime?.abort();this.lifetime=undefined;this.installPolling=false;
   if(this.nextFrame!==undefined)cancelAnimationFrame(this.nextFrame);
   const source=this.audio,sessionId=this.sessionId,launch=this.launch;
@@ -292,9 +319,9 @@ export class LiveUI {
    return true;
   }catch(error){if(error instanceof WorkbenchApiError&&error.code==='NOT_FOUND')return false;throw error;}
  }
- closeOnNavigation(){return this.lifetime?this.close():Promise.resolve();}
  pageExit(){
   const sessionId=this.sessionId;
+  if(this.takeUrl)URL.revokeObjectURL(this.takeUrl);this.takeUrl=undefined;
   this.lifetime?.abort();
   if(sessionId)void this.h.api.request('/api/live_play_stop',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({sessionId}),keepalive:true}).catch(()=>{});
  }

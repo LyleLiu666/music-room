@@ -77,11 +77,31 @@ test('runtime ceiling respects the application limit and inconsistent envelopes 
   const result=admit(h,{...d,startup},policy,1000);assert.equal(result.allowed,false);
   if(!result.allowed)assert.equal(result.code,'RESOURCE_PROFILE_UNVERIFIED');
  }
- const pressure=admit({...h,pressure:'warning'},d,policy,1000);
+ const pressure=admit({...h,pressure:'critical'},d,policy,1000);
  assert.equal(pressure.allowed,false);assert.equal(pressure.details?.[0].limiting,'pressure');
  assert.doesNotMatch(!pressure.allowed?pressure.message:'',/尚差约 0\.0 GiB/);
- assert.match(!pressure.allowed?pressure.message:'',/含系统缓存的启动预算约 19\.0 GiB.*系统内存压力偏高.*等待压力恢复正常/);
- const pressureShortfall=admit({...hardware(32,6),pressure:'warning'},d,policy,1000);
+ assert.match(!pressure.allowed?pressure.message:'',/含系统缓存的启动预算约 19\.0 GiB.*系统内存压力过高.*等待压力降低/);
+ const pressureShortfall=admit({...hardware(32,6),pressure:'critical'},d,policy,1000);
  assert.equal(pressureShortfall.allowed,false);
- assert.match(!pressureShortfall.allowed?pressureShortfall.message:'',/尚差约 3\.0 GiB.*系统内存压力偏高/);
+ assert.match(!pressureShortfall.allowed?pressureShortfall.message:'',/尚差约 3\.0 GiB.*系统内存压力过高/);
+});
+
+test('warning pressure allows an 8 GiB task when budget fits, while retaining headroom and application limits',()=>{
+ for(const available of [16,9]){
+  const result=admit({...hardware(32,available),pressure:'warning'},demand(8),policy,1000);
+  assert.equal(result.allowed,true);
+  if(result.allowed)assert.equal(result.budgets.memory,8*GiB);
+  assert.equal(result.details?.[0].shortfall,0);
+  assert.notEqual(result.details?.[0].limiting,'pressure');
+ }
+ const shortage=admit({...hardware(32,8.5),pressure:'warning'},demand(8),policy,1000);
+ assert.equal(shortage.allowed,false);
+ assert.equal(shortage.details?.[0].limiting,'system_memory');
+ assert.equal(shortage.details?.[0].shortfall,.5*GiB);
+ assert.match(!shortage.allowed?shortage.message:'',/尚差约 0\.5 GiB.*当前系统资源/);
+ const limited=admit({...hardware(32,16),pressure:'warning'},demand(8),{...policy,limits:{memory:7*GiB}},1000);
+ assert.equal(limited.allowed,false);assert.equal(limited.details?.[0].limiting,'user_limit');
+ const occupied=hardware(32,16);occupied.pressure='warning';occupied.pools[0].owned=17*GiB;
+ const result=admit(occupied,demand(8),policy,1000);
+ assert.equal(result.allowed,false);assert.equal(result.details?.[0].limiting,'application_usage');
 });

@@ -10,6 +10,12 @@ export type LiveBlock={offset:number;pcm:Uint8Array;fromMix:number;toMix:number}
 export class LiveRing {
  private blocks:LiveBlock[]=[];
  private nextOffset=0;
+ private recordingStart?:number;
+ releaseRecording(){this.recordingStart=undefined;}
+ recordFrom(start:number){
+  if(!Number.isSafeInteger(start)||start<0||start<this.end-this.retainedFrames)throw new ServiceError('CAPTURE_EXPIRED','录制起点已过期');
+  this.recordingStart=start;
+ }
  get end(){return this.nextOffset;}
  get retainedFrames(){return this.end-(this.blocks[0]?.offset??this.end);}
  append(pcm:Uint8Array,fromMix=0,toMix=0){
@@ -17,16 +23,18 @@ export class LiveRing {
   const block={offset:this.nextOffset,pcm:pcm.slice(),fromMix,toMix};
   this.blocks.push(block);
   this.nextOffset+=pcm.length/bytesPerFrame;
-  while(this.retainedFrames>capacity)this.blocks.shift();
+  while(this.retainedFrames>capacity && (this.recordingStart===undefined || this.blocks[0].offset+liveFramesPerSecond<=this.recordingStart))this.blocks.shift();
   return block;
  }
  get(offset:number){return this.blocks.find(block=>block.offset===offset);}
- capture(heardFrame:number){
+ capture(heardFrame:number,startFrame?:number){
   if(!Number.isSafeInteger(heardFrame)||heardFrame>this.end)throw new ServiceError('INVALID_AUDIO','播放位置还没有生成');
-  const start=heardFrame-captureFrames;
+  const start=startFrame??heardFrame-captureFrames;
+  if(!Number.isSafeInteger(start)||start>=heardFrame)throw new ServiceError('INVALID_AUDIO','录制内容为空');
+  const frames=heardFrame-start;
   if(start<0)throw new ServiceError('INVALID_AUDIO','听满 15 秒后即可留下刚才这段');
   if(start<this.end-this.retainedFrames)throw new ServiceError('CAPTURE_EXPIRED','播放位置已超出回留范围');
-  const stereo=[new Float32Array(captureFrames),new Float32Array(captureFrames)];
+  const stereo=[new Float32Array(frames),new Float32Array(frames)];
   for(const block of this.blocks){
    const from=Math.max(start,block.offset),to=Math.min(heardFrame,block.offset+block.pcm.length/4);
    if(to<=from)continue;

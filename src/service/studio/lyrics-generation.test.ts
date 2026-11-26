@@ -12,7 +12,9 @@ async function wait(manager:LyricsGeneration,id='v8'){for(let n=0;n<200;n++){con
 for(const scenario of [
  {name:'starts with exactly 4 GiB while retaining 8 GiB runtime protection',available:4*2**30,pressure:'normal' as const,starts:true,applicationLimit:16*2**30,runtimeLimit:8*2**30},
  {name:'waits below the 4 GiB startup requirement',available:4*2**30-1,pressure:'normal' as const,starts:false,applicationLimit:16*2**30,runtimeLimit:8*2**30},
- {name:'still waits under warning pressure with enough memory',available:4*2**30,pressure:'warning' as const,starts:false,applicationLimit:16*2**30,runtimeLimit:8*2**30},
+ {name:'starts under warning pressure with enough memory',available:4*2**30,pressure:'warning' as const,starts:true,applicationLimit:16*2**30,runtimeLimit:8*2**30},
+ {name:'waits under warning pressure when startup memory is insufficient',available:4*2**30-1,pressure:'warning' as const,starts:false,applicationLimit:16*2**30,runtimeLimit:8*2**30},
+ {name:'still waits under critical pressure with enough memory',available:4*2**30,pressure:'critical' as const,starts:false,applicationLimit:16*2**30,runtimeLimit:8*2**30},
  {name:'starts under a 4 GiB application limit and clamps runtime protection to that limit',available:4*2**30,pressure:'normal' as const,starts:true,applicationLimit:4*2**30,runtimeLimit:4*2**30},
 ])test(`lyrics ${scenario.name}`,async()=>{
  const dir=mkdtempSync(join(tmpdir(),'lyrics-admission-'));

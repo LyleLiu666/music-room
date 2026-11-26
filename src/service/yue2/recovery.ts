@@ -1,6 +1,7 @@
 import {existsSync,lstatSync,readFileSync,realpathSync} from 'node:fs';
 import {join} from 'node:path';
 import {createHash} from 'node:crypto';
+import {musicDurationTolerance} from './duration.ts';
 import {generationWithEnding} from './input.ts';
 import type {YuE2Generate,MusicRecoveryStage} from './contracts.ts';
 export const musicRecoveryLabels={plan:'音乐内容生成',semantic:'声音合成',synthesis:'音频导出'};
@@ -22,6 +23,13 @@ export function readMusicRecovery(directory:string,id:string):MusicRecoveryStage
   }else{const manifest=JSON.parse(read('plan/plan_manifest.json').toString());files=Object.fromEntries(Object.entries(manifest).map(([n,v])=>['plan/'+n,v])) as Record<string,string>;if(planFiles.filter(n=>!n.endsWith('plan_manifest.json')).some(n=>!Object.hasOwn(files,n)))return;stage='plan';}
   for(const [name,digest] of Object.entries(files))if(!allowed.has(name)||createHash('sha256').update(read(name)).digest('hex')!==digest)return;
   if(JSON.parse(read('plan/plan.json').toString()).truncated===true)return;
+  const durationPath=join(song,'duration.json');
+  if(existsSync(durationPath)){
+   if(lstatSync(durationPath).isSymbolicLink()||!lstatSync(durationPath).isFile()||lstatSync(durationPath).size>4*1024*1024)return;
+   const report=JSON.parse(readFileSync(durationPath,'utf8'));
+   if(report?.audioWithinTarget===false||report?.accepted===false||report?.withinTarget===false)return;
+   if(report?.targetSeconds!=null&&report?.tolerance!==undefined&&report.tolerance!==musicDurationTolerance)return;
+  }
   return stage;
  }catch{return;}
 }

@@ -19,6 +19,28 @@ test('telemetry failures explain a monitoring problem and expose escaped diagnos
  assert.match(html,/内存监测失败/);assert.match(html,/无需修改创作内容/);assert.match(html,/vmmap &lt;timeout&gt;/);
  assert.doesNotMatch(resourceFailure({reason:'PRESSURE_PROTECTION'},false,false),/retry-generation/);
 });
+test('waiting failures preserve the recorded cause without reinterpreting old pressure rules',()=>{
+ const messages=[
+  '任务启动预约 8.0 GiB；虽然含系统缓存的启动预算约 15.0 GiB，但当前系统内存压力偏高',
+  '任务启动预约 8.0 GiB，当前启动预算约 6.0 GiB，尚差约 2.0 GiB；限制来自当前系统资源',
+  '任务启动预约 8.0 GiB；虽然含系统缓存的启动预算约 15.0 GiB，但当前系统内存压力过高，正在等待压力降低'
+ ];
+ for(const message of messages){
+  const html=resourceFailure({reason:'WAITING_FOR_MEMORY',message},true);
+  assert.ok(html.includes(`<p class="resource-failure-reason">当时记录的原因：${message}</p>`));
+  assert.equal(html.split(message).length-1,1);
+  assert.match(html,/重试时会重新检查启动预算和压力/);
+  assert.doesNotMatch(html,/启动预算不足或系统内存压力达到危险级别/);
+  assert.match(html,/data-action="retry-generation"/);
+ }
+ const missing=resourceFailure({reason:'WAITING_FOR_MEMORY'},false);
+ assert.match(missing,/当时记录的原因：未保存详细原因。/);
+ assert.doesNotMatch(missing,/预算不足|压力达到危险级别/);
+ const escaped=resourceFailure({reason:'WAITING_FOR_MEMORY',message:'旧记录 <script>',diagnostic:'采样 <timeout>'},false);
+ assert.match(escaped,/当时记录的原因：旧记录 &lt;script&gt;/);
+ assert.match(escaped,/<summary>技术详情<\/summary><p>采样 &lt;timeout&gt;<\/p>/);
+ assert.doesNotMatch(escaped,/<script>|<timeout>/);
+});
 test('resource overview distinguishes capacity, estimates, residents and absent telemetry',async()=>{
  assert.match(resourceOverview(undefined),/正在读取电脑资源/);assert.match(resourceOverview(undefined,'',true),/暂时无法读取电脑资源/);
  const c=testResources();let s=c.snapshot();assert.match(resourceOverview(s),/暂时无法读取/);assert.equal(memoryLimitSummary(s),'正在读取当前上限…');
@@ -97,7 +119,11 @@ test('capability guide distinguishes lost, stale and unsupported hardware from s
   assert.doesNotMatch(critical,/新任务可用/);
   const warningWithMemory=resourceOverview({...status,hardware:{...hardware,pressure:'warning',memory:{capacity:16*2**30,free:80*2**20,purgeable:0,inactive:4*2**30,fileBacked:3*2**30,compressed:6*2**30,wired:3*2**30,swapUsed:2*2**30,swapInBytes:0,swapOutBytes:0,pressureAvailablePercent:75,estimatedReclaimable:11*2**30}}});
   assert.match(warningWithMemory,/含可回收缓存，非纯空闲/);
-  assert.match(warningWithMemory,/当前实际空闲仅 0\.1 GiB，已压缩 6\.0 GiB、使用交换空间 2\.0 GiB/);
+  assert.match(warningWithMemory,/当前实际空闲 0\.1 GiB，已压缩 6\.0 GiB、使用交换空间 2\.0 GiB/);
+  assert.match(warningWithMemory,/新任务可用 <b>11\.0 GiB<\/b>/);
+  assert.match(warningWithMemory,/偏高，预算充足可启动/);
+  assert.match(warningWithMemory,/音乐 · YuE2<\/span>.*达到起步要求/);
+  assert.doesNotMatch(warningWithMemory,/等待压力恢复|后续任务等待|暂停启动新模型/);
   const waitingTimeout=resourceFailure({reason:'WAITING_FOR_MEMORY',message:'任务启动预约 8.0 GiB；虽然含系统缓存的启动预算约 15.0 GiB，但当前系统内存压力偏高'},true);
   assert.match(waitingTimeout,/等待可用内存超时，生成尚未开始/);
   assert.match(waitingTimeout,/包含系统缓存，不代表立即可用的空闲内存/);

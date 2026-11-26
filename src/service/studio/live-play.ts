@@ -14,8 +14,8 @@ import type {LiveDriver,LiveStream,LiveStyle} from './live-runtime.ts';
 const id=z.string().regex(SCORE_ID_PATTERN);
 export const liveStyle=z.object({left:z.string().trim().min(1).max(240),right:z.string().trim().min(1).max(240),mix:z.number().finite().min(0).max(1)}).strict();
 export const liveStartSchema=z.object({sessionId:z.string().regex(/^live-[a-z0-9-]{1,58}$/)}).strict();
-export const liveNextSchema=z.object({sessionId:id,offset:z.number().int().nonnegative(),heardFrame:z.number().int().nonnegative(),style:liveStyle}).strict();
-export const liveSaveSchema=z.object({sessionId:id,requestId:id,heardFrame:z.number().int().nonnegative(),title:z.string().trim().min(1).max(120)}).strict();
+export const liveNextSchema=z.object({sessionId:id,offset:z.number().int().nonnegative(),heardFrame:z.number().int().nonnegative(),startFrame:z.number().int().nonnegative().nullable().optional(),style:liveStyle}).strict();
+export const liveSaveSchema=z.object({sessionId:id,requestId:id,heardFrame:z.number().int().nonnegative(),startFrame:z.number().int().nonnegative().optional(),title:z.string().trim().min(1).max(120)}).strict();
 type Phase='queued'|'loading'|'running'|'stopping'|'stopped'|'failed';
 type Session={
  id:string;phase:Phase;message:string;ring:LiveRing;controller:AbortController;done:Promise<void>;
@@ -113,6 +113,8 @@ export class LivePlay {
   this.touch(session);
   if(args.heardFrame>session.ring.end)failed('播放位置超过已生成音频');
   session.ack=Math.max(session.ack,args.heardFrame);
+  if(args.startFrame===null)session.ring.releaseRecording();
+  else if(args.startFrame!==undefined)session.ring.recordFrom(args.startFrame);
   const existing=session.ring.get(args.offset);
   let block:LiveBlock|undefined=existing;
   if(!block&&session.phase==='running'&&session.stream){
@@ -139,18 +141,23 @@ export class LivePlay {
    throw error;
   }finally{session.pending=undefined;}
  }
+ preview(args:{sessionId:string;heardFrame:number;startFrame:number}){
+  const session=this.get(args.sessionId);this.touch(session);
+  const bytes=session.ring.capture(args.heardFrame,args.startFrame);
+  return {wav:Buffer.from(bytes).toString('base64'),duration:(args.heardFrame-args.startFrame)/liveFramesPerSecond};
+ }
  async save(args:z.output<typeof liveSaveSchema>){
   const existing=this.library.verifyRequest(args.requestId);
   if(existing){
-   if(existing.origin!=='live-capture'||existing.source.sessionId!==args.sessionId||existing.source.heardFrame!==args.heardFrame||existing.title!==args.title)return failed('回留请求与上次不同');
+   if(existing.origin!=='live-capture'||existing.source.sessionId!==args.sessionId||existing.source.heardFrame!==args.heardFrame||existing.source.startFrame!==args.startFrame||existing.title!==args.title)return failed('回留请求与上次不同');
    return existing;
   }
   const session=this.get(args.sessionId);
   if(session.phase!=='running')failed('请在演奏时留下片段');
   this.touch(session);
-  const bytes=session.ring.capture(args.heardFrame);
+  const bytes=session.ring.capture(args.heardFrame,args.startFrame);
   return this.library.import({name:`${args.requestId}.wav`,title:args.title,requestId:args.requestId,bytes,
-   source:{kind:'live-capture',sessionId:session.id,heardFrame:args.heardFrame}});
+   source:{kind:'live-capture',sessionId:session.id,heardFrame:args.heardFrame,startFrame:args.startFrame}});
  }
  async stop(id:string){
   const session=this.session;

@@ -10,8 +10,8 @@
 | SFX-02 / P0 | 队列暂停或生成中取消；超内存；重启时已提交 / 未提交产物 | 停止所属工作且不假报成功；已保存音频校验后恢复，不创建重复记录 | `src/service/studio/sound-effects.test.ts`、`src/service/studio/sound-effects-runtime.test.ts`、`src/service/resources/profiles.test.ts` |
 | SFX-03 / P1 | 在声音库准备模型并生成音效，与外部导入分别筛选 | 明确准备、取消及生成状态；声音可试听，来源分类正确 | `scripts/verify/verify-sound-library-ui.test.mjs` |
 | SFX-04 / P0 | 项目内生成多个音效版本；请求丢失、重启、删除或彻底删除；将独立录音加入项目 | 版本归属、参数、音频和原有播放列表保留；重试不重复；删除后的内容不复活 | `src/service/studio/effect-workflow.test.ts`、`src/server/lost-response.test.ts`、`src/server/mcp.test.ts`、`scripts/verify/verify-sound-library-ui.test.mjs` |
-| LIVE-02 / P0 | 从声音库开启演奏，拖动切换风格，15 秒后回留、试听及加入指定项目，等待停止 | 模型释放后窗口关闭；保存不打断演奏；侧栏状态、来源列和灵感标记正确；日夜主题及小窗可操作 | `scripts/verify/verify-magenta-live-ui.test.mjs` |
-| LIVE-01 / P0 | 启动 Magenta 会话、改变风格、按已播放位置回留片段、停止；故障后重复启动 | 分块连续，提前生成部分不进入回留，精确 15 秒；保存去重与重开可读；释放前后共享队列行为正确 | `src/service/studio/live-play.test.ts`、`src/service/studio/live-ring.test.ts`、`scripts/verify/verify-magenta-live-real.ts` |
+| LIVE-02 / P0 | 从创作入口开启演奏，显式开始/停止录制、试听、放弃或命名保存 V1，等待停止 | 模型释放后窗口关闭；临时试听不写入声音库，重试不重复保存；项目归属、版本及资源状态正确；日夜主题及小窗可操作 | `scripts/verify/verify-magenta-live-ui.test.mjs` |
+| LIVE-01 / P0 | 启动 Magenta 会话、改变风格、按已播放位置回留片段、停止；故障后重复启动 | 分块连续，提前生成部分不进入回留，兼容回留 15 秒，显式录制保留超过滚动缓冲的起点；保存去重与重开可读；释放前后共享队列行为正确 | `src/service/studio/live-play.test.ts`、`src/service/studio/live-ring.test.ts`、`scripts/verify/verify-magenta-live-real.ts` |
 | COVER-02 / P0 | 从原唱拖动选段，提交后切回原唱同位置；在日间与夜间标记成品 | 数字与波形同步，循环时两个播放按钮一致；按相对秒数切换，原曲时长及描述保留；成品状态一致 | `scripts/verify/verify-ace-cover-ui.test.mjs` |
 | COVER-01 / P0 | 用固定范围选取原唱，重复提交，完成或取消翻唱后重开工作区 | 同步歌词按时间选取，原词按顺序估算并保留段落；重复请求关联已有任务；翻唱为独立子版本，取消不发布音频，原曲和成品选择完整保留 | `src/service/studio/ace-cover.test.ts`、`scripts/verify/verify-ace-cover-real.ts` |
 | COVER-03 / P1 | 彻底删除翻唱子版本，重开含旧删除记录的工作区 | 找不到已删除子版本的音频、歌词及风格；旧请求仍拒绝重放，原曲与可恢复版本完整保留 | `src/service/studio/ace-cover.test.ts` |
@@ -31,7 +31,7 @@
 | RETRY-01 / P0 | 实际 HTTP 保存成功后代理断开 TCP；重启；同请求并发重试 8 次 | 导入和混音各只一份；相同 ID 不同参数拒绝；原成品不变 | `src/server/lost-response.test.ts` |
 | RETRY-02 / P0 | 调速已保存，浏览器收到失败，再点保存 | 复用 requestId；同一新版本；下载的速度和重新打开后播放速度正确 | `scripts/verify/verify-speed-ui.test.mjs`、`src/service/studio/speed.test.ts` |
 | RETRY-03 / P1 | 音乐失败后重试或从检查点恢复 | 原版本编号不变；旧尝试归档；参数、种子与检查点匹配；删除后不可复活 | `music-retry.test.ts`、`src/service/yue2/recovery.test.ts`、`verify-studio-ui.test.mjs` |
-| MUSIC-PLAN-01 / P1 | 模型给出截断、无效或偏离所选目标时长的乐谱；成品音频提前结束 | 指定目标时乐谱与最终音频均须在 ±15% 范围内；规划最多三次，仍不达标报错且不合成；音频不达标保留诊断但任务失败；自定义谱按原谱检查时长，自动时长不限制 | `src/service/yue2/duration.test.ts`、`duration_runtime_test.py`；真实失败保留在执行记录 |
+| MUSIC-PLAN-01 / P1 | 模型给出截断、无效或偏离所选目标时长的乐谱；成品音频提前结束；失败尝试留有不可用恢复点 | 指定目标时乐谱须在 ±30% 范围内；规划最多三次，仅谱长偏差重规划时不升高采样温度，仍不达标报错且不合成；完整音频偏离目标时保留音频并记录 `durationCheck` 供页面提示试听，时长无效仍报错；未通过时长检查或旧容差恢复点禁止沿用，同步刷新旧尝试恢复状态使重试换新种子；自定义谱按原谱检查时长，自动时长不限制 | `src/service/yue2/duration.test.ts`、`duration_runtime_test.py`、`recovery.test.ts`、`recovery_runtime_test.py`、`managed.test.ts`、`src/service/studio/music-retry.test.ts`、`scripts/verify/verify-music-duration-ui.test.mjs` |
 | MUSIC-ABC-01 / P1 | 演唱带歌词，指定的 ABC 人声轨只有休止符；覆盖两轨全静音、无歌词、无法解析、纯音乐、有人声音符及目标时长 | 人声全休止且伴奏有音符时，用伴奏和原歌词生成，原双轨谱可再次编辑，容量按实际输入算，时长按原谱和成品检查；两轨全静音或非法谱按规则拦截。创作页提示处理方式并保留草稿 | `src/service/yue2/managed.test.ts`、`src/service/yue2/duration_runtime_test.py`、`scripts/verify/verify-music-input-ui.test.mjs` |
 | MUSIC-PLAN-02 / P1 | 使用原失败提示词、seed 42、fast、纯音乐、自动时长与自然收尾 | 首轮参数不变；失败后的采样恢复不改提示词 / 歌词，不增加输出预算；三次内写出完整乐谱并生成可播放音频。原始失败与后续结果分别留存 | `tests/quality/music-planning-regression.json`、`scripts/verify/verify-music-planning-real.ts`、`duration_runtime_test.py` |
 | MUSIC-PLAN-03 / P1 | 显式目标时长，上一轮有效谱过长 / 过短，或输入已接近上下文上限 | 后续只附加最新时长偏差及按速度 / 拍号计算的拍数 / 小节数；首轮、歌词与输出预算不变；说明不超 512 token 余量或完整上下文，容量不足时省略；自动时长与无效谱不附加说明；合格谱及合成请求保留原输入，仍执行原时长门槛 | `src/service/yue2/duration_runtime_test.py` 的 `test_explicit_duration_retry_uses_measured_error_to_obtain_an_in_range_score`、`test_feedback_*`、`test_auto_and_invalid_scores_do_not_receive_duration_feedback`；由 `duration.test.ts` 接入服务入口 |
@@ -44,7 +44,7 @@
 | MEDIA-01 / P0 | WAV 8 / 44.1 / 48 / 96 kHz，1 / 2 声道，整数 8/16/24/32 与浮点 32/64；单帧、600 秒、600 秒多一帧 | 合法组合通过；超边界拒绝；内存估计随速度正确变化 | `src/service/studio/audio-budget.test.ts` |
 | MEDIA-02 / P0 | 截断头部、容器长度矛盾、字节率错误、缺填充、尾部碎片、固定随机种子损坏 500 次 | 返回受控错误，无底层解析异常或超额分配 | 同上 |
 | MEDIA-03 / P0 | FLAC 缺帧、哈希不符、扩展名欺骗、超上传大小、路径越界 / 链接 | 不提交记录、不读写外部文件、不出现可下载的伪成功音频 | `sound-library.test.ts`、`audio-files.test.ts`、`src/server/resource-io.test.ts`、`http.test.ts` |
-| RESOURCE-01 / P0 | 低内存、系统压力、磁盘不足、资源设置损坏、并发重型引擎 | 排队或受控失败；禁止越过保护；同一时刻不重复加载冲突引擎 | `src/service/resources/*.test.ts`、`src/service/conversion/engine-exclusion.test.ts` |
+| RESOURCE-01 / P0 | 低内存、系统压力、磁盘不足、资源设置损坏、并发重型引擎 | 警告压力下预算足够则启动，预算不足或危险压力仍等待；警告准入后超任务上限、危险压力或交换增长仍停止；禁止越过保护，同一时刻不重复加载冲突引擎 | `src/service/resources/*.test.ts`、`src/service/conversion/engine-exclusion.test.ts` |
 | RESOURCE-02 / P0 | 登记进程组及普通工作进程；采样前退出成僵尸；存活进程采样拒绝或进程表异常 | 覆盖所有登记进程、排除无关组；仅确认退出后归零；存活或状态未知时继续受控失败 | `src/service/resources/telemetry.test.ts`、`native-telemetry.test.ts` |
 | RESOURCE-03 / P1 | 短输入和接近上下文上限的 YuE2 自定义乐谱，覆盖两档与纯音乐模式 | 短输入可使用 8 GiB，长输入预约包含权重和缓存，应用额度不够时在启动前拒绝 | `src/service/resources/profiles.test.ts` |
 | SERVICE-01 / P0 | 关闭启动终端 / MCP 连接、并发启动、端口复用、关闭所属进程 | 后台工作不中断；只有一个所有者；不杀无关进程；重启中断状态可追踪 | `src/server/background.test.ts`、`mcp.test.ts`、`src/service/yue2/worker.test.ts` |
@@ -56,7 +56,7 @@
 | UI-05 / P2 | Chrome / WebKit，1280×720 与 900×600 小窗口，19 个项目、长名称 | 搜索与新建同排；19 个项目全部列出、列表内滚动可达最后一项且无横向溢出；侧栏不再分页；设置入口保持在屏内；搜索与空结果提示可用 | `scripts/verify/verify-task-history-ui.test.mjs` |
 | UI-06 / P1 | 运行 / 排队 / 暂停 / 断线 / 空闲，切换项目、音色库与弹窗，390px | 侧栏「任务与资源」右侧一行实时状态与后台一致、空闲为空；任务与资源页保留本机资源和可筛选、分页的历史列表；52 项排队时默认每页仍为 10 项；历史标题打开原版本且不打断播放；弹窗与底部播放条无生成队列 | `scripts/verify/verify-task-queue-ui.test.mjs`、`verify-task-history-ui.test.mjs`、`verify-music-progress-ui.test.mjs`、`verify-resources-ui.test.mjs`、`src/workbench/studio/task-queue.test.ts` |
 | SCORE-PREVIEW-01 / P1 | 暂停队列后提交乐谱试听，在任务历史取消排队项；恢复队列后提交，在版本页取消进行中的任务；再次生成 | 历史反映试听任务的排队、运行、取消与完成状态；取消保留原乐谱，重试后可试听 | `scripts/verify/verify-score-context-ui.test.mjs` |
-| UI-07 / P1 | 侧栏内存一行：正常 / 偏高 / 过高 / 读取失败 / 隐藏页签；任务页连接中断与恢复、不支持设备、新任务等待资源 | 侧栏显示一行及 5 格条；任务页按总容量显示三段分布并注明可用估计含可回收缓存，系统保留额度独立标注；压力偏高或过高时直接说明为何有缓存估计仍需等待（含实际空闲、压缩与交换空间数据），且准入文案不出现“尚差 0.0 GiB”式的矛盾提示。断线或采样不可靠时，摘要与清单同时标记未知。等待时不显示上一任务采样。详细数据保持折叠状态，隐藏页签停止采样 | `scripts/verify/verify-monitor-ui.test.mjs`、`verify-resources-ui.test.mjs`、`src/workbench/studio/resources.test.ts`、`src/workbench/studio/monitor.test.ts`、`src/service/resources/policy.test.ts`、`src/service/resources/coordinator.test.ts` |
+| UI-07 / P1 | 侧栏内存一行：正常 / 偏高 / 过高 / 读取失败 / 隐藏页签；任务页连接中断与恢复、不支持设备、新任务等待资源 | 侧栏显示一行及 5 格条；任务页按总容量显示三段分布并注明可用估计含可回收缓存，系统保留额度独立标注；压力偏高时显示启动预算并按余量标记各功能；危险压力时说明为何预算够仍需等待（含实际空闲、压缩与交换空间数据），且准入文案不出现“尚差 0.0 GiB”式的矛盾提示。断线或采样不可靠时，摘要与清单同时标记未知。等待时不显示上一任务采样；历史等待失败直接展示保存的原因，重试建议独立说明当前检查，缺失原因不推断。详细数据保持折叠状态，隐藏页签停止采样 | `scripts/verify/verify-monitor-ui.test.mjs`、`verify-resources-ui.test.mjs`、`src/workbench/studio/resources.test.ts`、`src/workbench/studio/monitor.test.ts`、`src/service/resources/policy.test.ts`、`src/service/resources/coordinator.test.ts` |
 | UI-08 / P1 | 设置页各小节：模型启用、内存上限保存 / 恢复自动、回收站恢复 / 彻底删除 / 清空失败重试、备份命令、外观三选一 | 设置与回收站是页面而非弹窗；确认仍用居中确认框；恢复后可回到原项目与声音；主题在日间 / 夜间 / 跟随系统间切换并持久化 | `scripts/verify/verify-studio-ui.test.mjs`、`verify-first-use-ui.test.mjs`、`verify-audio-loading-ui.test.mjs` |
 | UI-09 / P1 | 已保存的乐谱 WAV 响应延迟时打开并关闭「MIDI 与音轨」 | 音频返回后，当前版本的播放器可用，无需刷新 | `scripts/verify/verify-score-context-ui.test.mjs` |
 | LIBRARY-01 / P1 | 10,000 条声音、长创作要求，跨页搜索 / 分类 / 排序与播放顺序查询 | 接口仅返回当前页 20 / 50 条；工作台不传整库声音及历史版本正文；播放 ID 顺序覆盖全部页 | `src/service/studio/sound-catalog.test.ts` |
@@ -96,7 +96,7 @@
 | REAL-02 | 独立包已构建，普通用户账号 | 隐藏 dist，PATH 仅系统命令；开启 MCP，渲染、下载、重开 | 所有资源来自包；本机模型与系统组件要求按使用文档执行；不要求源码和 Node |
 | REAL-03 | 有足够磁盘的受控测试卷 | 安装 / 下载 / 保存时逐步耗尽空间，然后释放空间重试 | 不把部分安装标成就绪；已有模型和产物不损坏；不默认在用户磁盘造满盘 |
 | REAL-04 | 保存了声音的隔离目录 | 锁屏、睡眠、唤醒；网络断开再恢复；关闭所有网页再打开 | 后台状态可恢复，音频仍可读；失败说明明确，不假显示完成 |
-| REAL-05 | 已构建独立包，隔离目录有 Magenta 和 ACE 权重 | Chrome 开始真实即兴，切换风格并回留；演奏时提交 ACE 翻唱，停止前后查看队列 | 回留可见且为 15 秒；演奏期间翻唱排队；停止后翻唱完成且原曲哈希保持一致。断言见 `scripts/verify/verify-cover-live-binary-real.ts` |
+| REAL-05 | 已构建独立包，隔离目录有 Magenta 和 ACE 权重 | Chrome 开始真实即兴，切换风格并显式录制；演奏时提交 ACE 翻唱，保存前后查看队列 | 录制试听与保留决定可见；演奏期间翻唱排队；保存并释放演奏后翻唱完成且原曲哈希保持一致。断言见 `scripts/verify/verify-cover-live-binary-real.ts` |
 | UI-ZOOM-01 | 200% 浏览器缩放，深浅主题 | 新建、创作、版本菜单、回收站、下载、声音库 | 无重要控件遮挡；正文可读；状态不只靠颜色；保留截图 |
 | SOAK-01 | 固定机器，隔离目录 | 至少 60 分钟连续循环，另做真实模型混合任务 | 记录真实持续时间、任务数、RSS / 系统压力、p95；短测不等价于长稳 |
 | QUALITY-01 | 固定语料已准备，真实模型完成 | 按固定样本逐条听评，实际唱词独立转写 | 见[质量标准](quality.md)；任何未评分项维持待验收 |

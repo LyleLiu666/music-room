@@ -50,7 +50,7 @@ test('music lyrics: explicit modes, complete example, draft preservation and iso
    await page.setViewportSize({width,height:1000});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
    await page.locator('#lyrics').scrollIntoViewIfNeeded();await page.screenshot({path:`test-results/studio/lyrics-${width}.png`,fullPage:true});
   }
-  await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor();
+  await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor({state:'attached'});
   assert.equal(requests.length,1);assert.equal(requests[0].instrumental,false);assert.equal(requests[0].lyrics,edited);
   await page.click('[data-action="iterate"]');assert.ok(await vocal.isChecked());assert.equal(await page.inputValue('#lyrics'),edited);
   await instrumental.check();await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);
@@ -90,14 +90,14 @@ for(const memoryFailure of [false,true])test(`failed speech retry restores requi
   assert.equal(await page.inputValue('#emotion'),'平静');
   assert.equal(await page.inputValue('#emotion-strength'),'strong');
   await page.fill('#creation-text','修改后的正文');await page.click('#generate');
-  await page.locator('#version-audio').waitFor();
+  await page.locator('#version-audio').waitFor({state:'attached'});
   const versions=(await service.call('studio_library',{})).versions;
   assert.equal(versions.length,2);
   const retry=versions.find(v=>v.id!==original.id);
   assert.equal(retry.state,'succeeded');assert.equal(retry.parentId,original.id);
   assert.equal(retry.input.text,'修改后的正文');assert.equal(retry.input.emotionStrength,'strong');
   assert.equal(versions.find(v=>v.id===original.id).state,'failed');
-  await page.reload();await page.locator('#version-audio').waitFor();
+  await page.reload();await page.locator('#version-audio').waitFor({state:'attached'});
   assert.equal(await page.locator('.version-row').count(),2);assert.deepEqual(errors,[]);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
@@ -153,7 +153,7 @@ test('music pressure failure preserves quality requirements and submits a fast r
   assert.equal(await page.inputValue('#creation-text'),'快乐的小提琴');assert.equal(await page.inputValue('#preset'),'quality');
   assert.equal(await page.inputValue('#lyrics'),'[instrumental]');assert.equal(await page.locator('[name="instrumental"][value="true"]').isChecked(),true);
   await page.getByText('生成偏好',{exact:true}).click();await page.selectOption('#preset','fast');await page.click('#generate');
-  await page.locator('#version-audio').waitFor();
+  await page.locator('#version-audio').waitFor({state:'attached'});
   assert.deepEqual(requests.map(r=>r.preset),['quality','fast']);
   const versions=(await service.call('studio_library',{})).versions,child=versions.find(v=>v.id!==original.id);
   assert.equal(versions.length,2);assert.equal(child.parentId,original.id);assert.equal(child.state,'succeeded');
@@ -168,13 +168,13 @@ test('music pressure failure preserves quality requirements and submits a fast r
    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   }
   await page.setViewportSize({width:1440,height:1000});await mkdir('test-results/studio',{recursive:true});await page.screenshot({path:'test-results/studio/retry-actions-desktop.png',fullPage:true});
-  await retry.click();await page.locator('#version-audio').waitFor();assert.equal(await page.locator('dialog').evaluate(d=>d.open),false);
+  await retry.click();await page.locator('#version-audio').waitFor({state:'attached'});assert.equal(await page.locator('dialog').evaluate(d=>d.open),false);
   assert.deepEqual(requests.map(r=>r.preset),['quality','fast','quality']);
   const repeated=(await service.call('studio_library',{})).versions.find(v=>v.id===original.id);
   assert.equal(repeated.number,original.number);assert.equal(repeated.input.text,original.input.text);assert.equal(repeated.input.preset,'quality');
   assert.equal(repeated.musicAttempts.length,1);assert.equal(repeated.musicAttempts[0].jobId,original.source.id);assert.equal(repeated.musicAttempts[0].state,'failed');
   assert.notEqual(repeated.source.id,original.source.id);
-  await page.reload();await page.locator('#version-audio').waitFor();assert.equal(await page.locator('.version-row').count(),2);assert.deepEqual(errors,[]);
+  await page.reload();await page.locator('#version-audio').waitFor({state:'attached'});assert.equal(await page.locator('.version-row').count(),2);assert.deepEqual(errors,[]);
  }finally{await browser.close();await http.close();await service.close();await rm(root,{recursive:true,force:true});}
 });
 test('unified production UI: mixed project, real routes, versions, playback, drafts, comparison, trash, MIDI and responsive hierarchy',async()=>{
@@ -186,9 +186,9 @@ test('unified production UI: mixed project, real routes, versions, playback, dra
  const browser=await chromium.launch({channel:'chrome',headless:true,args:['--autoplay-policy=no-user-gesture-required']}),page=await browser.newPage({viewport:{width:1440,height:1000}}),errors=[];page.on('pageerror',e=>errors.push(e.message));page.on('response',async r=>{if(r.status()>=400)console.log(r.url(),await r.text());});
  try{
   await page.goto(http.runtime.url);await page.getByRole('button',{name:'新建项目',exact:true}).first().click();await page.fill('#project-name','春日短片');await page.locator('#project-form button').click();
-  await page.locator('[name="kind"][value="speech"]').check();await page.fill('#sound-title','开场旁白');await page.locator('#sound-form button').click();
+  await page.locator('[name="kind"][value="speech"]').check();await page.fill('#sound-title','开场旁白');await page.locator('#sound-form button[type=submit]').click();
   await page.locator('.reference-upload summary').click();await page.fill('#voice-name','我的声音');await page.locator('#voice-file').setInputFiles({name:'reference.wav',mimeType:'audio/wav',buffer:wav});await page.locator('[data-action="upload-voice"]').click();await page.waitForFunction(()=>document.querySelector('#voice')?.selectedOptions[0]?.textContent==='我的声音');
-  await page.fill('#creation-text','第一版开场旁白');await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor();await page.waitForFunction(()=>!!document.querySelector('#version-audio')?.src);
+  await page.fill('#creation-text','第一版开场旁白');await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor({state:'attached'});await page.waitForFunction(()=>!!document.querySelector('#version-audio')?.src);
   assert.equal(await page.locator('canvas').count(),0);assert.equal(await page.getByRole('link',{name:'语音创作 ↗'}).count(),0);assert.equal(await page.locator('[data-action="compose"]').count(),1);
   await page.locator('[data-action="final"]').click();await page.waitForFunction(()=>document.querySelector('[data-action="final"]')?.textContent.includes('已选'));await page.locator('[data-action="keep"]').click();
   await page.locator('[data-action="iterate"]').click();assert.equal(await page.inputValue('#creation-text'),'第一版开场旁白');await page.fill('#creation-text','第二版开场旁白');await page.click('#generate');await page.waitForFunction(()=>document.querySelectorAll('.version-row').length===2);const first=service.speech.snapshot().versions[0];await page.locator(`[data-action="version"][data-id="${first.id}"]`).click();await page.waitForFunction(()=>!!document.querySelector('#version-audio')?.src);await page.evaluate(()=>{window.player=document.querySelector('#version-audio');player.loop=true;return player.play();});await page.waitForTimeout(2400);assert.equal(await page.evaluate(()=>player===document.querySelector('#version-audio')&&!player.paused),true);
@@ -198,13 +198,13 @@ test('unified production UI: mixed project, real routes, versions, playback, dra
   await page.locator('[data-action="compose"]').click();await page.fill('#creation-text','刷新后仍然保留的草稿');await page.click('[data-action="close"]');await page.reload();await page.locator('[data-action="compose"]').click();assert.equal(await page.inputValue('#creation-text'),'刷新后仍然保留的草稿');await page.click('[data-action="close"]');
   const download=page.waitForEvent('download');await page.locator('[data-action="download"]').click();assert.match((await download).suggestedFilename(),/开场旁白-V\d.mp3/);
   await page.locator('.more-menu summary').click();const originalPromise=page.waitForEvent('download');await page.click('[data-action="download-original"]');const original=await originalPromise;assert.match(original.suggestedFilename(),/开场旁白-V\d.wav/);assert.deepEqual(await readFile(await original.path()),wav);await page.locator('.more-menu summary').click();
-  await page.click('[data-action="new-sound"]');await page.locator('[name="kind"][value="clip"]').check();await page.fill('#sound-title','钢琴片头');await page.locator('#sound-form button').click();await page.fill('#creation-text','清晨，轻快的钢琴短句');await page.click('#generate');await page.locator('#version-audio').waitFor();await page.waitForFunction(()=>!!document.querySelector('#version-audio')?.src);assert.equal(await page.locator('.sound-tab').count(),2);assert.equal((await service.call('studio_library',{})).projects.length,1);
+  await page.click('[data-action="new-sound"]');await page.locator('[name="kind"][value="clip"]').check();await page.fill('#sound-title','钢琴片头');await page.locator('#sound-form button[type=submit]').click();await page.fill('#creation-text','清晨，轻快的钢琴短句');await page.click('#generate');await page.locator('#version-audio').waitFor({state:'attached'});await page.waitForFunction(()=>!!document.querySelector('#version-audio')?.src);assert.equal(await page.locator('.sound-tab').count(),2);assert.equal((await service.call('studio_library',{})).projects.length,1);
   await page.click('[data-action="tools"]');await page.getByText('MIDI / JSON 导入与编辑工具',{exact:true}).click();await page.click('[data-action="import"]');const example=await readFile('src/music/authoring/example.json');await page.locator('#score-file').setInputFiles({name:'score.json',mimeType:'application/json',buffer:example});await page.waitForFunction(()=>document.querySelectorAll('.version-row').length===2);
   await page.locator('[data-select-version]').first().check();await page.locator('[data-select-version]').last().check();assert.equal(await page.locator('[data-action="compare"]').count(),0);await page.getByRole('button',{name:'取消选择',exact:true}).click();
-  await page.click('[data-action="render"]');await page.locator('#version-audio').waitFor();await page.waitForFunction(()=>!!document.querySelector('#version-audio')?.src);assert.equal(await page.locator('.sound-tab').count(),2);
+  await page.click('[data-action="render"]');await page.locator('#version-audio').waitFor({state:'attached'});await page.waitForFunction(()=>!!document.querySelector('#version-audio')?.src);assert.equal(await page.locator('.sound-tab').count(),2);
   await page.locator('.more-menu summary').click();const midi=page.waitForEvent('download');await page.click('[data-action="midi"]');assert.match((await midi).suggestedFilename(),/钢琴片头-V2.mid/);await page.locator('.more-menu summary').click();
-  await page.click('[data-action="new-sound"]');await page.locator('[name="kind"][value="music"]').check();await page.fill('#sound-title','片尾主题曲');await page.locator('#sound-form button').click();await page.locator('[name="instrumental"][value="false"]').check();await page.fill('#creation-text','温暖的民谣');await page.fill('#lyrics','[verse]\n走向春天');await page.click('#generate');await page.locator('#version-audio').waitFor();assert.equal(await page.locator('.sound-tab').count(),3);
-  const toolbar=await page.locator('.workspace-toolbar').evaluate(el=>{const rect=el.getBoundingClientRect();return {height:rect.height,centers:[el.querySelector('h1'),el.querySelector('.sound-nav'),el.querySelector('.project-actions')].map(x=>{const r=x.getBoundingClientRect();return r.y+r.height/2;})};});assert.ok(toolbar.height<70,'project controls occupy a compact row');assert.ok(Math.max(...toolbar.centers)-Math.min(...toolbar.centers)<2,'title, sound tabs and actions share a row');assert.equal(await page.locator('.sound-heading').count(),0,'current sound heading is not repeated');
+  await page.click('[data-action="new-sound"]');await page.locator('[name="kind"][value="music"]').check();await page.fill('#sound-title','片尾主题曲');await page.locator('#sound-form button[type=submit]').click();await page.locator('[name="instrumental"][value="false"]').check();await page.fill('#creation-text','温暖的民谣');await page.fill('#lyrics','[verse]\n走向春天');await page.click('#generate');await page.locator('#version-audio').waitFor({state:'attached'});assert.equal(await page.locator('.sound-tab').count(),3);
+  const toolbar=await page.locator('.workspace-toolbar').evaluate(el=>{const rect=el.getBoundingClientRect();return {height:rect.height,centers:[el.querySelector('h1'),el.querySelector('.sound-nav'),el.querySelector('.project-actions')].map(x=>{const r=x.getBoundingClientRect();return r.y+r.height/2;})};});assert.ok(toolbar.height<190,'project title and sound navigation fit within the approved header layout');assert.ok(toolbar.centers[0]<toolbar.centers[1],'project title sits above its sounds');assert.ok(Math.abs(toolbar.centers[1]-toolbar.centers[2])<2,'sound tabs and actions share the navigation row');assert.equal(await page.locator('.sound-heading').count(),1,'the selected sound has its own heading below the project navigation');
   await mkdir('test-results/studio',{recursive:true});await page.screenshot({path:'test-results/studio/desktop.png',fullPage:true});
   for(const width of [1440,1024,768,390]){await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`overflow ${width}`);}
   await page.screenshot({path:'test-results/studio/mobile.png',fullPage:true});await page.click('[data-action="compose"]');assert.ok(await page.evaluate(()=>document.querySelector('dialog').getBoundingClientRect().right<=innerWidth));await page.screenshot({path:'test-results/studio/mobile-compose.png',fullPage:true});
@@ -235,7 +235,7 @@ test('reference voices are cleaned in the existing backend, previewed, favourite
   await page.locator('#voice-preview audio').first().evaluate(a=>a.play());await page.locator('#voice-preview audio').last().evaluate(a=>a.play());assert.equal(await page.locator('#voice-preview audio').first().evaluate(a=>a.paused),true);
   await page.click('[data-action="favorite-voice"]');await page.locator('[data-action="favorite-voice"][aria-pressed="true"]').waitFor();assert.equal(service.speech.snapshot().voices[0].favorite,true);
   await mkdir('test-results/studio',{recursive:true});await page.waitForFunction(()=>[...document.querySelectorAll('#voice-preview audio')].every(a=>a.readyState>=1));await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));await page.screenshot({path:'test-results/studio/reference-voices-desktop.png',fullPage:true});await page.setViewportSize({width:390,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));await page.screenshot({path:'test-results/studio/reference-voices-mobile.png',fullPage:true});
-  await page.click('[data-action="close"]');await page.locator('[data-action="project"][data-id="second"]').click();await page.click('[data-action="compose"]');assert.equal(await page.inputValue('#voice'),voice.id);await page.fill('#creation-text','在另一个项目复用音色');await page.click('#generate');await page.locator('#version-audio').waitFor();assert.equal(cleaningCalls,1);
+  await page.click('[data-action="close"]');await page.locator('[data-action="project"][data-id="second"]').click();await page.click('[data-action="compose"]');assert.equal(await page.inputValue('#voice'),voice.id);await page.fill('#creation-text','在另一个项目复用音色');await page.click('#generate');await page.locator('#version-audio').waitFor({state:'attached'});assert.equal(cleaningCalls,1);
   await page.reload();await page.click('[data-action="compose"]');assert.equal(await page.inputValue('#voice'),voice.id);assert.equal(await page.locator('[data-action="favorite-voice"]').getAttribute('aria-pressed'),'true');
   fail=true;await page.locator('.reference-upload summary').click();await page.fill('#voice-name','失败后重试');await page.locator('#voice-file').setInputFiles({name:'failed.wav',mimeType:'audio/wav',buffer:wav});await page.click('[data-action="upload-voice"]');await page.locator('#voice-preview').filter({hasText:'测试清理失败'}).waitFor();assert.equal(await page.locator('#generate').isDisabled(),true);
   fail=false;await page.click('[data-action="clean-voice"]');await page.locator('#voice-preview').filter({hasText:'处理后人声'}).waitFor();assert.equal(await page.locator('#generate').isEnabled(),true);assert.deepEqual(errors,[]);
@@ -314,9 +314,9 @@ test('day/night themes and the global voice library work without a project and p
  try{
   await page.goto(http.runtime.url);await page.locator('[data-action="voice-library"]').waitFor({timeout:5000});
   assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
-  await page.getByRole('button',{name:'日间',exact:true}).click();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor),'rgb(245, 242, 234)');assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--ink-2')),'#5c574e');assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--hair')),'#e2dccf');
+  await page.getByRole('button',{name:'日间',exact:true}).click();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor),'rgb(244, 243, 239)');assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--ink-2')),'#5c574e');assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).getPropertyValue('--hair')),'#deddd7');
   await page.reload();await page.locator('[data-action="voice-library"]').waitFor();assert.equal(await page.locator('html').getAttribute('data-theme'),'light');
-  await page.getByRole('button',{name:'夜间',exact:true}).click();assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor),'rgb(27, 26, 23)');
+  await page.getByRole('button',{name:'夜间',exact:true}).click();assert.equal(await page.evaluate(()=>getComputedStyle(document.documentElement).backgroundColor),'rgb(28, 30, 28)');
   await page.click('[data-action="voice-library"]');await page.getByRole('heading',{name:'音色库',exact:true}).waitFor();
   assert.match(await page.locator('#voice-list').innerText(),/还没有音色/);
   assert.equal(await page.locator('#workspace .voice-detail').count(),0);assert.equal(await page.locator('#dialog').isVisible(),false);
@@ -354,7 +354,7 @@ test('day/night themes and the global voice library work without a project and p
   await page.click('[data-action="close"]');assert.equal(service.speech.snapshot().sounds.length,beforeSounds);
   await page.locator(`[data-action="select-voice"][data-id="${second.id}"]`).click();await page.click('[data-action="new-voice-speech"]');await page.fill('#voice-speech-title','复用音色的新旁白');await page.locator('#voice-speech-form button[type="submit"]').click();
   await page.locator('#creation-text').waitFor();assert.equal(await page.inputValue('#voice'),second.id);assert.equal(await page.inputValue('#creation-text'),'');
-  await page.fill('#creation-text','新旁白测试正文');await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor();
+  await page.fill('#creation-text','新旁白测试正文');await page.click('#generate');await page.waitForFunction(()=>!document.querySelector('dialog').open);await page.locator('#version-audio').waitFor({state:'attached'});
   await page.click('[data-action="task-list"]');await page.locator('[data-action="task-listen"]').first().click();await page.waitForFunction(()=>!!document.querySelector('#version-audio')&&!document.querySelector('#version-audio').paused);
   await page.click('[data-action="task-list"]');await page.locator('[data-action="task-reuse"]').first().click();await page.getByRole('button',{name:'保留当前草稿',exact:true}).click();assert.equal(await page.locator('#dialog').isVisible(),false);
   await page.click('[data-action="task-list"]');await page.locator('[data-action="task-reuse"]').first().click();await page.getByRole('button',{name:'载入参数',exact:true}).click();assert.equal(await page.inputValue('#creation-text'),'新旁白测试正文');assert.equal(await page.inputValue('#voice'),second.id);await page.click('[data-action="close"]');

@@ -8,7 +8,7 @@ import type {WorkbenchService} from '../service.ts';
 import type {ListeningQueue} from './listening-queue.ts';
 const esc=(s:string)=>s.replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 const time=(n?:number)=>n===undefined?'':`${Math.floor(n/60)}:${String(Math.floor(n%60)).padStart(2,'0')}`;
-type Hooks={live:()=>void;liveOpen:()=>boolean;api:WorkbenchService;workspace:HTMLElement;queue:ListeningQueue;modal:(title:string,html:string)=>void;close:()=>void;notify:(text:string)=>void;refresh:()=>Promise<void>;url:(path:string)=>Promise<string>;open:(item:Extract<LibrarySound,{origin:'generated'}>)=>Promise<void>};
+type Hooks={style:(item:LibrarySound)=>Promise<void>;live:()=>void;liveOpen:()=>boolean;api:WorkbenchService;workspace:HTMLElement;queue:ListeningQueue;modal:(title:string,html:string)=>void;close:()=>void;notify:(text:string)=>void;refresh:()=>Promise<void>;url:(path:string)=>Promise<string>;open:(item:Extract<LibrarySound,{origin:'generated'}>)=>Promise<void>};
 /** Browsing is paged; listening belongs to the persistent global queue. */
 export class SoundLibraryView{
  private loading=false;private hooks:Hooks;private selected='';private playingId='';private query='';private filter:'all'|'final'|'kept'|'imported'|'effects'='all';private sort:'newest'|'oldest'|'title'='newest';private page=1;private size:20|50=20;private tab='all';private playlistId='';private revision='';private request=0;private selection=new Set<string>();private result?:OperationResults['sound_library_page'];private searchTimer?:ReturnType<typeof setTimeout>;private attachRequests=new Map<string,{key:string;id:string}>();
@@ -30,7 +30,7 @@ export class SoundLibraryView{
       <div id="sound-library-toolbar" class="library-toolbar"></div>
      </div>
      <div id="sound-library-context" class="library-toolbar" hidden></div>
-     <section id="sound-library-preview" aria-label="声音库试听" hidden><div class="sound-library-preview-heading"><div><h2 id="sound-library-preview-title"></h2><p id="sound-library-preview-source" class="muted"></p></div><button class="quiet" id="sound-library-attach">加入项目</button><button class="quiet" id="sound-library-trim">截取音频</button><button class="quiet" id="sound-library-download">${icon('download')}下载 MP3</button><button class="quiet" id="sound-library-download-original">下载原文件</button><button class="quiet" id="sound-library-open">查看来源版本</button></div></section>
+     <section id="sound-library-preview" aria-label="声音库试听" hidden><div class="sound-library-preview-heading"><div><h2 id="sound-library-preview-title"></h2><p id="sound-library-preview-source" class="muted"></p></div><button class="primary" id="sound-library-style">修改风格</button><button class="quiet" id="sound-library-attach">加入项目</button><button class="quiet" id="sound-library-trim">截取音频</button><button class="quiet" id="sound-library-download">${icon('download')}下载 MP3</button><button class="quiet" id="sound-library-download-original">下载原文件</button><button class="quiet" id="sound-library-open">查看来源版本</button></div></section>
      <p id="sound-library-status" role="status" hidden></p><div id="sound-library-list" class="sound-library-list" aria-label="已收录声音"></div><footer id="sound-library-pagination" class="library-pagination"></footer>
     </div><div id="sound-playlists" hidden></div>
    </section>`;
@@ -42,6 +42,7 @@ export class SoundLibraryView{
    root.querySelector<HTMLButtonElement>('#import-library-sound')!.onclick=()=>this.importDialog();root.querySelector<HTMLButtonElement>('#generate-library-effect')!.onclick=()=>this.effectDialog();
    root.querySelector<HTMLButtonElement>('#sound-library-download')!.onclick=()=>void this.run(()=>this.download());root.querySelector<HTMLButtonElement>('#sound-library-download-original')!.onclick=()=>void this.run(()=>this.download(true));
    root.querySelector<HTMLButtonElement>('#sound-library-trim')!.onclick=()=>this.trimDialog();
+   root.querySelector<HTMLButtonElement>('#sound-library-style')!.onclick=()=>{const item=this.current();if(item)void this.run(()=>this.hooks.style(item));};
    root.querySelector<HTMLButtonElement>('#sound-library-attach')!.onclick=()=>void this.run(()=>this.attachDialog());
    root.querySelector<HTMLButtonElement>('#sound-library-open')!.onclick=()=>{const item=this.current();if(item?.origin==='generated')void this.run(()=>this.hooks.open(item));};
    void this.load();

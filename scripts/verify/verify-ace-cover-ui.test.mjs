@@ -40,11 +40,11 @@ test('cover panel selects, loops and submits; grouped comparison keeps time and 
   const errors=[];page.on('pageerror',e=>errors.push(e.message));
   await page.goto(http.runtime.url);
   await page.waitForFunction(()=>document.querySelector('#version-audio')?.readyState>=1);
-  await page.getByRole('button',{name:'翻唱这段',exact:true}).click();
+  await page.getByRole('button',{name:'修改风格',exact:true}).click();
   await page.locator('#cover-panel').waitFor();
   await page.waitForFunction(()=>document.querySelectorAll(".cover-wave-bars i").length===140);
 
-  assert.equal(await page.locator('[data-action=cover]').getAttribute('aria-pressed'),'true');
+  assert.equal(await page.locator('#cover-panel').isVisible(),true);
   assert.match(await page.locator('[data-action=compose]').innerText(),/再创作一版/);
   await page.waitForFunction(()=>document.querySelector('#cover-form [name=lyrics]')?.value.includes('窗沿'));
   assert.equal(await page.locator('#cover-form [name=start]').inputValue(),'15');
@@ -61,17 +61,20 @@ test('cover panel selects, loops and submits; grouped comparison keeps time and 
   await page.locator('#cover-form [name=length]').fill('20');
   await page.waitForFunction(()=>document.querySelector('[data-cover-selection]')?.textContent.includes('00:35'));
   await page.locator('[data-cover-play]').click();
-  await page.waitForFunction(()=>document.querySelector('[data-cover-row-play]')?.getAttribute('aria-label')==='暂停当前版本');
+  await page.waitForFunction(()=>!document.querySelector('#version-audio')?.paused);
   await page.locator('#version-audio').evaluate(a=>{a.currentTime=34.98;});
   await page.waitForFunction(()=>document.querySelector('#version-audio')?.currentTime<18);
-  await page.locator('[data-cover-row-play]').click();
+  await page.locator('[data-cover-play]').click();
   await page.waitForFunction(()=>document.querySelector('[data-cover-play]')?.getAttribute('aria-label')==='播放');
   await mkdir('test-results/ace-cover-ui',{recursive:true});
+  await page.evaluate(()=>scrollTo(0,0));
+  const submitBox=await page.locator('[data-cover-submit]').boundingBox();
+  assert.ok(submitBox.y+submitBox.height<=900,'generation action stays within the desktop viewport');
   await page.screenshot({path:'test-results/ace-cover-ui/selection-light.png'});
   await page.locator('[data-theme-choice=dark]').click();
   assert.equal(await page.locator('html').getAttribute('data-theme'),'dark');
   await page.screenshot({path:'test-results/ace-cover-ui/selection-dark.png'});
-  await page.getByRole('button',{name:'生成翻唱新版本'}).click();
+  await page.getByRole('button',{name:'生成新版本'}).click();
   await page.locator('[data-cover-switch=cover]').waitFor();
   await page.waitForFunction(()=>document.querySelector('#version-audio')?.readyState>=1);
   assert.equal(received.startSeconds,15);assert.equal(received.endSeconds,35);
@@ -88,9 +91,11 @@ test('cover panel selects, loops and submits; grouped comparison keeps time and 
   assert.match(await page.locator('.version-row').filter({hasText:'电子舞曲'}).innerText(),/成品/);
   await page.locator('[data-action=final]').click();
   await page.waitForFunction(()=>document.querySelector('.version-row.selected .tag.final')?.textContent==='成品');
-  await page.screenshot({path:'test-results/ace-cover-ui/compare-dark.png'});
+  assert.equal(await page.locator('[data-cover-switch=original]').getAttribute('aria-pressed'),'true');
+  await page.evaluate(()=>scrollTo(0,0));
+  await page.screenshot({path:'test-results/ace-cover-ui/compare-dark.png',animations:'disabled'});
   await page.locator('[data-theme-choice=light]').click();
-  await page.screenshot({path:'test-results/ace-cover-ui/compare-light.png'});
+  await page.screenshot({path:'test-results/ace-cover-ui/compare-light.png',animations:'disabled'});
   await page.setViewportSize({width:390,height:844});
   await page.locator('[data-action=cover]').click();
   await page.locator('#cover-panel').waitFor();
@@ -98,6 +103,16 @@ test('cover panel selects, loops and submits; grouped comparison keeps time and 
   assert.match(await page.locator('#cover-form [name=lyrics]').inputValue(),/阳光爬上窗沿/);
   assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
   await page.getByRole('button',{name:'关闭翻唱面板'}).click();
+  await page.setViewportSize({width:1440,height:900});
+  const imported=await service.soundLibrary.import({name:'external.wav',title:'外部改编',requestId:'external-style',bytes:original});
+  await page.locator('[data-action=sound-library]').click();
+  await page.locator(`[data-library-sound="${imported.id}"]`).click();
+  await page.locator('#sound-library-style').click();
+  await page.locator('#cover-panel').waitFor();
+  const attached=(await service.call('studio_library',{})).sounds.find(s=>s.title==='外部改编');
+  assert.equal(attached.kind,'clip');
+  await page.locator('[data-cover-submit]:enabled').waitFor();
+  assert.equal(await page.locator('#cover-form [name=length]').inputValue(),'30');
   assert.deepEqual(errors,[]);
  }finally{
   await browser?.close();await http?.close();await service.close();await rm(root,{recursive:true,force:true});
