@@ -53,3 +53,7 @@
 ## 部署
 
 目标为 `/Users/liu_y/Applications/MusicRoom/music-room`，复用 `/Users/liu_y/Music/MusicRoom` 与 `http://127.0.0.1:57923/`。安装前再次确认无活动及排队任务，备份旧程序与安装资料；安装后核对二进制哈希、页面资源、作品标识与浏览器加载。实际结果、提交号和备份位置保存于上述证据目录的 `installed.json`，安装收据同步到应用目录。
+
+最终代码提交 `10de181` 已推送到 `origin/redesign/quiet-letter`，于 2026-11-26 15:24（北京时间）完成日常安装。最终二进制哈希与受验包一致，8 个前端资源逐字节一致；原有 153 个声音、322 个版本的标识集合全部保留。真实服务 Chrome 1280 × 900 和 390 × 844 页面检查通过，无页面异常与横向溢出，截图已检查；见 `deploy-final.log`、`browser-smoke-final.log`、`installed-1280.png`、`installed-390.png`。
+
+最终更新前备份：`/Users/liu_y/Applications/MusicRoom/backups/20261126-152430-10de181`。最初日常版本备份仍保留在 `20261126-151951-63a3ff6`；两者均位于同一 backups 目录。本记录的后续提交只补充验收结果，不改变已经验证和安装的产品代码。
