@@ -72,6 +72,12 @@ test('resume carries only verified matching artifacts through the normal queue a
  const plan=join(f.directory,'data/songs','a'.repeat(32),'plan');await mkdir(plan,{recursive:true});const manifest:Record<string,string>={};
  for(const name of ['plan.json','abc_tokens.npy','prefix.npy','score.abc']){const value=name==='plan.json'?'{"truncated":false}':'fixture';await writeFile(join(plan,name),value);manifest[name]=createHash('sha256').update(value).digest('hex');}await writeFile(join(plan,'plan_manifest.json'),JSON.stringify(manifest));
  assert.equal((await f.client.job(first.job.id)).job.recovery?.stage,'plan');
+ const durationReport=join(plan,'../duration.json');
+ await writeFile(durationReport,JSON.stringify({targetSeconds:null,tolerance:0.15,accepted:true,withinTarget:true}));
+ assert.equal((await f.client.job(first.job.id)).job.recovery,undefined);
+ assert.equal((await f.client.list()).jobs[0].recovery,undefined);
+ await assert.rejects(f.client.generate(input,first.job.id),/恢复点不可用/);assert.equal(f.counts().submits,1);
+ await writeFile(durationReport,JSON.stringify({targetSeconds:null,tolerance:0.30,accepted:true,withinTarget:true}));
  await assert.rejects(f.client.generate({...input,seed:43},first.job.id),/恢复点不可用/);assert.equal(f.counts().submits,1);
  const block=new AbortController();f.resources.register('block',{resident:()=>undefined,unload:async()=>{}});const held=f.resources.run({id:'hold-recovery',engine:'block',demand:{verified:true,peak:{memory:1}},signal:block.signal,execute:async ctx=>new Promise<void>(r=>ctx.signal.addEventListener('abort',()=>r(),{once:true}))}).catch(()=>{});
  const resumed=await f.client.generate(input,first.job.id);assert.equal(resumed.job.status,'queued');await assert.rejects(f.client.purgeAudio(first.job.id),/恢复生成仍在使用/);

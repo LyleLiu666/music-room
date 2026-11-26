@@ -34,20 +34,29 @@ def checked_array(path,latent=False):
  return np.load(path,allow_pickle=False)
 
 class Checkpoints:
- def __init__(self,out,source=None):
+ def __init__(self,out,source=None,duration_policy=None):
   self.root=Path(out)/'checkpoints';self.root.mkdir(parents=True,exist_ok=True)
   if self.root.is_symlink():raise ValueError('恢复点不能包含符号链接')
   self.source=Path(source) if source else None;self.saved=None;self.files={};self.key=None
+  self.duration_policy=duration_policy
   if self.source:
    if self.source.is_symlink():raise ValueError('恢复点不能包含符号链接')
+   legacy_policy_version=None
    if (self.source/'duration.json').exists():
     duration_info=json.loads(checked_file(self.source,'duration.json').read_text())
+    if not isinstance(duration_info,dict):raise ValueError('恢复点时长记录无效')
     if duration_info.get('audioWithinTarget') is False or duration_info.get('accepted') is False or duration_info.get('withinTarget') is False:
      raise ValueError('上次生成未通过时长检查，不能沿用旧恢复点，请重新生成')
+    if duration_policy and 'tolerance' in duration_info and duration_info['tolerance']!=duration_policy['tolerance']:
+     raise ValueError('恢复点使用的时长策略已过期，请从头重新生成')
+    # The preceding release used policy 7 without recording it in state.json.
+    if duration_info.get('tolerance')==.30:legacy_policy_version=7
    root=self.source/'checkpoints'
    if (root/'state.json').exists():
     state=json.loads(checked_file(root,'state.json').read_text())
     if state.get('version')!=1 or state.get('stage') not in STAGES or not isinstance(state.get('files'),dict):raise ValueError('恢复点清单无效')
+    if duration_policy and state.get('durationPolicyVersion',legacy_policy_version)!=duration_policy['version']:
+     raise ValueError('恢复点使用的时长策略已过期或无法确认，请从头重新生成')
     names=set(state['files']);required=PLAN|({'semantic/result.json'} if state['stage']!='plan' else set())|({'synthesis/latents.npy'} if state['stage']=='synthesis' else set())
     if not required<=names or names-ALLOWED:raise ValueError('恢复点清单不完整')
     for name,expected in state['files'].items():
@@ -70,6 +79,7 @@ class Checkpoints:
   files={stage+'/'+p.name:digest(p) for p in temporary.iterdir() if p.is_file()}
   os.replace(temporary,self.root/stage);self.files.update(files)
   state={'version':1,'stage':stage,'fingerprint':self.key,'files':self.files}
+  if self.duration_policy:state['durationPolicyVersion']=self.duration_policy['version']
   pending=self.root/'state.json.partial';pending.write_text(json.dumps(state,ensure_ascii=False,allow_nan=False));os.replace(pending,self.root/'state.json')
  def plan(self,pipe,native,abc_sampling,semantic_sampling,extra,generate):
   config={k:v for k,v in pipe.effective_config(native,abc_sampling,semantic_sampling).items() if k!='memory_budget_gib'}
@@ -99,7 +109,8 @@ class Checkpoints:
 
 @contextmanager
 def checkpointed(pipe,out,source,planner,extra,semantic_sampling=None):
- cache=Checkpoints(out,source);original_semantic=pipe.generate_semantic;original_synthesis=pipe.synthesize
+ duration_policy=(extra.get('config') or {}).get('music_room_duration')
+ cache=Checkpoints(out,source,duration_policy);original_semantic=pipe.generate_semantic;original_synthesis=pipe.synthesize
  def plan(p,native,sampling,cancelled,observer):
   p.check_execution()
   if cancelled and cancelled():raise InterruptedError('Cancelled before recovery')

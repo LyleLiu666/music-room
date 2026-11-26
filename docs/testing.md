@@ -37,6 +37,7 @@ TTS 候选横向比较见[本机 TTS 模型选型](tts-model-selection.md)，模
 | [执行指南](testing/running.md) | 命令怎么运行，怎样准备隔离环境、保存证据和清理 |
 | [固定语料与听评](testing/quality.md) | 输入、种子、模型效果评分和歌词真值如何验收 |
 | [维护规则](testing/maintenance.md) | 新增 / 修改 / 删除用例，处理失败与维护基线时遵循什么规则 |
+| [2026-11-26 YuE2 时长容差与过期恢复点修复](testing/verification-duration-recovery-2026-11-26.md) | `±30%` 容差、偏差音频保留、自动时长恢复点兼容、侧栏缩放和日常服务验收 |
 | [2026-11-26 集成发布](testing/verification-integrated-release-2026-11-26.md) | 内存、创作界面与时长处理的统一复核、安装包验证及日常部署 |
 | [2026-11-26 内存启动规则](testing/verification-memory-admission-2026-11-26.md) | 警告压力下按预算启动、危险压力与运行保护、界面状态一致性 |
 | [2026-11-25 即兴会话超时与租约重试](testing/verification-live-recovery-2026-11-25.md) | 悬挂响应、请求去重、租约释放重试及独立包验证 |

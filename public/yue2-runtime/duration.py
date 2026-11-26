@@ -12,6 +12,7 @@ from abc_tools import accompaniment_only_abc, parse_abc
 
 TARGETS=(60,120,180,240,300)
 TOLERANCE=.30
+DURATION_POLICY_VERSION=7
 MAX_ATTEMPTS=3
 # Already reserved by the input inspector for generated-score prefixes.
 FEEDBACK_TOKENS=512
@@ -155,7 +156,7 @@ def install():
    pipe.set_loras(loras)
    def planner(pipe,native,sampling,cancelled,observer):
     return plan_for_duration(pipe,native,sampling,cancelled,observer,target,out_dir,omit_vocal_rests=omit_vocal_rests)
-   duration_config={'targetSeconds':target,'tolerance':TOLERANCE,'maxAttempts':MAX_ATTEMPTS,'retrySampling':RETRY_SAMPLING,'feedbackTokens':FEEDBACK_TOKENS,'version':7}
+   duration_config={'targetSeconds':target,'tolerance':TOLERANCE,'maxAttempts':MAX_ATTEMPTS,'retrySampling':RETRY_SAMPLING,'feedbackTokens':FEEDBACK_TOKENS,'version':DURATION_POLICY_VERSION}
    if omit_vocal_rests:duration_config['vocalRestsOmitted']=True
    summary=self._run_create(pipe,fields,generation,abc_sampling,semantic_sampling,out_dir,options=options,cancelled=cancelled,planner=planner,config_extra={'music_room_duration':duration_config})
    return validate_audio_duration(summary,target,out_dir)

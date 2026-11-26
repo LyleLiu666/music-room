@@ -19,9 +19,10 @@ class Pipe:
  def generate_semantic(self,plan,**kw):self.calls.append('semantic');return SemanticResult(plan,[1,2,3],{},False)
  def synthesize(self,semantic,**kw):self.calls.append('synthesis');return np.full((len(semantic.tokens),64),.25,dtype=np.float32)
 
-def run(pipe,out,source=None,request=None,stop=None):
+def run(pipe,out,source=None,request=None,stop=None,policy=None):
  native=request or SongRequest('piano','[instrumental]',seed=42,id=out.name)
- with checkpointed(pipe,out,source,None,{}) as planner:
+ extra={'config':{'music_room_duration':policy}} if policy else {}
+ with checkpointed(pipe,out,source,None,extra) as planner:
   plan=planner(pipe,native,None,None,None)
   if stop=='plan':raise InterruptedError('plan')
   semantic=pipe.generate_semantic(plan)
@@ -97,5 +98,29 @@ class RecoveryTests(unittest.TestCase):
   p=Pipe()
   with self.assertRaisesRegex(ValueError,'时长检查'):run(p,self.b,self.a)
   self.assertEqual(p.calls,[])
+ def test_obsolete_automatic_duration_policy_is_rejected_before_fingerprint_check(self):
+  old={'targetSeconds':None,'tolerance':0.15,'version':6}
+  current={'targetSeconds':None,'tolerance':0.30,'version':7}
+  with self.assertRaises(InterruptedError):run(Pipe(),self.a,stop='decode',policy=old)
+  state=self.a/'checkpoints/state.json'
+  marker=json.loads(state.read_text());marker.pop('durationPolicyVersion',None);state.write_text(json.dumps(marker))
+  (self.a/'duration.json').write_text(json.dumps({'targetSeconds':None,'tolerance':0.15,'accepted':True,'withinTarget':True}))
+  p=Pipe()
+  with self.assertRaisesRegex(ValueError,'时长策略'):run(p,self.b,self.a,policy=current)
+  self.assertEqual(p.calls,[])
+ def test_current_policy_survives_repeated_recovery_without_a_duration_report(self):
+  policy={'targetSeconds':None,'tolerance':0.30,'version':7}
+  with self.assertRaises(InterruptedError):run(Pipe(),self.a,stop='decode',policy=policy)
+  state=self.a/'checkpoints/state.json'
+  marker=json.loads(state.read_text());marker.pop('durationPolicyVersion',None);state.write_text(json.dumps(marker))
+  with self.assertRaisesRegex(ValueError,'时长策略'):run(Pipe(),self.b,self.a,policy=policy)
+  (self.a/'duration.json').write_text(json.dumps({'tolerance':0.30,'accepted':True,'withinTarget':True}))
+  p=Pipe()
+  with self.assertRaises(InterruptedError):run(p,self.b,self.a,stop='decode',policy=policy)
+  self.assertEqual(p.calls,[])
+  self.assertEqual(json.loads((self.b/'checkpoints/state.json').read_text())['durationPolicyVersion'],7)
+  self.assertFalse((self.b/'duration.json').exists())
+  q=Pipe();run(q,self.root/'c',self.b,policy=policy)
+  self.assertEqual(q.calls,[])
 
 if __name__=='__main__':unittest.main()

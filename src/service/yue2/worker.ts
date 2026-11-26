@@ -37,7 +37,7 @@ for repo,revision,target,files in [(config.MODEL_REPO,'5f7620e546fb3c6130a09a7e1
 script=Path(os.environ['YUE2_STUDIO_HOME'])/'source'/'scripts'/'setup.py'
 sys.argv=[str(script),'--skip-download']
 runpy.run_path(str(script),run_name='__main__')`;
-export const musicRuntimeHashes={"recovery.py":"59dd1dfd5e42c473c4861637d25e6dd208a6d3f11a8efa3fa1a39ccf7c876eea","duration.py": "2d665e71a6a6df16e8de48cdd8d0a9826b6e64ee7958f9836b8606bde7ff5ccc", "abc_tools.py": "da97fc0e2b4e1e0d6dbd861a1363b7d452da16f2fbc46f477cff0164133e2ed3", "instrumentalize.py": "a769111656f418cf4298841dc4a7f6be1a50bfae1e66b1bccfaca3eacf948681", "compile_score.py": "c4eec7f68e3f09b93b45d568a8af640b3f10bb47d31ef6d3b6ce4ae23ac1dea3", "common.py": "2929619bd37a176c87c37fdcde9864613d4d5172ca2d89d724aa450a4d7053be"};
+export const musicRuntimeHashes={"recovery.py":"e386cedd81cc6a7e470b67f6d45fc5f6494aa7d65a71aaedfdbb77ea0fc2d454","duration.py": "a33674432b0469c6411ec9a345ce6a2f6f5d17203fd2f85a8c2fbb6723f16042", "abc_tools.py": "da97fc0e2b4e1e0d6dbd861a1363b7d452da16f2fbc46f477cff0164133e2ed3", "instrumentalize.py": "a769111656f418cf4298841dc4a7f6be1a50bfae1e66b1bccfaca3eacf948681", "compile_score.py": "c4eec7f68e3f09b93b45d568a8af640b3f10bb47d31ef6d3b6ce4ae23ac1dea3", "common.py": "2929619bd37a176c87c37fdcde9864613d4d5172ca2d89d724aa450a4d7053be"};
 const serve=`MUSIC_ROOM_RUNTIME_HASHES=${JSON.stringify(musicRuntimeHashes)}
 import os
 import sys,hashlib

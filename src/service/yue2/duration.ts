@@ -1,6 +1,8 @@
 /** Explicit creation option; omission preserves the model's original free-length behavior. */
 export const musicDurations=[60,120,180,240,300] as const;
 export const musicDurationTolerance=.30;
+// Keep in sync with the duration policy in the packaged YuE2 runtime.
+export const musicDurationPolicyVersion=7;
 export function durationWithinTarget(seconds:number,target:number){return Number.isFinite(seconds)&&seconds>=target*(1-musicDurationTolerance)&&seconds<=target*(1+musicDurationTolerance);}
 export function durationGuidance(target:number|undefined,instrumental:boolean){
  if(target===undefined)return '';
