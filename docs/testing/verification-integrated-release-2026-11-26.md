@@ -24,7 +24,7 @@
 
 ## 验证证据
 
-本次未修改产品源码，沿用同日已执行的[内存修复回归](verification-memory-admission-2026-11-26.md)和[界面回归](verification-ui-integration-2026-11-26.md)。前者包括全量服务 457 项、工作台 Chrome 85 项；历史原因补丁后另跑单元 124 项、资源浏览器 2 项和重试专项 3 项。各轮结果按原执行范围报告，不累加重复用例。
+集成版本沿用同日已执行的[内存修复回归](verification-memory-admission-2026-11-26.md)和[界面回归](verification-ui-integration-2026-11-26.md)。前者包括全量服务 457 项、工作台 Chrome 85 项；历史原因补丁后另跑单元 124 项、资源浏览器 2 项和重试专项 3 项。安装后另发现并修复首次加载的侧栏交互问题，复验范围见下方。各轮结果按原执行范围报告，不累加重复用例。
 
 新增发布验证均在 `test-results/memory-release-2026-11-26/`：
 
@@ -35,7 +35,18 @@
 | 同一安装包隔离验证 | 24 项通过，错误列表为空；含真实内嵌样本渲染、浏览器音频播放与重启持久化 | `verify-binary.log`、`binary-verification.json` |
 | 源码与构建关联 | 文件 SHA-256 快照保留 | `source-hashes.json` |
 
-候选安装包 SHA-256：`baa41f5b985dd6628b660fb7bfd11bb6a8fc40fa1de985387616ce5475b171ff`。
+首轮安装包 SHA-256：`baa41f5b985dd6628b660fb7bfd11bb6a8fc40fa1de985387616ce5475b171ff`，对应代码提交 `63a3ff6`。
+
+### 安装核验中发现的问题
+
+- 首次部署脚本错误地要求无活动任务时仍存在 `active` 字段，在停止服务前报错。按接口的可选字段语义修复，原日志保留为 `deploy-first-precheck.log`。
+- 首次安装核验把 dist 中未公开的内部文件当成网页资源请求，收到 404 后按预案自动恢复旧程序。改为逐字节校验全部 8 个公开前端资源和入口引用，保留 `deploy-first-install.log`，未修改产品资源保护。
+- 浏览器脚本起初使用不存在的 Playwright 默认浏览器，改用项目统一的已安装 Chrome；环境失败保留为 `browser-first-environment.log`。
+- 实际页面在作品库首次响应前点击侧栏会读取未初始化的数据。保留实际页面失败日志，新增受控延迟响应的失败用例 `startup-red.log`，修复为首份作品库加载完成前侧栏不可交互。侧栏搜索、新建和导航统一遵守这一边界，不为各按钮散加判断。
+
+启动修复后：恢复专项 **7 / 7** 通过（`startup-green.log`），单元和测试入口 **124 / 124** 通过（`unit-final.log`），重新构建通过（`build-binary-final.log`），最终独立包 **24 项检查通过**（`verify-binary-final.log`、`binary-verification-final.json`），Chrome 资源专项 **2 / 2** 通过（`resources-final.log`）。实际安装结果保存于 `installed.json`；源码哈希保存在 `candidate-final.json`。
+
+最终安装包 SHA-256：`713706c52b6d4a6debfe254cc4cce9d6ceb816fa49d18dda838ccab0e420deef`。
 
 本次未运行 YuE2、ACE 或 Magenta 的真实模型生成，也未做人工听评或长时间压力测试；自动化通过不代表这些效果验收通过。
 

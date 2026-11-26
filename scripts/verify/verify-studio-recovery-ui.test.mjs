@@ -3,23 +3,40 @@ import assert from 'node:assert/strict';
 import {createServer} from 'vite';
 import {chromium} from 'playwright';
 
-async function fixture(t){
+async function fixture(t,beforeReady){
  const server=await createServer({server:{port:0,host:'127.0.0.1'},plugins:[{name:'bootstrap',transformIndexHtml:html=>html.replace('</head>','<script id="music-room-service" type="application/json">{"token":"test","workspace":"recovery-test"}</script></head>')}]});await server.listen();
  const browser=await chromium.launch({channel:'chrome',headless:true}),page=await browser.newPage();
  t.after(async()=>{await browser.close();await server.close();});
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  const state={hang:false,fail:false,done:false,reads:0};
+ let releaseInitial;const initialRead=beforeReady?new Promise(resolve=>{releaseInitial=resolve;}):Promise.resolve();
  await page.route('**/api/**',async route=>{
   if(route.request().url().endsWith('/resource_status'))return route.fulfill({json:{queued:[],paused:false}});
+  await initialRead;
   state.reads++;
   if(state.hang)return;
   if(state.fail)return route.abort();
   return route.fulfill({json:{projects:[{id:'p',title:'项目'}],sounds:[{id:'s',projectId:'p',title:'音乐',kind:'music'}],versions:[{id:'v',soundId:'s',number:1,state:state.done?'succeeded':'running',stage:state.done?'生成完成':'正在生成',source:{kind:'music',id:'job'},kept:false,deleted:false}],voices:[],engines:{speech:{logs:[]},music:{logs:[]}}}});
  });
  await page.goto(server.resolvedUrls.local[0]);
+ if(beforeReady){try{await beforeReady({page,state,errors});}finally{releaseInitial();}}
  await page.locator('.listening .tag').filter({hasText:'生成中'}).waitFor();
  return {page,state,errors};
 }
+
+test('sidebar waits for the first library response before accepting navigation',async t=>{
+ const {page,errors}=await fixture(t,async({page,errors})=>{
+  const button=page.locator('[data-action="task-list"]');await button.waitFor();
+  const bounds=await button.boundingBox();
+  await page.mouse.click(bounds.x+bounds.width/2,bounds.y+bounds.height/2);
+  await page.evaluate(()=>new Promise(requestAnimationFrame));
+  assert.deepEqual(errors,[],'early navigation must not read missing library data');
+  assert.equal(await page.locator('#workspace .loading').isVisible(),true);
+ });
+ await page.click('[data-action="task-list"]');
+ await page.locator('#task-resources').waitFor();
+ assert.deepEqual(errors,[]);
+});
 
 test('a hung status read times out visibly and polling recovers without reload',async t=>{
  const {page,state,errors}=await fixture(t);
